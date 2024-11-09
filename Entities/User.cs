@@ -14,5 +14,6 @@ namespace FinalProjectApi.Entities
         public string? LastName { get; set; }
         public DateTime CreatedDate { get; set; }
         public DateTime UpdatedDate { get; set; }
+        public bool IsApproved { get; set; }
     }   
 }

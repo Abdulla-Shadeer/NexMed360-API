@@ -39,9 +39,9 @@ namespace FinalProjectApi.Controllers
 
             if (createdUser != null)
             {
-                return Ok(createdUser);
+                return Created();
             }
-            return UnprocessableEntity(userDto);
+            return BadRequest("User can't be created!");
         }
     }
 }
