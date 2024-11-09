@@ -1,17 +1,63 @@
+using System.Text;
+using FinalProjectApi.Data;
+using FinalProjectApi.Entities;
+using FinalProjectApi.Extensions;
+using FinalProjectApi.Interfaces.Services;
+using FinalProjectApi.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 
 namespace FinalProjectApi
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
-            builder.Services.AddAuthentication().AddJwtBearer();
+            IConfiguration _config = builder.Configuration;
+
+            // Add DB context
+            builder.Services.AddApplicationDbContext(_config);
+
+            // Configure identity system
+            var identityBuilder = builder.Services.AddIdentityCore<User>().AddRoles<IdentityRole>();
+            identityBuilder = new IdentityBuilder(identityBuilder.UserType, typeof(IdentityRole), builder.Services);
+            identityBuilder.AddEntityFrameworkStores<ApplicationDbContext>().AddDefaultTokenProviders();
+
+            // Configure JWT
+            builder
+                .Services.AddAuthentication(options =>
+                {
+                    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+                })
+                .AddJwtBearer(options =>
+                {
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuer = true,
+                        ValidateAudience = true,
+                        ValidateLifetime = true,
+                        ValidateIssuerSigningKey = true,
+                        ValidIssuer = _config["Auth:Jwt:Issuer"],
+                        ValidAudience = _config["Auth:Jwt:Audience"],
+                        IssuerSigningKey = new SymmetricSecurityKey(
+                            Encoding.UTF8.GetBytes(_config["Auth:Jwt:Signing-Key"]!)
+                        ),
+                    };
+                });
+
             builder.Services.AddAuthorization();
 
             // Add services to the container.
+            builder.Services.AddScoped<IDbInitializerService, DbInitializerService>();
+            builder.Services.AddScoped<IUserService, UserService>();
+            builder.Services.AddScoped<IAuthService, AuthService>();
+
+            // Migrate and seed database
+            await MigrateAndSeedDatabaseAsync(builder.Services.BuildServiceProvider());
 
             builder.Services.AddControllers();
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -28,15 +74,29 @@ namespace FinalProjectApi
             }
 
             app.UseHttpsRedirection();
-
-
             app.UseAuthentication();
             app.UseAuthorization();
-
 
             app.MapControllers();
 
             app.Run();
+
+            async Task MigrateAndSeedDatabaseAsync(IServiceProvider serviceProvider)
+            {
+                using var scope = serviceProvider.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var dbInitializerService =
+                    scope.ServiceProvider.GetRequiredService<IDbInitializerService>();
+                var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+                if (dbContext.Database.IsNpgsql())
+                {
+                    await dbContext.Database.MigrateAsync();
+                }
+
+                logger.LogInformation("Seeding data...");
+                await dbInitializerService.SeedData();
+            }
         }
     }
 }
