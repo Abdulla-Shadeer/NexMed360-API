@@ -55,6 +55,7 @@ namespace FinalProjectApi
             builder.Services.AddScoped<IDbInitializerService, DbInitializerService>();
             builder.Services.AddScoped<IUserService, UserService>();
             builder.Services.AddScoped<IAuthService, AuthService>();
+            builder.Services.AddScoped<IHospitalService, HospitalService>();
 
             // Migrate and seed database
             await MigrateAndSeedDatabaseAsync(builder.Services.BuildServiceProvider());

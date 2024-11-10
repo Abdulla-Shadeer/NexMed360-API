@@ -19,7 +19,7 @@ namespace FinalProjectApi.Services
             _logger = logger;
         }
 
-        public async Task<RegisterUserDto> RegisterUser(RegisterUserDto user)
+        public async Task<string> RegisterUser(RegisterUserDto user)
         {
             User newUser = new User();
             newUser.FirstName = user.FirstName;
@@ -41,8 +41,8 @@ namespace FinalProjectApi.Services
             var role = await _roleManager.FindByNameAsync(user.Role);
             if (role != null)
             {
-                await _userManager.AddToRoleAsync(newUser, role.Name);
-                return user;
+                await _userManager.AddToRoleAsync(newUser, role.Name!);
+                return (await _userManager.FindByEmailAsync(user.Email))!.Id;
             }
             else {
                 _logger.LogError("No roles found!");

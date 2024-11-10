@@ -35,11 +35,11 @@ namespace FinalProjectApi.Controllers
         [AllowAnonymous]
         public async Task<ActionResult<RegisterUserDto>> Register(RegisterUserDto userDto)
         {
-            var createdUser = await _userService.RegisterUser(userDto);
+            var userId = await _userService.RegisterUser(userDto);
 
-            if (createdUser != null)
+            if (userId != null)
             {
-                return Created();
+                return Ok(new { userId });
             }
             return BadRequest("User can't be created!");
         }

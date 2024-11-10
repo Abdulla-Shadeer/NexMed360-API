@@ -4,6 +4,6 @@ namespace FinalProjectApi.Interfaces.Services
 {
     public interface IUserService
     {
-        public Task<RegisterUserDto> RegisterUser(RegisterUserDto user);
+        public Task<string> RegisterUser(RegisterUserDto user);
     }
 }

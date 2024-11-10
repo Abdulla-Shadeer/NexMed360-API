@@ -14,6 +14,10 @@ namespace FinalProjectApi.Entities
         public string? LastName { get; set; }
         public DateTime CreatedDate { get; set; }
         public DateTime UpdatedDate { get; set; }
-        public bool IsApproved { get; set; }
+
+        public HospitalAdmin HospitalAdmin { get; set; }
+        public Receptionist Receptionist { get; set; }
+        public Doctor Doctor { get; set; }
+        public Patient Patient { get; set; }
     }   
 }

@@ -45,7 +45,6 @@ namespace FinalProjectApi.Services
             superUser.UpdatedDate = DateTime.Now;
             superUser.PhoneNumber = "0123456789";
             superUser.UserName = "superuser@gmail.com";
-            superUser.IsApproved = true;
 
             var superUserPassword = _configuration["Auth:SuperUserPassword"]!;
 
