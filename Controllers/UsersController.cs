@@ -21,7 +21,7 @@ namespace FinalProjectApi.Controllers
         [HttpPost]
         [Route("Login")]
         [AllowAnonymous]
-        public async Task<ActionResult<String>> Login(LoginUserDto userDto)
+        public async Task<ActionResult<string>> Login(LoginUserDto userDto)
         {
             if (await _authService.ValidateUser(userDto))
             {
