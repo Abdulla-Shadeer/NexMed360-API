@@ -7,6 +7,7 @@ using FinalProjectApi.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Configuration;
 using Microsoft.IdentityModel.Tokens;
 
 namespace FinalProjectApi
@@ -17,6 +18,11 @@ namespace FinalProjectApi
         {
             var builder = WebApplication.CreateBuilder(args);
             IConfiguration _config = builder.Configuration;
+
+            // Configure microsoft extension logging
+            builder.Logging.AddConfiguration();
+            builder.Logging.SetMinimumLevel(LogLevel.Debug);
+            builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.Warning);
 
             // Add DB context
             builder.Services.AddApplicationDbContext(_config);
@@ -57,6 +63,7 @@ namespace FinalProjectApi
             builder.Services.AddScoped<IAuthService, AuthService>();
             builder.Services.AddScoped<IHospitalService, HospitalService>();
             builder.Services.AddScoped<IPatientService, PatientService>();
+            builder.Services.AddScoped<IAppointmentService, AppointmentService>();
 
             // Migrate and seed database
             await MigrateAndSeedDatabaseAsync(builder.Services.BuildServiceProvider());

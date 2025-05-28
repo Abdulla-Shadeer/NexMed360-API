@@ -21,6 +21,7 @@ namespace FinalProjectApi.Data
             builder.Entity<VisitHistory>().Property(vh => vh.Id).ValueGeneratedOnAdd();
             builder.Entity<ClinicRecord>().Property(cr => cr.Id).ValueGeneratedOnAdd();
             builder.Entity<Prescription>().Property(p => p.Id).ValueGeneratedOnAdd();
+            builder.Entity<Appointment>().Property(a => a.Id).ValueGeneratedOnAdd();
 
             builder
                 .Entity<VisitHistory>()
@@ -65,5 +66,6 @@ namespace FinalProjectApi.Data
         public DbSet<VisitHistory> VisitHistorys { get; set; }
         public DbSet<ClinicRecord> ClinicRecords { get; set; }
         public DbSet<Prescription> Prescriptions { get; set; }
+        public DbSet<Appointment> Appointments { get; set; }
     }
 }
