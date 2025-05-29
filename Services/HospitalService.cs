@@ -60,7 +60,7 @@ namespace FinalProjectApi.Services
             {
                 var receptionist = new Receptionist();
                 receptionist.HospitalId = Guid.Parse(dto.HospitalId);
-                receptionist.userId = userId;
+                receptionist.UserId = userId;
                 receptionist.Department = dto.Department;
                 receptionist.Location = dto.Location;
 
