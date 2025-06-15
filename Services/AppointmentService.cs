@@ -1,19 +1,24 @@
-﻿using FinalProjectApi.Common;
+﻿using AutoMapper;
+using FinalProjectApi.Common;
 using FinalProjectApi.Common.Exceptions;
 using FinalProjectApi.Data;
 using FinalProjectApi.Dtos.Appointment;
 using FinalProjectApi.Entities;
 using FinalProjectApi.Interfaces.Services;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 
 namespace FinalProjectApi.Services;
 
 public class AppointmentService : IAppointmentService
 {
     private readonly ApplicationDbContext _context;
+    private readonly IMapper _mapper;
 
-    public AppointmentService(ApplicationDbContext context)
+    public AppointmentService(ApplicationDbContext context, IMapper mapper)
     {
         _context = context;
+        _mapper = mapper;
     }
 
     public async Task<string> CreateAppointment(CreateAppointment createAppointment)
@@ -47,5 +52,53 @@ public class AppointmentService : IAppointmentService
         var appointmentRef = (await _context.Appointments.AddAsync(appointment)).Entity.Id;
         await _context.SaveChangesAsync();
         return appointmentRef.ToString();
+    }
+
+    public async Task<List<ViewAppointment>> ViewAppointments(ViewAppointmentsFilter filter)
+    {
+        if (filter == null || (filter.PatientId.IsNullOrEmpty() && filter.DoctorId.IsNullOrEmpty())) { 
+            throw new BadRequestException("At least one person ID (PatientId/DoctorId) must be present.");
+        }
+
+        if (filter.FromDate.HasValue && filter.ToDate.HasValue && filter.FromDate > filter.ToDate) {
+            throw new BadRequestException("FromDate can't be after ToDate.");
+        }
+
+        var query = PrepareQueryWithFilters(filter);
+        
+        return (await query.ToListAsync())
+            .Select(appointment => _mapper.Map<ViewAppointment>(appointment))
+            .ToList();
+    }
+
+    private IQueryable<Appointment> PrepareQueryWithFilters(ViewAppointmentsFilter filter) {
+        var query = _context.Appointments.AsQueryable();
+
+        if (filter.FromDate.HasValue)
+        {
+            query = query.Where(a => a.AppointmentDateTime >= filter.FromDate.Value);
+        }
+
+        if (filter.ToDate.HasValue)
+        {
+            query = query.Where(a => a.AppointmentDateTime <= filter.ToDate.Value);
+        }
+
+        if (Guid.TryParse(filter.PatientId, out var patientId))
+        {
+            query = query.Where(a => a.PatientId.Equals(patientId));
+        }
+
+        if (Guid.TryParse(filter.DoctorId, out var doctorId))
+        {
+            query = query.Where(a => a.DoctorId.Equals(doctorId));
+        }
+
+        if (filter.Status is not null)
+        {
+            query = query.Where(a => a.Status.Equals(filter.Status));
+        }
+
+        return query;
     }
 }

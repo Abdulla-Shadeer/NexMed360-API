@@ -1,4 +1,5 @@
 using System.Text;
+using FinalProjectApi.Common;
 using FinalProjectApi.Data;
 using FinalProjectApi.Entities;
 using FinalProjectApi.Extensions;
@@ -58,6 +59,7 @@ namespace FinalProjectApi
             builder.Services.AddAuthorization();
 
             // Add services to the container.
+            builder.Services.AddAutoMapper(typeof(MappingProfile));
             builder.Services.AddScoped<IDbInitializerService, DbInitializerService>();
             builder.Services.AddScoped<IUserService, UserService>();
             builder.Services.AddScoped<IAuthService, AuthService>();

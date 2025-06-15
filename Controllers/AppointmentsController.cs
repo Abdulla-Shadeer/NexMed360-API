@@ -38,4 +38,21 @@ public class AppointmentsController : ControllerBase
             return StatusCode(500, $"An unexpected error occurred: {ex.Message}");
         }
     }
+
+    [HttpGet]
+    [Route("View")]
+    [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
+    public async Task<ActionResult<List<ViewAppointment>>> ViewAppointments(ViewAppointmentsFilter filter) {
+        try
+        {
+            return Ok(await _appointmentsService.ViewAppointments(filter));
+        }
+        catch (BadRequestException ex) { 
+            return BadRequest(ex.Message);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, $"An unexpected error occurred: {ex.Message}");
+        }
+    }
 }
