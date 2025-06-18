@@ -1,10 +1,13 @@
-﻿using FinalProjectApi.Dtos.Appointment;
+﻿using FinalProjectApi.Common;
+using FinalProjectApi.Dtos.Appointment;
 
 namespace FinalProjectApi.Interfaces.Services;
 
 public interface IAppointmentService
 {
-    public Task<string> CreateAppointment(CreateAppointment createAppointment);
+    public Task<Result<string>> CreateAppointment(CreateAppointment createAppointment);
 
-    public Task<List<ViewAppointment>> ViewAppointments(ViewAppointmentsFilter filter);
+    public Task<Result<List<ViewAppointment>>> ViewAppointments(ViewAppointmentsFilter filter);
+
+    public Task<Result<ViewAppointment>> ModifyAppointment(ModifyAppointmentDto modifyAppointmentDto);
 }

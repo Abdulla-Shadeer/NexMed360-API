@@ -1,6 +1,6 @@
 ﻿using AutoMapper;
 using FinalProjectApi.Common;
-using FinalProjectApi.Common.Exceptions;
+using FinalProjectApi.Common.ApplicationErrors;
 using FinalProjectApi.Data;
 using FinalProjectApi.Dtos.Appointment;
 using FinalProjectApi.Entities;
@@ -21,23 +21,19 @@ public class AppointmentService : IAppointmentService
         _mapper = mapper;
     }
 
-    public async Task<string> CreateAppointment(CreateAppointment createAppointment)
+    public async Task<Result<string>> CreateAppointment(CreateAppointment createAppointment)
     {
         var doctorId = Guid.Parse(createAppointment.DoctorId);
         var patientId = Guid.Parse(createAppointment.PatientId);
-        var isDoctorAvailable =  AppointmentHelper.IsTimeSlotAvailable
-            (_context, doctorId, createAppointment.AppointmentDateTime, createAppointment.Duration, true);
-        
-        if (!isDoctorAvailable) 
-            throw new BadRequestException("Doctor is not available at the requested time!");
 
-        var isPatientAvailable =  AppointmentHelper.IsTimeSlotAvailable
-            (_context, patientId, createAppointment.AppointmentDateTime, createAppointment.Duration, false);
+        var doctorCheck = IsPersonValidAndAvailable(doctorId, true, createAppointment.AppointmentDateTime, createAppointment.Duration, true);
+        if (!doctorCheck.IsSuccess)
+            return Result<string>.Failure(doctorCheck.Error!);
 
-        if (!isPatientAvailable)
-            throw new BadRequestException("Patient is not available at the requested time!");
+        var patientCheck = IsPersonValidAndAvailable(patientId, false, createAppointment.AppointmentDateTime, createAppointment.Duration, true);
+        if (!patientCheck.IsSuccess)
+            return Result<string>.Failure(patientCheck.Error!);
 
-        // Both doctor and patient is available at the requested time
         var appointment = new Appointment
         {
             DoctorId = doctorId,
@@ -51,54 +47,122 @@ public class AppointmentService : IAppointmentService
 
         var appointmentRef = (await _context.Appointments.AddAsync(appointment)).Entity.Id;
         await _context.SaveChangesAsync();
-        return appointmentRef.ToString();
+        return Result<string>.Success(appointmentRef.ToString());
     }
 
-    public async Task<List<ViewAppointment>> ViewAppointments(ViewAppointmentsFilter filter)
+    public async Task<Result<List<ViewAppointment>>> ViewAppointments(ViewAppointmentsFilter filter)
     {
-        if (filter == null || (filter.PatientId.IsNullOrEmpty() && filter.DoctorId.IsNullOrEmpty())) { 
-            throw new BadRequestException("At least one person ID (PatientId/DoctorId) must be present.");
-        }
+        if (filter == null || (filter.PatientId.IsNullOrEmpty() && filter.DoctorId.IsNullOrEmpty()))
+            return Result<List<ViewAppointment>>.Failure(
+                ErrorRegistery.GetError(ErrorCode.APPT_MinimumFilterRequirement));
 
-        if (filter.FromDate.HasValue && filter.ToDate.HasValue && filter.FromDate > filter.ToDate) {
-            throw new BadRequestException("FromDate can't be after ToDate.");
-        }
 
-        var query = PrepareQueryWithFilters(filter);
-        
-        return (await query.ToListAsync())
-            .Select(appointment => _mapper.Map<ViewAppointment>(appointment))
-            .ToList();
-    }
-
-    private IQueryable<Appointment> PrepareQueryWithFilters(ViewAppointmentsFilter filter) {
-        var query = _context.Appointments.AsQueryable();
-
-        if (filter.FromDate.HasValue)
-        {
-            query = query.Where(a => a.AppointmentDateTime >= filter.FromDate.Value);
-        }
-
-        if (filter.ToDate.HasValue)
-        {
-            query = query.Where(a => a.AppointmentDateTime <= filter.ToDate.Value);
-        }
+        if (filter.FromDate.HasValue && filter.ToDate.HasValue && filter.FromDate > filter.ToDate)
+            return Result<List<ViewAppointment>>.Failure(
+                ErrorRegistery.GetError(ErrorCode.APPT_FromDateAfterToDate));
 
         if (Guid.TryParse(filter.PatientId, out var patientId))
         {
-            query = query.Where(a => a.PatientId.Equals(patientId));
+            if (!IsValidPerson(patientId, false))
+                return Result<List<ViewAppointment>>.Failure(ErrorRegistery.GetError(ErrorCode.APPT_PatientNotFound));
         }
 
         if (Guid.TryParse(filter.DoctorId, out var doctorId))
-        {
+            if (!IsValidPerson(doctorId, true))
+                return Result<List<ViewAppointment>>.Failure(ErrorRegistery.GetError(ErrorCode.APPT_DoctorNotFound));
+
+
+        var query = PrepareQueryWithFilters(filter);
+
+        var appointments = (await query.ToListAsync())
+            .Select(appointment => _mapper.Map<ViewAppointment>(appointment))
+            .ToList();
+
+        if (appointments.Count < 1)
+            return Result<List<ViewAppointment>>.Failure(ErrorRegistery.GetError(ErrorCode.APPT_NotFound));
+
+        return Result<List<ViewAppointment>>.Success(appointments);
+    }
+
+    private IQueryable<Appointment> PrepareQueryWithFilters(ViewAppointmentsFilter filter)
+    {
+        var query = _context.Appointments.AsQueryable();
+
+        if (filter.FromDate.HasValue)
+            query = query.Where(a => a.AppointmentDateTime.Date >= filter.FromDate.Value);
+
+        if (filter.ToDate.HasValue)
+            query = query.Where(a => a.AppointmentDateTime.Date <= filter.ToDate.Value);
+
+        if (Guid.TryParse(filter.PatientId, out var patientId))
+            query = query.Where(a => a.PatientId.Equals(patientId));
+
+        if (Guid.TryParse(filter.DoctorId, out var doctorId))
             query = query.Where(a => a.DoctorId.Equals(doctorId));
-        }
 
         if (filter.Status is not null)
-        {
             query = query.Where(a => a.Status.Equals(filter.Status));
-        }
 
         return query;
+    }
+
+    public async Task<Result<ViewAppointment>> ModifyAppointment(ModifyAppointmentDto modifyAppointmentDto)
+    {
+        if (Guid.TryParse(modifyAppointmentDto.Id, out var appointmentId))
+        {
+            var appointment = await _context.Appointments
+                .FirstOrDefaultAsync(a => a.Id == appointmentId);
+
+            if (appointment == null)
+                return Result<ViewAppointment>.Failure(
+                    ErrorRegistery.GetError(ErrorCode.APPT_NotFound));
+
+
+            var doctorId = Guid.TryParse(modifyAppointmentDto.DoctorId, out var newDoctorId) ? newDoctorId : appointment.DoctorId;
+            var patientId = Guid.TryParse(modifyAppointmentDto.PatientId, out var newPatientId) ? newPatientId : appointment.PatientId;
+            var apptDateAndTime = modifyAppointmentDto.AppointmentDateTime ?? appointment.AppointmentDateTime;
+            var apptDuration = modifyAppointmentDto.Duration ?? appointment.Duration;
+            var shouldCheckAvailability = modifyAppointmentDto.AppointmentDateTime.HasValue || modifyAppointmentDto.Duration.HasValue;
+
+            var doctorCheck = IsPersonValidAndAvailable(doctorId, true, apptDateAndTime, apptDuration, shouldCheckAvailability);
+            if (!doctorCheck.IsSuccess)
+                return Result<ViewAppointment>.Failure(doctorCheck.Error!);
+
+            var patientCheck = IsPersonValidAndAvailable(patientId, false, apptDateAndTime, apptDuration, shouldCheckAvailability);
+            if (!patientCheck.IsSuccess)
+                return Result<ViewAppointment>.Failure(patientCheck.Error!);
+
+            appointment.DoctorId = doctorId;
+            appointment.PatientId = patientId;
+            appointment.AppointmentDateTime = apptDateAndTime;
+            appointment.Duration = apptDuration;
+            appointment.Location = modifyAppointmentDto.Location ?? appointment.Location;
+            appointment.Remarks = modifyAppointmentDto.Remarks ?? appointment.Remarks;
+            appointment.Status = appointment.Status; // Status is not modified in this method
+
+            await _context.SaveChangesAsync();
+            return Result<ViewAppointment>.Success(_mapper.Map<ViewAppointment>(appointment));
+        }
+        else {
+            return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.APPT_InvalidId));
+        }
+    }
+
+    private Result<bool> IsPersonValidAndAvailable(Guid personId, bool isDoctor, DateTime appointmentDateTime, TimeSpan duration, bool shouldCheckAvailability)
+    {
+        if (!IsValidPerson(personId, isDoctor))
+            return Result<bool>.Failure(ErrorRegistery.GetError(isDoctor ? ErrorCode.APPT_DoctorNotFound : ErrorCode.APPT_PatientNotFound));
+
+        if (shouldCheckAvailability && !AppointmentHelper.IsTimeSlotAvailable(_context, personId, appointmentDateTime, duration, isDoctor))
+            return Result<bool>.Failure(ErrorRegistery.GetError(isDoctor ? ErrorCode.APPT_DoctorUnavailable : ErrorCode.APPT_PatientUnavailable));
+
+        return Result<bool>.Success(true);
+    }
+
+    private bool IsValidPerson(Guid id, bool isDoctor)
+    {
+        return isDoctor
+            ? _context.Doctors.Any(d => d.Id == id)
+            : _context.Patients.Any(p => p.Id == id);
     }
 }

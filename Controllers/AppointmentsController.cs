@@ -1,5 +1,5 @@
-﻿using FinalProjectApi.Common.Auth;
-using FinalProjectApi.Common.Exceptions;
+﻿using FinalProjectApi.Common;
+using FinalProjectApi.Common.Auth;
 using FinalProjectApi.Dtos.Appointment;
 using FinalProjectApi.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -21,18 +21,17 @@ public class AppointmentsController : ControllerBase
     [HttpPost]
     [Route("Create")]
     [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
-    public async Task<ActionResult<string>> CreateAppointment(CreateAppointment createAppointment) {
+    public async Task<ActionResult<Result<string>>> CreateAppointment(CreateAppointment createAppointment) {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
         
         try
         {
-            var appointmentId = await _appointmentsService.CreateAppointment(createAppointment);
-            return Created("", new { BookingRef = appointmentId });
-        }
-        catch (BadRequestException ex)
-        {
-            return BadRequest(ex.Message);
+            var result = await _appointmentsService.CreateAppointment(createAppointment);
+            if (!result.IsSuccess) { 
+                StatusCode(result.Error!.HttpStatus, result);
+            }
+            return Ok(result);
         }
         catch (Exception ex) {
             return StatusCode(500, $"An unexpected error occurred: {ex.Message}");
@@ -42,16 +41,41 @@ public class AppointmentsController : ControllerBase
     [HttpGet]
     [Route("View")]
     [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
-    public async Task<ActionResult<List<ViewAppointment>>> ViewAppointments([FromQuery] ViewAppointmentsFilter filter) {
+    public async Task<ActionResult<Result<List<ViewAppointment>>>> ViewAppointments([FromQuery] ViewAppointmentsFilter filter) {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
         try
         {
-            return Ok(await _appointmentsService.ViewAppointments(filter));
-        }
-        catch (BadRequestException ex) { 
-            return BadRequest(ex.Message);
+            var result = await _appointmentsService.ViewAppointments(filter);
+            if (!result.IsSuccess)
+                return StatusCode(result.Error!.HttpStatus, result);
+
+            return Ok(result);
         }
         catch (Exception ex)
         {
+            return StatusCode(500, $"An unexpected error occurred: {ex.Message}");
+        }
+    }
+
+    [HttpPost]
+    [Route("Edit")]
+    [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
+    public async Task<ActionResult<Result<ViewAppointment>>> ModifyAppointment(ModifyAppointmentDto modifyAppointmentDto) {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        try
+        {
+            var result = await _appointmentsService.ModifyAppointment(modifyAppointmentDto);
+
+            if (!result.IsSuccess)
+                return StatusCode(result.Error!.HttpStatus, result);
+
+            return Ok(result);
+        }
+        catch (Exception ex) {
             return StatusCode(500, $"An unexpected error occurred: {ex.Message}");
         }
     }
