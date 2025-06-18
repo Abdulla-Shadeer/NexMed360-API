@@ -25,13 +25,13 @@ public class AppointmentService : IAppointmentService
     {
         var doctorId = Guid.Parse(createAppointment.DoctorId);
         var patientId = Guid.Parse(createAppointment.PatientId);
-        var isDoctorAvailable = await AppointmentHelper.IsTimeSlotAvailableAsync
+        var isDoctorAvailable =  AppointmentHelper.IsTimeSlotAvailable
             (_context, doctorId, createAppointment.AppointmentDateTime, createAppointment.Duration, true);
         
         if (!isDoctorAvailable) 
             throw new BadRequestException("Doctor is not available at the requested time!");
 
-        var isPatientAvailable = await AppointmentHelper.IsTimeSlotAvailableAsync
+        var isPatientAvailable =  AppointmentHelper.IsTimeSlotAvailable
             (_context, patientId, createAppointment.AppointmentDateTime, createAppointment.Duration, false);
 
         if (!isPatientAvailable)

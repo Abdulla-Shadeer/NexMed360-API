@@ -42,7 +42,7 @@ public class AppointmentsController : ControllerBase
     [HttpGet]
     [Route("View")]
     [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
-    public async Task<ActionResult<List<ViewAppointment>>> ViewAppointments(ViewAppointmentsFilter filter) {
+    public async Task<ActionResult<List<ViewAppointment>>> ViewAppointments([FromQuery] ViewAppointmentsFilter filter) {
         try
         {
             return Ok(await _appointmentsService.ViewAppointments(filter));

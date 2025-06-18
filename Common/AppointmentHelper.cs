@@ -1,11 +1,10 @@
 ﻿using FinalProjectApi.Data;
-using Microsoft.EntityFrameworkCore;
 
 namespace FinalProjectApi.Common;
 
 public static class AppointmentHelper
 {
-    public static async Task<bool> IsTimeSlotAvailableAsync
+    public static bool IsTimeSlotAvailable
         (
         ApplicationDbContext dbContext,
         Guid personId,
@@ -14,11 +13,17 @@ public static class AppointmentHelper
         bool isDoctor
         )
     {
-        var EndTime = startTime.Add(duration);
+        var endTime = startTime.Add(duration);
 
-        return ! await dbContext.Appointments
-            .Where(ap => isDoctor? ap.DoctorId.Equals(personId) : ap.PatientId.Equals(personId))
-            .AnyAsync(ap => ap.AppointmentDateTime < EndTime
-            && ap.AppointmentDateTime.Add(ap.Duration) > startTime);
+        return !dbContext.Appointments
+            .Where(ap => isDoctor ? ap.DoctorId == personId : ap.PatientId == personId)
+            .Select(ap => new
+            {
+                ap.AppointmentDateTime,
+                ap.Duration
+            })
+            .AsEnumerable()
+            .Any(ap => ap.AppointmentDateTime < endTime
+                && ap.AppointmentDateTime.Add(ap.Duration) > startTime);
     }
 }
