@@ -15,7 +15,8 @@ public static class ErrorRegistery
         { ErrorCode.APPT_FromDateAfterToDate, new ApiError(ErrorCode.APPT_FromDateAfterToDate, "From date cannot be after To date!", 400) },
         { ErrorCode.Internal, new ApiError(ErrorCode.Internal, "An internal error occurred. Please try again later.", 500) },
         { ErrorCode.APPT_DoctorNotFound, new ApiError(ErrorCode.APPT_DoctorNotFound, "No doctor found with the given ID!", 404) },
-        { ErrorCode.APPT_PatientNotFound, new ApiError(ErrorCode.APPT_PatientNotFound, "No patient found with the given ID!", 404) }
+        { ErrorCode.APPT_PatientNotFound, new ApiError(ErrorCode.APPT_PatientNotFound, "No patient found with the given ID!", 404) },
+        { ErrorCode.USR_NotFound, new ApiError(ErrorCode.USR_NotFound, "User not found!", 404) }
 
     };
 

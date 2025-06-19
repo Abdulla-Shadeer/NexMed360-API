@@ -9,6 +9,8 @@ public class CreateAppointment
 
     [Required]
     public string DoctorId { get; set; }
+    [Required]
+    public string CreatedById { get; set; }
 
     [Required]
     public DateTime AppointmentDateTime { get; set; }

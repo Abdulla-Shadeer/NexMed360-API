@@ -22,6 +22,7 @@ namespace FinalProjectApi.Data
             builder.Entity<ClinicRecord>().Property(cr => cr.Id).ValueGeneratedOnAdd();
             builder.Entity<Prescription>().Property(p => p.Id).ValueGeneratedOnAdd();
             builder.Entity<Appointment>().Property(a => a.Id).ValueGeneratedOnAdd();
+            builder.Entity<CancellationRequest>().Property(cr => cr.Id).ValueGeneratedOnAdd();
 
             builder
                 .Entity<VisitHistory>()
@@ -56,6 +57,11 @@ namespace FinalProjectApi.Data
                 .Property(p => p.CreatedDate)
                 .ValueGeneratedOnAdd()
                 .Metadata.SetAfterSaveBehavior(PropertySaveBehavior.Ignore);
+            builder
+                .Entity<CancellationRequest>()
+                .Property(p => p.CreatedDate)
+                .ValueGeneratedOnAdd()
+                .Metadata.SetAfterSaveBehavior(PropertySaveBehavior.Ignore);
         }
 
         public DbSet<Patient> Patients { get; set; }
@@ -67,5 +73,6 @@ namespace FinalProjectApi.Data
         public DbSet<ClinicRecord> ClinicRecords { get; set; }
         public DbSet<Prescription> Prescriptions { get; set; }
         public DbSet<Appointment> Appointments { get; set; }
+        public DbSet<CancellationRequest> CancellationRequests { get; set; }
     }
 }

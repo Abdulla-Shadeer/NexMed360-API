@@ -31,5 +31,8 @@ public enum ErrorCode
     APPT_DoctorNotFound,
 
     [EnumMember(Value = "APPT_008")]
-    APPT_PatientNotFound
+    APPT_PatientNotFound,
+
+    [EnumMember(Value = "USR_001")]
+    USR_NotFound
 }

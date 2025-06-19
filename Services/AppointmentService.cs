@@ -26,6 +26,9 @@ public class AppointmentService : IAppointmentService
         var doctorId = Guid.Parse(createAppointment.DoctorId);
         var patientId = Guid.Parse(createAppointment.PatientId);
 
+        if (!await _context.Users.AnyAsync(u => u.Id == createAppointment.CreatedById))
+            return Result<string>.Failure(ErrorRegistery.GetError(ErrorCode.USR_NotFound));
+
         var doctorCheck = IsPersonValidAndAvailable(doctorId, true, createAppointment.AppointmentDateTime, createAppointment.Duration, true);
         if (!doctorCheck.IsSuccess)
             return Result<string>.Failure(doctorCheck.Error!);
@@ -38,10 +41,10 @@ public class AppointmentService : IAppointmentService
         {
             DoctorId = doctorId,
             PatientId = patientId,
+            CreatedById = Guid.Parse(createAppointment.CreatedById),
             AppointmentDateTime = createAppointment.AppointmentDateTime,
             Duration = createAppointment.Duration,
             Remarks = createAppointment.Remarks,
-            Status = Entities.Enums.AppointmentStatus.Pending,
             Location = createAppointment.Location,
         };
 
