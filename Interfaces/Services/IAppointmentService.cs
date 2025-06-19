@@ -10,4 +10,6 @@ public interface IAppointmentService
     public Task<Result<List<ViewAppointment>>> ViewAppointments(ViewAppointmentsFilter filter);
 
     public Task<Result<ViewAppointment>> ModifyAppointment(ModifyAppointmentDto modifyAppointmentDto);
+
+    public Task<Result<ViewAppointment>> ViewAppointment(string appointmentId);
 }

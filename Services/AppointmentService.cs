@@ -165,4 +165,22 @@ public class AppointmentService : IAppointmentService
             ? _context.Doctors.Any(d => d.Id == id)
             : _context.Patients.Any(p => p.Id == id);
     }
+
+    public async Task<Result<ViewAppointment>> ViewAppointment(string appointmentId)
+    {
+        if (Guid.TryParse(appointmentId, out var id))
+        {
+            var appointment = await _context.Appointments
+                .FirstOrDefaultAsync(a => a.Id == id);
+
+            if (appointment == null)
+                return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.APPT_NotFound));
+            
+            return Result<ViewAppointment>.Success(_mapper.Map<ViewAppointment>(appointment));
+        }
+        else
+        {
+            return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.APPT_InvalidId));
+        }
+    }
 }
