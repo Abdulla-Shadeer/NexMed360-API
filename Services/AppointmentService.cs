@@ -121,6 +121,8 @@ public class AppointmentService : IAppointmentService
                 return Result<ViewAppointment>.Failure(
                     ErrorRegistery.GetError(ErrorCode.APPT_NotFound));
 
+            if(appointment.Status == AppointmentStatus.Cancelled)
+                return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.APPT_Cancelled));
 
             var doctorId = Guid.TryParse(modifyAppointmentDto.DoctorId, out var newDoctorId) ? newDoctorId : appointment.DoctorId;
             var patientId = Guid.TryParse(modifyAppointmentDto.PatientId, out var newPatientId) ? newPatientId : appointment.PatientId;
@@ -194,6 +196,16 @@ public class AppointmentService : IAppointmentService
             var appointment = await _context.Appointments.FirstOrDefaultAsync(a => a.Id == id);
             if (appointment == null)
                 return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.APPT_NotFound));
+
+            if(appointment.Status == AppointmentStatus.Cancelled)
+                return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.APPT_Cancelled));
+
+            // Reset cancellation request
+            if (appointment.Status == AppointmentStatus.CancelRequested) {
+                var cancellationRequest = await _context.CancellationRequests.FirstOrDefaultAsync(cr => cr.AppointmentId == id);
+                _context.CancellationRequests.Remove(cancellationRequest!);
+                await _context.SaveChangesAsync();
+            }
 
             appointment.Status = AppointmentStatus.Confirmed;
             await _context.SaveChangesAsync();
