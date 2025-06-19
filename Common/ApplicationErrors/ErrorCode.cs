@@ -9,6 +9,9 @@ public enum ErrorCode
     [EnumMember(Value = "SYS_001")]
     Internal,
 
+    [EnumMember(Value = "SYS_002")]
+    SYS_InvalidGuid,
+
     [EnumMember(Value = "APPT_001")]
     APPT_NotFound,
 
@@ -19,19 +22,22 @@ public enum ErrorCode
     APPT_PatientUnavailable,
 
     [EnumMember(Value = "APPT_004")]
-    APPT_InvalidId,
-
-    [EnumMember(Value = "APPT_005")]
     APPT_MinimumFilterRequirement,
 
-    [EnumMember(Value = "APPT_006")]
+    [EnumMember(Value = "APPT_005")]
     APPT_FromDateAfterToDate,
 
-    [EnumMember(Value = "APPT_007")]
+    [EnumMember(Value = "APPT_006")]
     APPT_DoctorNotFound,
 
-    [EnumMember(Value = "APPT_008")]
+    [EnumMember(Value = "APPT_007")]
     APPT_PatientNotFound,
+
+    [EnumMember(Value = "APPT_008")]
+    APPT_Cancelled,
+
+    [EnumMember(Value = "APPT_009")]
+    APPT_CancellationAlreadyRequested,
 
     [EnumMember(Value = "USR_001")]
     USR_NotFound

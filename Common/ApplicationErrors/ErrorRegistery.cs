@@ -7,7 +7,7 @@ public static class ErrorRegistery
         { ErrorCode.APPT_NotFound, new ApiError(ErrorCode.APPT_NotFound, "No appointments found!", 404) },
         { ErrorCode.APPT_PatientUnavailable, new ApiError(ErrorCode.APPT_PatientUnavailable, "Patient is not available at the requested time!", 409) },
         { ErrorCode.APPT_DoctorUnavailable, new ApiError(ErrorCode.APPT_DoctorUnavailable, "Doctor is not available at the requested time!", 409) },
-        { ErrorCode.APPT_InvalidId, new ApiError(ErrorCode.APPT_InvalidId, "Invalid appointment Id!", 400) },
+        { ErrorCode.SYS_InvalidGuid, new ApiError(ErrorCode.SYS_InvalidGuid, "An invalid GUID format was received!", 400) },
         { ErrorCode.APPT_MinimumFilterRequirement, new ApiError(
             ErrorCode.APPT_MinimumFilterRequirement,
             "At least one person ID (Patient ID or Doctor ID) must be provided to filter appointments.", 400)
@@ -16,7 +16,9 @@ public static class ErrorRegistery
         { ErrorCode.Internal, new ApiError(ErrorCode.Internal, "An internal error occurred. Please try again later.", 500) },
         { ErrorCode.APPT_DoctorNotFound, new ApiError(ErrorCode.APPT_DoctorNotFound, "No doctor found with the given ID!", 404) },
         { ErrorCode.APPT_PatientNotFound, new ApiError(ErrorCode.APPT_PatientNotFound, "No patient found with the given ID!", 404) },
-        { ErrorCode.USR_NotFound, new ApiError(ErrorCode.USR_NotFound, "User not found!", 404) }
+        { ErrorCode.USR_NotFound, new ApiError(ErrorCode.USR_NotFound, "User not found!", 404) },
+        { ErrorCode.APPT_Cancelled, new ApiError(ErrorCode.APPT_Cancelled, "The appointment has been cancelled and is no longer accessible.", 410) },
+        { ErrorCode.APPT_CancellationAlreadyRequested, new ApiError(ErrorCode.APPT_CancellationAlreadyRequested, "Cancellation request for this appointment has already been made.", 409) }
 
     };
 

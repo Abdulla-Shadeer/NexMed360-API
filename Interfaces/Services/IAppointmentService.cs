@@ -12,4 +12,8 @@ public interface IAppointmentService
     public Task<Result<ViewAppointment>> ModifyAppointment(ModifyAppointmentDto modifyAppointmentDto);
 
     public Task<Result<ViewAppointment>> ViewAppointment(string appointmentId);
+
+    public Task<Result<ViewAppointment>> ConfirmAppointment(string appointmentId);
+
+    public Task<Result<ViewAppointment>> CancelAppointment(CancellationRequestDto cancellationRequestDto);
 }

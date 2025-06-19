@@ -103,4 +103,45 @@ public class AppointmentsController : ControllerBase
             return StatusCode(500, $"An unexpected error occurred: {ex.Message}");
         }
     }
+
+    [HttpGet]
+    [Route("Confirm/{appointmentId}")]
+    [Authorize(Roles = $"{UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
+    public async Task<ActionResult<Result<ViewAppointment>>> ConfirmAppointment(string appointmentId)
+    {
+        try
+        {
+            var result = await _appointmentsService.ConfirmAppointment(appointmentId);
+            if (!result.IsSuccess)
+                return StatusCode(result.Error!.HttpStatus, result);
+
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, $"An unexpected error occurred: {ex.Message}");
+        }
+    }
+
+    [HttpPost]
+    [Route("Cancel")]
+    [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
+    public async Task<ActionResult<Result<ViewAppointment>>> CancelAppointment(CancellationRequestDto cancellationRequestDto)
+    {
+        if(!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        try
+        {
+            var result = await _appointmentsService.CancelAppointment(cancellationRequestDto);
+            if (!result.IsSuccess)
+                return StatusCode(result.Error!.HttpStatus, result);
+
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, $"An unexpected error occurred: {ex.Message}");
+        }
+    }
 }

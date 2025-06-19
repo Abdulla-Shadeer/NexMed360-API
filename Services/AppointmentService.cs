@@ -4,6 +4,7 @@ using FinalProjectApi.Common.ApplicationErrors;
 using FinalProjectApi.Data;
 using FinalProjectApi.Dtos.Appointment;
 using FinalProjectApi.Entities;
+using FinalProjectApi.Entities.Enums;
 using FinalProjectApi.Interfaces.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -147,7 +148,7 @@ public class AppointmentService : IAppointmentService
             return Result<ViewAppointment>.Success(_mapper.Map<ViewAppointment>(appointment));
         }
         else {
-            return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.APPT_InvalidId));
+            return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.SYS_InvalidGuid));
         }
     }
 
@@ -183,7 +184,78 @@ public class AppointmentService : IAppointmentService
         }
         else
         {
-            return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.APPT_InvalidId));
+            return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.SYS_InvalidGuid));
         }
+    }
+
+    public async Task<Result<ViewAppointment>> ConfirmAppointment(string appointmentId) {
+        if (Guid.TryParse(appointmentId, out var id))
+        {
+            var appointment = await _context.Appointments.FirstOrDefaultAsync(a => a.Id == id);
+            if (appointment == null)
+                return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.APPT_NotFound));
+
+            appointment.Status = AppointmentStatus.Confirmed;
+            await _context.SaveChangesAsync();
+            return Result<ViewAppointment>.Success(_mapper.Map<ViewAppointment>(appointment));
+        }
+        else {
+            return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.SYS_InvalidGuid));
+        }
+    }
+
+    public async Task<Result<ViewAppointment>> CancelAppointment(CancellationRequestDto cancellationRequestDto)
+    {
+        if (!Guid.TryParse(cancellationRequestDto.AppointmentId, out var appointmentId)
+            || !Guid.TryParse(cancellationRequestDto.RequestedById, out var requesterId))
+            return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.SYS_InvalidGuid));
+
+        var appointment = await _context.Appointments.FirstOrDefaultAsync(ap => ap.Id == appointmentId);
+        if (appointment == null)
+            return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.APPT_NotFound));
+
+        if (! await _context.Users.AnyAsync(u => u.Id == requesterId.ToString()))
+            return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.USR_NotFound));
+
+        if (appointment.Status == AppointmentStatus.Cancelled)
+            return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.APPT_Cancelled));
+
+        if (appointment.Status == AppointmentStatus.CancelRequested && appointment.CreatedById == requesterId)
+        {
+            appointment.Status = AppointmentStatus.Cancelled;
+            var existingRequest = await _context.CancellationRequests.FirstOrDefaultAsync(cr => cr.AppointmentId == appointmentId);
+            existingRequest!.Status = AppointmentStatus.Cancelled;
+
+            await _context.SaveChangesAsync();
+            return Result<ViewAppointment>.Success(_mapper.Map<ViewAppointment>(appointment));
+        }
+
+        if (appointment.Status == AppointmentStatus.CancelRequested && appointment.CreatedById != requesterId)
+        {
+            return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.APPT_CancellationAlreadyRequested));
+        }
+
+        // Now new cancellation request can be created
+        var cancellationRequest = new CancellationRequest
+        {
+            AppointmentId = appointmentId,
+            RequestedById = requesterId,
+            Reason = cancellationRequestDto.Reason,
+            CreatedDate = DateTime.UtcNow,
+        };
+
+        if (appointment.CreatedById == requesterId)
+        {
+            appointment.Status = AppointmentStatus.Cancelled;
+            cancellationRequest.Status = AppointmentStatus.Cancelled;
+        }
+        else
+        {
+            appointment.Status = AppointmentStatus.CancelRequested;
+            cancellationRequest.Status = AppointmentStatus.CancelRequested;
+        }
+        await _context.CancellationRequests.AddAsync(cancellationRequest);
+        await _context.SaveChangesAsync();
+        return Result<ViewAppointment>.Success(_mapper.Map<ViewAppointment>(appointment));
     }
 }
