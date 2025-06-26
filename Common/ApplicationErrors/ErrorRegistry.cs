@@ -1,6 +1,6 @@
 ﻿namespace FinalProjectApi.Common.ApplicationErrors;
 
-public static class ErrorRegistery
+public static class ErrorRegistry
 {
     private static readonly Dictionary<ErrorCode, ApiError> _errorRegistry = new()
     {

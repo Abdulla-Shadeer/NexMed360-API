@@ -29,13 +29,13 @@ public class Result<T>
         return new Result<T>
         {
             IsSuccess = false,
-            Error = ErrorRegistery.GetError(errorCode)
+            Error = ErrorRegistry.GetError(errorCode)
         };
     }
 
     public static Result<T> Failure(ErrorCode errorCode, string description)
     {
-        var baseError = ErrorRegistery.GetError(errorCode);
+        var baseError = ErrorRegistry.GetError(errorCode);
         return new Result<T>
         {
             IsSuccess = false,
@@ -45,7 +45,7 @@ public class Result<T>
 
     public static Result<T> Failure(ErrorCode errorCode, string description, int httpStatus)
     {
-        var baseError = ErrorRegistery.GetError(errorCode);
+        var baseError = ErrorRegistry.GetError(errorCode);
         return new Result<T>
         {
             IsSuccess = false,

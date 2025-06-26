@@ -42,7 +42,7 @@ public class HospitalService : IHospitalService
         if (!await _dbContext.Hospitals.AnyAsync(h => h.Id == hospitalId))
             return Result<ViewHospitalAdminDto>.Failure(ErrorCode.HOS_NotFound);
 
-        var userRegistration = await _userService.RegisterUser(dto.PersonalInformation, UserRoles.HOPITAL_ADMIN);
+        var userRegistration = await _userService.RegisterUser(dto.PersonalInformation, UserRoles.HOSPITAL_ADMIN);
         if (!userRegistration.IsSuccess)
             return Result<ViewHospitalAdminDto>.Failure(userRegistration.Error!);
 

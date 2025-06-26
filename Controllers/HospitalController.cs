@@ -60,12 +60,12 @@ public class HospitalController : ControllerBase
 
     [HttpPut]
     [Route("UpdateHospital")]
-    [Authorize(Roles = $"{UserRoles.SUPERUSER},{UserRoles.HOPITAL_ADMIN}")]
+    [Authorize(Roles = $"{UserRoles.SUPERUSER},{UserRoles.HOSPITAL_ADMIN}")]
     public void UpdateHospital() { }
 
     [HttpPost]
     [Route("CreateReceptionist")]
-    [Authorize(Roles = UserRoles.HOPITAL_ADMIN)]
+    [Authorize(Roles = UserRoles.HOSPITAL_ADMIN)]
     public async Task<ActionResult<Result<ViewReceptionistDto>>> AddReceptionist(CreateReceptionistDto dto)
     {
         if (!ModelState.IsValid)
@@ -83,7 +83,7 @@ public class HospitalController : ControllerBase
 
     [HttpPost]
     [Route("CreateDoctor")]
-    [Authorize(Roles = UserRoles.HOPITAL_ADMIN)]
+    [Authorize(Roles = UserRoles.HOSPITAL_ADMIN)]
     public async Task<ActionResult<Result<ViewDoctorDto>>> AddDoctor(CreateDoctorDto dto)
     {
         if (!ModelState.IsValid)

@@ -4,7 +4,7 @@
     {
         public const string PATIENT = "Patient";
         public const string SUPERUSER = "SuperUser";
-        public const string HOPITAL_ADMIN = "HospitalAdmin";
+        public const string HOSPITAL_ADMIN = "HospitalAdmin";
         public const string RECEPTIONIST = "Receptionist";
         public const string DOCTOR = "Doctor";
     }

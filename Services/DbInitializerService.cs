@@ -29,7 +29,7 @@ namespace FinalProjectApi.Services
         {
             _logger.LogInformation("Seeding user roles..");
             await _roleManager.CreateAsync(new IdentityRole(UserRoles.SUPERUSER));
-            await _roleManager.CreateAsync(new IdentityRole(UserRoles.HOPITAL_ADMIN));
+            await _roleManager.CreateAsync(new IdentityRole(UserRoles.HOSPITAL_ADMIN));
             await _roleManager.CreateAsync(new IdentityRole(UserRoles.RECEPTIONIST));
             await _roleManager.CreateAsync(new IdentityRole(UserRoles.DOCTOR));
             await _roleManager.CreateAsync(new IdentityRole(UserRoles.PATIENT));
