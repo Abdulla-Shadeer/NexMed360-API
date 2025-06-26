@@ -35,7 +35,6 @@ namespace FinalProjectApi.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<DateTime?>("CreatedDate")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp without time zone");
 
                     b.Property<Guid>("DoctorId")
@@ -58,7 +57,6 @@ namespace FinalProjectApi.Migrations
                         .HasColumnType("integer");
 
                     b.Property<DateTime?>("UpdatedDate")
-                        .ValueGeneratedOnUpdate()
                         .HasColumnType("timestamp without time zone");
 
                     b.HasKey("Id");
@@ -94,7 +92,6 @@ namespace FinalProjectApi.Migrations
                         .HasColumnType("integer");
 
                     b.Property<DateTime?>("UpdatedDate")
-                        .ValueGeneratedOnUpdate()
                         .HasColumnType("timestamp without time zone");
 
                     b.HasKey("Id");
@@ -121,7 +118,6 @@ namespace FinalProjectApi.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("DoctorNotes")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("FollowUpDate")

@@ -1,20 +1,11 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using FinalProjectApi.Dtos.User;
 
-namespace FinalProjectApi.Dtos.Patient
+namespace FinalProjectApi.Dtos.Patient;
+
+public class ViewPatientDto
 {
-    public class ViewPatientDto
-    {
-        public string Id { get; set; }
-        public string? FirstName { get; set; }
-
-        public string? LastName { get; set; }
-
-        public string Email { get; set; }
-
-        public string Phone { get; set; }
-
-        public DateOnly BirthDate { get; set; }
-
-        public string Gender { get; set; }
-    }
+    public string Id { get; set; }
+    public ViewUserDto User { get; set; }
+    public DateOnly BirthDate { get; set; }
+    public string Gender { get; set; }
 }

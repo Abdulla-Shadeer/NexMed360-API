@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace FinalProjectApi.Dtos.HospitalAdmin
 {
-    public class CreateHospitalAdminDtso
+    public class CreateHospitalAdminDto
     {
         [Required]
         public RegisterUserDto PersonalInformation { get; set; }

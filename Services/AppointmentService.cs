@@ -22,73 +22,66 @@ public class AppointmentService : IAppointmentService
         _mapper = mapper;
     }
 
-    public async Task<Result<string>> CreateAppointment(CreateAppointment createAppointment)
+    public async Task<Result<ViewAppointmentDto>> CreateAppointment(CreateAppointmentDto createAppointment)
     {
-        var doctorId = Guid.Parse(createAppointment.DoctorId);
-        var patientId = Guid.Parse(createAppointment.PatientId);
+        if (!Guid.TryParse(createAppointment.DoctorId, out var doctorId))
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_InvalidGuid, "Invalid Doctor ID format.");
 
-        if (!await _context.Users.AnyAsync(u => u.Id == createAppointment.CreatedById))
-            return Result<string>.Failure(ErrorRegistery.GetError(ErrorCode.USR_NotFound));
+        if (!Guid.TryParse(createAppointment.PatientId, out var patientId))
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_InvalidGuid, "Invalid Patient ID format.");
+
+        if (!Guid.TryParse(createAppointment.CreatedById, out var createdById))
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_InvalidGuid, "Invalid CreatedBy ID format.");
+
+        if (!await _context.Users.AnyAsync(u => u.Id == createdById.ToString()))
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.USR_NotFound, $"User with Id '{createdById}' not found!");
 
         var doctorCheck = IsPersonValidAndAvailable(doctorId, true, createAppointment.AppointmentDateTime, createAppointment.Duration, true);
         if (!doctorCheck.IsSuccess)
-            return Result<string>.Failure(doctorCheck.Error!);
+            return Result<ViewAppointmentDto>.Failure(doctorCheck.Error!);
 
         var patientCheck = IsPersonValidAndAvailable(patientId, false, createAppointment.AppointmentDateTime, createAppointment.Duration, true);
         if (!patientCheck.IsSuccess)
-            return Result<string>.Failure(patientCheck.Error!);
+            return Result<ViewAppointmentDto>.Failure(patientCheck.Error!);
 
-        var appointment = new Appointment
-        {
-            DoctorId = doctorId,
-            PatientId = patientId,
-            CreatedById = Guid.Parse(createAppointment.CreatedById),
-            AppointmentDateTime = createAppointment.AppointmentDateTime,
-            Duration = createAppointment.Duration,
-            Remarks = createAppointment.Remarks,
-            Location = createAppointment.Location,
-        };
-
-        var appointmentRef = (await _context.Appointments.AddAsync(appointment)).Entity.Id;
+        var appointmentEntry = (await _context.Appointments.AddAsync(_mapper.Map<Appointment>(createAppointment)));
         await _context.SaveChangesAsync();
-        return Result<string>.Success(appointmentRef.ToString());
+        return Result<ViewAppointmentDto>.Success(_mapper.Map<ViewAppointmentDto>(appointmentEntry.Entity));
     }
 
-    public async Task<Result<List<ViewAppointment>>> ViewAppointments(ViewAppointmentsFilter filter)
+    public async Task<Result<List<ViewAppointmentDto>>> ViewAppointments(ViewAppointmentsFilterDto filter)
     {
         if (filter == null || (filter.PatientId.IsNullOrEmpty() && filter.DoctorId.IsNullOrEmpty()))
-            return Result<List<ViewAppointment>>.Failure(
-                ErrorRegistery.GetError(ErrorCode.APPT_MinimumFilterRequirement));
+            return Result<List<ViewAppointmentDto>>.Failure(ErrorCode.APPT_MinimumFilterRequirement);
 
 
         if (filter.FromDate.HasValue && filter.ToDate.HasValue && filter.FromDate > filter.ToDate)
-            return Result<List<ViewAppointment>>.Failure(
-                ErrorRegistery.GetError(ErrorCode.APPT_FromDateAfterToDate));
+            return Result<List<ViewAppointmentDto>>.Failure(ErrorCode.APPT_FromDateAfterToDate);
 
         if (Guid.TryParse(filter.PatientId, out var patientId))
         {
             if (!IsValidPerson(patientId, false))
-                return Result<List<ViewAppointment>>.Failure(ErrorRegistery.GetError(ErrorCode.APPT_PatientNotFound));
+                return Result<List<ViewAppointmentDto>>.Failure(ErrorCode.APPT_PatientNotFound);
         }
 
         if (Guid.TryParse(filter.DoctorId, out var doctorId))
             if (!IsValidPerson(doctorId, true))
-                return Result<List<ViewAppointment>>.Failure(ErrorRegistery.GetError(ErrorCode.APPT_DoctorNotFound));
+                return Result<List<ViewAppointmentDto>>.Failure(ErrorCode.APPT_DoctorNotFound);
 
 
         var query = PrepareQueryWithFilters(filter);
 
         var appointments = (await query.ToListAsync())
-            .Select(appointment => _mapper.Map<ViewAppointment>(appointment))
+            .Select(appointment => _mapper.Map<ViewAppointmentDto>(appointment))
             .ToList();
 
         if (appointments.Count < 1)
-            return Result<List<ViewAppointment>>.Failure(ErrorRegistery.GetError(ErrorCode.APPT_NotFound));
+            return Result<List<ViewAppointmentDto>>.Failure(ErrorCode.APPT_NotFound, "Please adjust the filter and try again.");
 
-        return Result<List<ViewAppointment>>.Success(appointments);
+        return Result<List<ViewAppointmentDto>>.Success(appointments);
     }
 
-    private IQueryable<Appointment> PrepareQueryWithFilters(ViewAppointmentsFilter filter)
+    private IQueryable<Appointment> PrepareQueryWithFilters(ViewAppointmentsFilterDto filter)
     {
         var query = _context.Appointments.AsQueryable();
 
@@ -110,57 +103,52 @@ public class AppointmentService : IAppointmentService
         return query;
     }
 
-    public async Task<Result<ViewAppointment>> ModifyAppointment(ModifyAppointmentDto modifyAppointmentDto)
+    public async Task<Result<ViewAppointmentDto>> ModifyAppointment(ModifyAppointmentDto modifyAppointmentDto)
     {
-        if (Guid.TryParse(modifyAppointmentDto.Id, out var appointmentId))
-        {
-            var appointment = await _context.Appointments
-                .FirstOrDefaultAsync(a => a.Id == appointmentId);
+        if (!Guid.TryParse(modifyAppointmentDto.Id, out var appointmentId))
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_InvalidGuid, "Invalid 'appointmentId' format.");
 
-            if (appointment == null)
-                return Result<ViewAppointment>.Failure(
-                    ErrorRegistery.GetError(ErrorCode.APPT_NotFound));
+        var appointment = await _context.Appointments.FirstOrDefaultAsync(a => a.Id == appointmentId);
 
-            if(appointment.Status == AppointmentStatus.Cancelled)
-                return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.APPT_Cancelled));
+        if (appointment == null)
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_NotFound);
 
-            var doctorId = Guid.TryParse(modifyAppointmentDto.DoctorId, out var newDoctorId) ? newDoctorId : appointment.DoctorId;
-            var patientId = Guid.TryParse(modifyAppointmentDto.PatientId, out var newPatientId) ? newPatientId : appointment.PatientId;
-            var apptDateAndTime = modifyAppointmentDto.AppointmentDateTime ?? appointment.AppointmentDateTime;
-            var apptDuration = modifyAppointmentDto.Duration ?? appointment.Duration;
-            var shouldCheckAvailability = modifyAppointmentDto.AppointmentDateTime.HasValue || modifyAppointmentDto.Duration.HasValue;
+        if (appointment.Status == AppointmentStatus.Cancelled)
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_Cancelled);
 
-            var doctorCheck = IsPersonValidAndAvailable(doctorId, true, apptDateAndTime, apptDuration, shouldCheckAvailability);
-            if (!doctorCheck.IsSuccess)
-                return Result<ViewAppointment>.Failure(doctorCheck.Error!);
+        var doctorId = Guid.TryParse(modifyAppointmentDto.DoctorId, out var newDoctorId) ? newDoctorId : appointment.DoctorId;
+        var patientId = Guid.TryParse(modifyAppointmentDto.PatientId, out var newPatientId) ? newPatientId : appointment.PatientId;
+        var apptDateAndTime = modifyAppointmentDto.AppointmentDateTime ?? appointment.AppointmentDateTime;
+        var apptDuration = modifyAppointmentDto.Duration ?? appointment.Duration;
+        var shouldCheckAvailability = modifyAppointmentDto.AppointmentDateTime.HasValue || modifyAppointmentDto.Duration.HasValue;
 
-            var patientCheck = IsPersonValidAndAvailable(patientId, false, apptDateAndTime, apptDuration, shouldCheckAvailability);
-            if (!patientCheck.IsSuccess)
-                return Result<ViewAppointment>.Failure(patientCheck.Error!);
+        var doctorCheck = IsPersonValidAndAvailable(doctorId, true, apptDateAndTime, apptDuration, shouldCheckAvailability);
+        if (!doctorCheck.IsSuccess)
+            return Result<ViewAppointmentDto>.Failure(doctorCheck.Error!);
 
-            appointment.DoctorId = doctorId;
-            appointment.PatientId = patientId;
-            appointment.AppointmentDateTime = apptDateAndTime;
-            appointment.Duration = apptDuration;
-            appointment.Location = modifyAppointmentDto.Location ?? appointment.Location;
-            appointment.Remarks = modifyAppointmentDto.Remarks ?? appointment.Remarks;
-            appointment.Status = appointment.Status; // Status is not modified in this method
+        var patientCheck = IsPersonValidAndAvailable(patientId, false, apptDateAndTime, apptDuration, shouldCheckAvailability);
+        if (!patientCheck.IsSuccess)
+            return Result<ViewAppointmentDto>.Failure(patientCheck.Error!);
 
-            await _context.SaveChangesAsync();
-            return Result<ViewAppointment>.Success(_mapper.Map<ViewAppointment>(appointment));
-        }
-        else {
-            return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.SYS_InvalidGuid));
-        }
+        appointment.DoctorId = doctorId;
+        appointment.PatientId = patientId;
+        appointment.AppointmentDateTime = apptDateAndTime;
+        appointment.Duration = apptDuration;
+        appointment.Location = modifyAppointmentDto.Location ?? appointment.Location;
+        appointment.Remarks = modifyAppointmentDto.Remarks ?? appointment.Remarks;
+        appointment.Status = appointment.Status; // Status is not modified in this method
+
+        await _context.SaveChangesAsync();
+        return Result<ViewAppointmentDto>.Success(_mapper.Map<ViewAppointmentDto>(appointment));
     }
 
     private Result<bool> IsPersonValidAndAvailable(Guid personId, bool isDoctor, DateTime appointmentDateTime, TimeSpan duration, bool shouldCheckAvailability)
     {
         if (!IsValidPerson(personId, isDoctor))
-            return Result<bool>.Failure(ErrorRegistery.GetError(isDoctor ? ErrorCode.APPT_DoctorNotFound : ErrorCode.APPT_PatientNotFound));
+            return Result<bool>.Failure(isDoctor ? ErrorCode.APPT_DoctorNotFound : ErrorCode.APPT_PatientNotFound);
 
         if (shouldCheckAvailability && !AppointmentHelper.IsTimeSlotAvailable(_context, personId, appointmentDateTime, duration, isDoctor))
-            return Result<bool>.Failure(ErrorRegistery.GetError(isDoctor ? ErrorCode.APPT_DoctorUnavailable : ErrorCode.APPT_PatientUnavailable));
+            return Result<bool>.Failure(isDoctor ? ErrorCode.APPT_DoctorUnavailable : ErrorCode.APPT_PatientUnavailable);
 
         return Result<bool>.Success(true);
     }
@@ -172,65 +160,59 @@ public class AppointmentService : IAppointmentService
             : _context.Patients.Any(p => p.Id == id);
     }
 
-    public async Task<Result<ViewAppointment>> ViewAppointment(string appointmentId)
+    public async Task<Result<ViewAppointmentDto>> ViewAppointment(string appointmentId)
     {
-        if (Guid.TryParse(appointmentId, out var id))
-        {
-            var appointment = await _context.Appointments
-                .FirstOrDefaultAsync(a => a.Id == id);
+        if (!Guid.TryParse(appointmentId, out var id))
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_InvalidGuid);
 
-            if (appointment == null)
-                return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.APPT_NotFound));
-            
-            return Result<ViewAppointment>.Success(_mapper.Map<ViewAppointment>(appointment));
-        }
-        else
-        {
-            return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.SYS_InvalidGuid));
-        }
+        var appointment = await _context.Appointments.FirstOrDefaultAsync(a => a.Id == id);
+
+        if (appointment == null)
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_NotFound);
+
+        return Result<ViewAppointmentDto>.Success(_mapper.Map<ViewAppointmentDto>(appointment));
     }
 
-    public async Task<Result<ViewAppointment>> ConfirmAppointment(string appointmentId) {
-        if (Guid.TryParse(appointmentId, out var id))
+    public async Task<Result<ViewAppointmentDto>> ConfirmAppointment(string appointmentId)
+    {
+        if (!Guid.TryParse(appointmentId, out var id))
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_InvalidGuid);
+
+        var appointment = await _context.Appointments.FirstOrDefaultAsync(a => a.Id == id);
+        if (appointment == null)
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_NotFound);
+
+        if (appointment.Status == AppointmentStatus.Cancelled)
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_Cancelled);
+
+        // Reset cancellation request
+        if (appointment.Status == AppointmentStatus.CancelRequested)
         {
-            var appointment = await _context.Appointments.FirstOrDefaultAsync(a => a.Id == id);
-            if (appointment == null)
-                return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.APPT_NotFound));
-
-            if(appointment.Status == AppointmentStatus.Cancelled)
-                return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.APPT_Cancelled));
-
-            // Reset cancellation request
-            if (appointment.Status == AppointmentStatus.CancelRequested) {
-                var cancellationRequest = await _context.CancellationRequests.FirstOrDefaultAsync(cr => cr.AppointmentId == id);
-                _context.CancellationRequests.Remove(cancellationRequest!);
-                await _context.SaveChangesAsync();
-            }
-
-            appointment.Status = AppointmentStatus.Confirmed;
+            var cancellationRequest = await _context.CancellationRequests.FirstOrDefaultAsync(cr => cr.AppointmentId == id);
+            _context.CancellationRequests.Remove(cancellationRequest!);
             await _context.SaveChangesAsync();
-            return Result<ViewAppointment>.Success(_mapper.Map<ViewAppointment>(appointment));
         }
-        else {
-            return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.SYS_InvalidGuid));
-        }
+
+        appointment.Status = AppointmentStatus.Confirmed;
+        await _context.SaveChangesAsync();
+        return Result<ViewAppointmentDto>.Success(_mapper.Map<ViewAppointmentDto>(appointment));
     }
 
-    public async Task<Result<ViewAppointment>> CancelAppointment(CancellationRequestDto cancellationRequestDto)
+    public async Task<Result<ViewAppointmentDto>> CancelAppointment(CancellationRequestDto cancellationRequestDto)
     {
         if (!Guid.TryParse(cancellationRequestDto.AppointmentId, out var appointmentId)
             || !Guid.TryParse(cancellationRequestDto.RequestedById, out var requesterId))
-            return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.SYS_InvalidGuid));
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_InvalidGuid);
 
         var appointment = await _context.Appointments.FirstOrDefaultAsync(ap => ap.Id == appointmentId);
         if (appointment == null)
-            return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.APPT_NotFound));
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_NotFound);
 
-        if (! await _context.Users.AnyAsync(u => u.Id == requesterId.ToString()))
-            return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.USR_NotFound));
+        if (!await _context.Users.AnyAsync(u => u.Id == requesterId.ToString()))
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.USR_NotFound);
 
         if (appointment.Status == AppointmentStatus.Cancelled)
-            return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.APPT_Cancelled));
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_Cancelled);
 
         if (appointment.Status == AppointmentStatus.CancelRequested && appointment.CreatedById == requesterId)
         {
@@ -239,12 +221,12 @@ public class AppointmentService : IAppointmentService
             existingRequest!.Status = AppointmentStatus.Cancelled;
 
             await _context.SaveChangesAsync();
-            return Result<ViewAppointment>.Success(_mapper.Map<ViewAppointment>(appointment));
+            return Result<ViewAppointmentDto>.Success(_mapper.Map<ViewAppointmentDto>(appointment));
         }
 
         if (appointment.Status == AppointmentStatus.CancelRequested && appointment.CreatedById != requesterId)
         {
-            return Result<ViewAppointment>.Failure(ErrorRegistery.GetError(ErrorCode.APPT_CancellationAlreadyRequested));
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_CancellationAlreadyRequested);
         }
 
         // Now new cancellation request can be created
@@ -268,6 +250,6 @@ public class AppointmentService : IAppointmentService
         }
         await _context.CancellationRequests.AddAsync(cancellationRequest);
         await _context.SaveChangesAsync();
-        return Result<ViewAppointment>.Success(_mapper.Map<ViewAppointment>(appointment));
+        return Result<ViewAppointmentDto>.Success(_mapper.Map<ViewAppointmentDto>(appointment));
     }
 }

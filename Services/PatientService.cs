@@ -1,4 +1,8 @@
-﻿using FinalProjectApi.Data;
+﻿using AutoMapper;
+using FinalProjectApi.Common;
+using FinalProjectApi.Common.ApplicationErrors;
+using FinalProjectApi.Common.Auth;
+using FinalProjectApi.Data;
 using FinalProjectApi.Dtos.ClinicRecord;
 using FinalProjectApi.Dtos.Patient;
 using FinalProjectApi.Entities;
@@ -11,117 +15,127 @@ public class PatientService : IPatientService
 {
     private readonly IUserService _userService;
     private readonly ApplicationDbContext _dbContext;
+    private readonly IMapper _mapper;
 
-    public PatientService(IUserService userService, ApplicationDbContext dbContext)
+    public PatientService(IUserService userService, ApplicationDbContext dbContext, IMapper mapper)
     {
         _userService = userService;
         _dbContext = dbContext;
+        _mapper = mapper;
     }
 
-    public async Task<bool> AddToVisitHistory(AddToVisitHistoryDto dto)
+    public async Task<Result<ViewPatientDto>> CreatePatient(CreatePatientDto dto)
     {
-        var visitHistory = new VisitHistory();
-        visitHistory.HospitalId = dto.HospitalId;
-        visitHistory.Reason = dto.Reason;
-        await _dbContext.VisitHistorys.AddAsync(visitHistory);
-        return (await _dbContext.SaveChangesAsync()) == 1;
-    }
+        var userRegistration = await _userService.RegisterUser(dto.PersonalInformation, UserRoles.PATIENT);
+        if (!userRegistration.IsSuccess)
+            return Result<ViewPatientDto>.Failure(userRegistration.Error!);
 
-    public async Task<string> CreatePatient(CreatePatientDto dto)
-    {
-        var userId = await _userService.RegisterUser(dto.PersonalInformation);
-
-        if (userId != null)
+        var patientEntry = new Patient()
         {
-            var patient = new Patient();
-            patient.UserId = userId;
-            patient.Gender = dto.Gender;
-            patient.BirthDate = dto.BirthDate;
+            UserId = userRegistration.Data!.Id,
+            Gender = dto.Gender,
+            BirthDate = dto.BirthDate
+        };
 
-            var createdPatient = await _dbContext.Patients.AddAsync(patient);
-            await _dbContext.SaveChangesAsync();
-            return createdPatient.Entity.Id.ToString();
-        }
-        return null;
-    }
-
-    public async Task<ViewPatientDto> ViewPatient(string id)
-    {
-        // todo map user and patient details to ViewPatientDto
-        var patient = await _dbContext
-            .Patients.AsNoTracking()
-            .Include(p => p.User)
-            .Select(p => new ViewPatientDto() {
-                Id = p.User.Id,
-                FirstName = p.User.FirstName,
-                LastName = p.User.LastName,
-                BirthDate = p.BirthDate,
-                Gender = p.Gender,
-                Email = p.User.Email,
-                Phone = p.User.PhoneNumber
-            })
-            .FirstOrDefaultAsync(p => p.Id == id);
-
-        return patient;
-    }
-
-    public async Task<string> AddToClinicRecords(AddClinicRecordDto dto) { 
-        var clinicRecord = new ClinicRecord();
-        clinicRecord.PatientId = Guid.Parse(dto.PatientId);
-        clinicRecord.DoctorId = Guid.Parse(dto.DoctorId);
-        clinicRecord.Diagnosis = dto.Diagnosis;
-        clinicRecord.DoctorNotes = dto.DoctorNotes;
-        clinicRecord.VisitDate = dto.VisitDate;
-        clinicRecord.FollowUpDate = dto.FollowUpDate;
-        
-        var prescriptions = new List<Prescription>();
-
-        foreach (var prescriptionData in dto.Prescriptions)
-        {
-            var prescription = new Prescription();
-            prescription.MedicineName = prescriptionData.MedicineName;
-            prescription.Dosage = prescriptionData.Dosage;
-            prescription.DurationDays = prescriptionData.DurationDays;
-            prescription.Frequency = prescriptionData.Frequency;
-            prescription.Notes = prescriptionData.Notes;
-
-            prescriptions.Add(prescription);
-        }
-        clinicRecord.Prescriptions = prescriptions;
-
-        var ctr = await _dbContext.ClinicRecords.AddAsync(clinicRecord);
+        await _dbContext.Patients.AddAsync(patientEntry);
         await _dbContext.SaveChangesAsync();
 
-        return ctr.Entity.Id.ToString();
+        var patient = await _dbContext.Patients
+            .Include(p => p.User)
+            .FirstOrDefaultAsync(p => p.UserId == userRegistration.Data.Id);
+
+        return Result<ViewPatientDto>.Success(_mapper.Map<ViewPatientDto>(patient));
     }
 
-    public async Task<List<ClinicRecordDto>> GetAllClinicRecords(string patientId) { 
-        return await _dbContext.ClinicRecords
-            .Where(cr => cr.PatientId.Equals(Guid.Parse(patientId)))
+    public async Task<Result<ViewPatientDto>> ViewPatient(string id)
+    {
+        var patientCheck = await UserCheck(id);
+        if (!patientCheck.IsSuccess)
+            return Result<ViewPatientDto>.Failure(patientCheck.Error!);
+
+        var patient = await _dbContext.Patients
+            .Include(p => p.User)
+            .FirstOrDefaultAsync(p => p.Id == patientCheck.Data);
+
+        return Result<ViewPatientDto>.Success(_mapper.Map<ViewPatientDto>(patient));
+    }
+
+    public async Task<Result<ViewClinicRecordDto>> AddToClinicRecords(AddClinicRecordDto dto)
+    {
+        var doctorCheck = await UserCheck(dto.DoctorId, true);
+        if (!doctorCheck.IsSuccess)
+            return Result<ViewClinicRecordDto>.Failure(doctorCheck.Error!);
+
+        var patientCheck = await UserCheck(dto.PatientId);
+        if (!patientCheck.IsSuccess)
+            return Result<ViewClinicRecordDto>.Failure(patientCheck.Error!);
+
+        var clinicRecordEntry = await _dbContext.ClinicRecords.AddAsync(_mapper.Map<ClinicRecord>(dto));
+        await _dbContext.SaveChangesAsync();
+
+        var clinicRecord = await _dbContext.ClinicRecords
+            .Include(cr => cr.Doctor)
+            .ThenInclude(dr => dr.User)
+            .Include(cr => cr.Patient)
+            .ThenInclude(pt => pt.User)
+            .Include(cr => cr.Prescriptions)
+            .FirstOrDefaultAsync(cr => cr.Id == clinicRecordEntry.Entity.Id);
+
+        return Result<ViewClinicRecordDto>.Success(_mapper.Map<ViewClinicRecordDto>(clinicRecord));
+    }
+
+    public async Task<Result<ViewClinicRecordDto>> ViewClinicRecord(string id)
+    {
+        if (!Guid.TryParse(id, out var clinicRecordId))
+            return Result<ViewClinicRecordDto>.Failure(ErrorCode.SYS_InvalidGuid, "Invalid clinic record ID format.");
+
+        var clinicRecord = await _dbContext.ClinicRecords
+                .Include(cr => cr.Patient)
+                .ThenInclude(p => p.User)
+                .Include(cr => cr.Doctor)
+                .ThenInclude(dr => dr.User)
+                .Include(cr => cr.Prescriptions)
+                .FirstOrDefaultAsync(cr => cr.Id == clinicRecordId);
+
+        if (clinicRecord == null)
+            return Result<ViewClinicRecordDto>.Failure(ErrorCode.CLNRD_NotFound, $"Clinic record with ID '{id}' not found.");
+
+        return Result<ViewClinicRecordDto>.Success(_mapper.Map<ViewClinicRecordDto>(clinicRecord));
+    }
+
+    public async Task<Result<List<ViewClinicRecordDto>>> ViewAllClinicRecords(string patientId)
+    {
+        if (!Guid.TryParse(patientId, out var id))
+            return Result<List<ViewClinicRecordDto>>.Failure(ErrorCode.SYS_InvalidGuid, "Invalid patient ID format.");
+
+        if (!await _dbContext.Patients.AnyAsync(p => p.Id == id))
+            return Result<List<ViewClinicRecordDto>>.Failure(ErrorCode.USR_NotFound, $"Patient with ID '{patientId}' not found.");
+
+        var clinicRecords = await _dbContext.ClinicRecords
+            .Where(cr => cr.PatientId == id)
             .Include(cr => cr.Patient)
             .ThenInclude(p => p.User)
             .Include(cr => cr.Doctor)
             .ThenInclude(dr => dr.User)
             .Include(cr => cr.Prescriptions)
-            .AsNoTracking()
-            .Select(cr => new ClinicRecordDto() { 
-                PatientId = cr.PatientId.ToString(),
-                PatientName = $"{cr.Patient.User.FirstName} {cr.Patient.User.LastName}",
-                DoctorId = cr.DoctorId.ToString(),
-                DoctorName = $"{cr.Doctor.User.FirstName} {cr.Doctor.User.LastName}",
-                Diagnosis = cr.Diagnosis,
-                DoctorNotes = cr.DoctorNotes,
-                VisitDate = cr.VisitDate,
-                FollowUpDate = cr.FollowUpDate,
-                Prescriptions = cr.Prescriptions.Select(p => new PrescriptionDto()
-                {
-                    MedicineName = p.MedicineName,
-                    Dosage = p.Dosage,
-                    DurationDays = p.DurationDays,
-                    Frequency = p.Frequency,
-                    Notes = p.Notes,
-                }).ToList(),
-            })
             .ToListAsync();
+
+        if (clinicRecords == null || clinicRecords.Count == 0)
+            return Result<List<ViewClinicRecordDto>>.Failure(ErrorCode.USR_NotFound, $"No clinic records found for patient with ID '{patientId}'.");
+
+        return Result<List<ViewClinicRecordDto>>.Success(
+            clinicRecords.Select(cr => _mapper.Map<ViewClinicRecordDto>(cr)).ToList()
+        );
+    }
+
+    private async Task<Result<Guid>> UserCheck(string userId, bool isDoctor = false)
+    {
+        if (!Guid.TryParse(userId, out var userGuid))
+            return Result<Guid>.Failure(ErrorCode.SYS_InvalidGuid, isDoctor ? "Invalid 'doctorId' format received!" : "Invalid 'patientId' format received!");
+
+        if (isDoctor ? !await _dbContext.Doctors.AnyAsync(dr => dr.Id == userGuid) : !await _dbContext.Patients.AnyAsync(pt => pt.Id == userGuid))
+            return Result<Guid>.Failure(ErrorCode.USR_NotFound, isDoctor ? $"Doctor with id '{userGuid}' not found!" : $"Patient with id '{userGuid}' not found!");
+
+        return Result<Guid>.Success(userGuid);
     }
 }

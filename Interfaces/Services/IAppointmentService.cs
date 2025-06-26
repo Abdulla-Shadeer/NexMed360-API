@@ -5,15 +5,15 @@ namespace FinalProjectApi.Interfaces.Services;
 
 public interface IAppointmentService
 {
-    public Task<Result<string>> CreateAppointment(CreateAppointment createAppointment);
+    public Task<Result<ViewAppointmentDto>> CreateAppointment(CreateAppointmentDto createAppointment);
 
-    public Task<Result<List<ViewAppointment>>> ViewAppointments(ViewAppointmentsFilter filter);
+    public Task<Result<List<ViewAppointmentDto>>> ViewAppointments(ViewAppointmentsFilterDto filter);
 
-    public Task<Result<ViewAppointment>> ModifyAppointment(ModifyAppointmentDto modifyAppointmentDto);
+    public Task<Result<ViewAppointmentDto>> ModifyAppointment(ModifyAppointmentDto modifyAppointmentDto);
 
-    public Task<Result<ViewAppointment>> ViewAppointment(string appointmentId);
+    public Task<Result<ViewAppointmentDto>> ViewAppointment(string appointmentId);
 
-    public Task<Result<ViewAppointment>> ConfirmAppointment(string appointmentId);
+    public Task<Result<ViewAppointmentDto>> ConfirmAppointment(string appointmentId);
 
-    public Task<Result<ViewAppointment>> CancelAppointment(CancellationRequestDto cancellationRequestDto);
+    public Task<Result<ViewAppointmentDto>> CancelAppointment(CancellationRequestDto cancellationRequestDto);
 }

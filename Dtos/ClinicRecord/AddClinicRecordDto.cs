@@ -14,7 +14,7 @@ public class AddClinicRecordDto
     public DateTime VisitDate { get; set; }
     [Required]
     public string Diagnosis { get; set; }
-    public string DoctorNotes { get; set; }
+    public string? DoctorNotes { get; set; }
     public DateTime? FollowUpDate { get; set; }
-    public List<PrescriptionDto> Prescriptions { get; set; }
+    public List<AddPrescriptionDto>? Prescriptions { get; set; } = new List<AddPrescriptionDto>();
 }

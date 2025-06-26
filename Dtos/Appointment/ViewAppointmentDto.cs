@@ -1,6 +1,6 @@
 ﻿namespace FinalProjectApi.Dtos.Appointment;
 
-public class ViewAppointment
+public class ViewAppointmentDto
 {
     public string Id { get; set; }
     public string PatientId { get; set; }

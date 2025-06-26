@@ -1,4 +1,5 @@
 ﻿using FinalProjectApi.Common;
+using FinalProjectApi.Common.ApplicationErrors;
 using FinalProjectApi.Common.Auth;
 using FinalProjectApi.Dtos.Appointment;
 using FinalProjectApi.Interfaces.Services;
@@ -22,126 +23,119 @@ public class AppointmentsController : ControllerBase
     [HttpPost]
     [Route("Create")]
     [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
-    public async Task<ActionResult<Result<string>>> CreateAppointment(CreateAppointment createAppointment)
+    public async Task<ActionResult<Result<ViewAppointmentDto>>> CreateAppointment(CreateAppointmentDto createAppointment)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
         try
         {
-            var result = await _appointmentsService.CreateAppointment(createAppointment);
-            if (!result.IsSuccess)
-                StatusCode(result.Error!.HttpStatus, result);
-            
-            return Ok(result);
+            return HandleResult(await _appointmentsService.CreateAppointment(createAppointment), true);
         }
         catch (Exception ex)
         {
-            return StatusCode(500, $"An unexpected error occurred: {ex.Message}");
+            return HandleException<ViewAppointmentDto>(ex.Message);
         }
     }
 
     [HttpGet]
     [Route("View")]
     [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
-    public async Task<ActionResult<Result<List<ViewAppointment>>>> ViewAppointments([FromQuery] ViewAppointmentsFilter filter)
+    public async Task<ActionResult<Result<List<ViewAppointmentDto>>>> ViewAppointments([FromQuery] ViewAppointmentsFilterDto filter)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
         try
         {
-            var result = await _appointmentsService.ViewAppointments(filter);
-            if (!result.IsSuccess)
-                return StatusCode(result.Error!.HttpStatus, result);
-
-            return Ok(result);
+            return HandleResult(await _appointmentsService.ViewAppointments(filter));
         }
         catch (Exception ex)
         {
-            return StatusCode(500, $"An unexpected error occurred: {ex.Message}");
+            return HandleException<List<ViewAppointmentDto>>(ex.Message);
         }
     }
 
     [HttpPost]
     [Route("Edit")]
     [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
-    public async Task<ActionResult<Result<ViewAppointment>>> ModifyAppointment(ModifyAppointmentDto modifyAppointmentDto)
+    public async Task<ActionResult<Result<ViewAppointmentDto>>> ModifyAppointment(ModifyAppointmentDto modifyAppointmentDto)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
         try
         {
-            var result = await _appointmentsService.ModifyAppointment(modifyAppointmentDto);
-            if (!result.IsSuccess)
-                return StatusCode(result.Error!.HttpStatus, result);
-
-            return Ok(result);
+            return HandleResult(await _appointmentsService.ModifyAppointment(modifyAppointmentDto));
         }
         catch (Exception ex)
         {
-            return StatusCode(500, $"An unexpected error occurred: {ex.Message}");
+            return HandleException<ViewAppointmentDto>(ex.Message);
         }
     }
 
     [HttpGet]
     [Route("View/{appointmentId}")]
     [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
-    public async Task<ActionResult<Result<ViewAppointment>>> ViewAppointment(string appointmentId)
+    public async Task<ActionResult<Result<ViewAppointmentDto>>> ViewAppointment(string appointmentId)
     {
         try
         {
-            var result = await _appointmentsService.ViewAppointment(appointmentId);
-            if (!result.IsSuccess)
-                return StatusCode(result.Error!.HttpStatus, result);
-
-            return Ok(result);
+            return HandleResult(await _appointmentsService.ViewAppointment(appointmentId));
         }
         catch (Exception ex)
         {
-            return StatusCode(500, $"An unexpected error occurred: {ex.Message}");
+            return HandleException<ViewAppointmentDto>(ex.Message);
         }
     }
 
     [HttpGet]
     [Route("Confirm/{appointmentId}")]
     [Authorize(Roles = $"{UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
-    public async Task<ActionResult<Result<ViewAppointment>>> ConfirmAppointment(string appointmentId)
+    public async Task<ActionResult<Result<ViewAppointmentDto>>> ConfirmAppointment(string appointmentId)
     {
         try
         {
-            var result = await _appointmentsService.ConfirmAppointment(appointmentId);
-            if (!result.IsSuccess)
-                return StatusCode(result.Error!.HttpStatus, result);
-
-            return Ok(result);
+            return HandleResult(await _appointmentsService.ConfirmAppointment(appointmentId));
         }
         catch (Exception ex)
         {
-            return StatusCode(500, $"An unexpected error occurred: {ex.Message}");
+            return HandleException<ViewAppointmentDto>(ex.Message);
         }
     }
 
     [HttpPost]
     [Route("Cancel")]
     [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
-    public async Task<ActionResult<Result<ViewAppointment>>> CancelAppointment(CancellationRequestDto cancellationRequestDto)
+    public async Task<ActionResult<Result<ViewAppointmentDto>>> CancelAppointment(CancellationRequestDto cancellationRequestDto)
     {
         if(!ModelState.IsValid)
             return BadRequest(ModelState);
 
         try
         {
-            var result = await _appointmentsService.CancelAppointment(cancellationRequestDto);
-            if (!result.IsSuccess)
-                return StatusCode(result.Error!.HttpStatus, result);
-
-            return Ok(result);
+            return HandleResult(await _appointmentsService.CancelAppointment(cancellationRequestDto));
         }
         catch (Exception ex)
         {
-            return StatusCode(500, $"An unexpected error occurred: {ex.Message}");
+            return HandleException<ViewAppointmentDto>(ex.Message);
         }
+    }
+
+    private ActionResult<Result<T>> HandleResult<T>(Result<T> result, bool isCreationResult = false)
+    {
+        if (!result.IsSuccess)
+            return StatusCode(result.Error!.HttpStatus, result);
+        return isCreationResult ? Created(string.Empty, result) : Ok(result);
+    }
+
+    private ActionResult<Result<T>> HandleException<T>(string description)
+    {
+        return StatusCode(
+            500,
+            Result<T>.Failure(
+                new ApiError(ErrorCode.Internal, $"An error occurred while processing the request.", 500, description)
+            )
+        );
     }
 }

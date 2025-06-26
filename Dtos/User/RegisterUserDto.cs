@@ -15,16 +15,9 @@ namespace FinalProjectApi.Dtos.User
         [Required]
         public string Email { get; set; }
 
-        public string Phone { get; set; }
-
-        [Required]
-        public string Role { get; set; } // role name
-
-        public DateTime? CreatedDate { get; set; }
-
-        public DateTime? UpdatedDate { get; set; }
+        public string PhoneNumber { get; set; }
         
         [Required]
-        public string password { get; set; }
+        public string Password { get; set; }
     }
 }

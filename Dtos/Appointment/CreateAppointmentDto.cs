@@ -2,7 +2,7 @@
 
 namespace FinalProjectApi.Dtos.Appointment;
 
-public class CreateAppointment
+public class CreateAppointmentDto
 {
     [Required]
     public string PatientId { get; set; }

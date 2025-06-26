@@ -40,5 +40,20 @@ public enum ErrorCode
     APPT_CancellationAlreadyRequested,
 
     [EnumMember(Value = "USR_001")]
-    USR_NotFound
+    USR_NotFound,
+
+    [EnumMember(Value = "USR_002")]
+    USR_RoleNotFound,
+
+    [EnumMember(Value = "USR_003")]
+    USR_RegistrationFailed,
+
+    [EnumMember(Value = "HOS_001")]
+    HOS_NotFound,
+
+    [EnumMember(Value = "CLNRD_001")]
+    CLNRD_NotFound,
+
+    [EnumMember(Value = "GNRL_001")]
+    GNRL_MultipleErrors
 }

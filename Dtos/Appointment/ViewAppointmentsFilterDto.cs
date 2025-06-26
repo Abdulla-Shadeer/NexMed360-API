@@ -2,7 +2,7 @@
 
 namespace FinalProjectApi.Dtos.Appointment;
 
-public class ViewAppointmentsFilter
+public class ViewAppointmentsFilterDto
 {
     public string? PatientId { get; set; }
     public string? DoctorId { get; set; }

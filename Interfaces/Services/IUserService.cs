@@ -1,9 +1,10 @@
-﻿using FinalProjectApi.Dtos.User;
+﻿using FinalProjectApi.Common;
+using FinalProjectApi.Dtos.User;
 
 namespace FinalProjectApi.Interfaces.Services
 {
     public interface IUserService
     {
-        public Task<string> RegisterUser(RegisterUserDto user);
+        public Task<Result<ViewUserDto>> RegisterUser(RegisterUserDto user, string role);
     }
 }

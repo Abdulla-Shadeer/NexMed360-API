@@ -10,7 +10,7 @@ public class ClinicRecord: Entity
 
     public DateTime VisitDate { get; set; }
     public string Diagnosis { get; set; }
-    public string DoctorNotes { get; set; }
+    public string? DoctorNotes { get; set; }
     public DateTime? FollowUpDate { get; set; }
-    public List<Prescription> Prescriptions { get; set; } = new List<Prescription>();
+    public List<Prescription>? Prescriptions { get; set; } = new List<Prescription>();
 }

@@ -10,12 +10,10 @@ namespace FinalProjectApi.Controllers
     public class UsersController : ControllerBase
     {
         private readonly IAuthService _authService;
-        private readonly IUserService _userService;
 
-        public UsersController(IAuthService authService, IUserService userService)
+        public UsersController(IAuthService authService)
         {
             _authService = authService;
-            _userService = userService;
         }
 
         [HttpPost]
@@ -28,20 +26,6 @@ namespace FinalProjectApi.Controllers
                 return Ok(new { token = await _authService.GenerateToken() });
             }
             return Unauthorized(new { error = "Invalid username or password!" });
-        }
-
-        [HttpPost]
-        [Route("Register")]
-        [AllowAnonymous]
-        public async Task<ActionResult<RegisterUserDto>> Register(RegisterUserDto userDto)
-        {
-            var userId = await _userService.RegisterUser(userDto);
-
-            if (userId != null)
-            {
-                return Ok(new { userId });
-            }
-            return BadRequest("User can't be created!");
         }
     }
 }

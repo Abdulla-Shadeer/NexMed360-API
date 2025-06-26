@@ -1,10 +1,11 @@
-﻿using FinalProjectApi.Common.Auth;
+﻿using FinalProjectApi.Common.ApplicationErrors;
+using FinalProjectApi.Common;
+using FinalProjectApi.Common.Auth;
 using FinalProjectApi.Dtos.ClinicRecord;
 using FinalProjectApi.Dtos.Patient;
 using FinalProjectApi.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.IdentityModel.Tokens;
 
 namespace FinalProjectApi.Controllers;
 
@@ -22,60 +23,89 @@ public class PatientsController : ControllerBase
     [HttpPost]
     [Route("CreatePatient")]
     [Authorize(Roles = UserRoles.RECEPTIONIST)]
-    public async Task<ActionResult<string>> AddPatient(CreatePatientDto dto)
+    public async Task<ActionResult<Result<ViewPatientDto>>> AddPatient(CreatePatientDto dto)
     {
-        var patientId = await _patientService.CreatePatient(dto);
-        if (patientId != null)
-        {
-            return Ok(new { patientId });
-        }
-        return BadRequest("Patient can't be created!");
-    }
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
 
-    [HttpPost]
-    [Route("AddVisitHistory")]
-    [Authorize(Roles = UserRoles.RECEPTIONIST)]
-    public async Task<ActionResult> AddVisitHistory(AddToVisitHistoryDto dto)
-    {
-        if (await _patientService.AddToVisitHistory(dto))
+        try
         {
-            return Ok();
+            return HandleResult(await _patientService.CreatePatient(dto), true);
         }
-        return BadRequest("Visit history can't be created!");
+        catch (Exception ex)
+        {
+            return HandleException<ViewPatientDto>(ex.Message);
+        }
     }
 
     [HttpPost]
     [Route("AddClinicRecord")]
     [Authorize(Roles = UserRoles.DOCTOR)]
-    public async Task<ActionResult> AddClinicRecord(AddClinicRecordDto dto)
+    public async Task<ActionResult<Result<ViewClinicRecordDto>>> AddClinicRecord(AddClinicRecordDto dto)
     {
-        var recordId = await _patientService.AddToClinicRecords(dto);
-        if (!string.IsNullOrEmpty(recordId))
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        try
         {
-            return Ok(new { recordId });
+            return HandleResult(await _patientService.AddToClinicRecords(dto), true);
         }
-        return BadRequest("Clinic record can't be created!");
+        catch (Exception ex)
+        {
+            return HandleException<ViewClinicRecordDto>(ex.Message);
+        }
+    }
+
+    [HttpGet]
+    [Route("GetClinicRecord")]
+    [Authorize(Roles = UserRoles.DOCTOR)]
+    [ProducesResponseType(typeof(Result<ViewClinicRecordDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<Result<ViewClinicRecordDto>>> GetClinicRecord([FromQuery] string recordId)
+    {
+        try
+        {
+            return HandleResult(await _patientService.ViewClinicRecord(recordId));
+        }
+        catch (Exception ex)
+        {
+            return HandleException<ViewClinicRecordDto>(ex.Message);
+        }
     }
 
     [HttpGet]
     [Route("GetClinicRecords")]
     [Authorize(Roles = UserRoles.DOCTOR)]
-    [ProducesResponseType(typeof(List<ClinicRecordDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(Result<List<ViewClinicRecordDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult> GetClinicRecords([FromQuery] string patientId)
+    public async Task<ActionResult<Result<List<ViewClinicRecordDto>>>> GetClinicRecords([FromQuery] string patientId)
     {
         try
         {
-            var records = await _patientService.GetAllClinicRecords(patientId);
-            if (!records.IsNullOrEmpty())
-            {
-                return Ok(records);
-            }
-            return NotFound("No records found!");
-        } catch(Exception ex)
-        {
-            return BadRequest(ex.Message);
+            return HandleResult(await _patientService.ViewAllClinicRecords(patientId));
         }
+        catch (Exception ex)
+        {
+            return HandleException<List<ViewClinicRecordDto>>(ex.Message);
+        }
+    }
+
+    private ActionResult<Result<T>> HandleResult<T>(Result<T> result, bool isCreatedResult = false)
+    {
+        if (!result.IsSuccess)
+            return StatusCode(result.Error!.HttpStatus, result);
+        return isCreatedResult ? Created(string.Empty, result) : Ok(result);
+    }
+
+    private ActionResult<Result<T>> HandleException<T>(string description)
+    {
+        return StatusCode(
+            500,
+            Result<T>.Failure(
+                new ApiError(ErrorCode.Internal, $"An error occurred while processing the request.", 500, description)
+            )
+        );
     }
 }

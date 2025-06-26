@@ -1,4 +1,6 @@
-﻿using FinalProjectApi.Common.Auth;
+﻿using FinalProjectApi.Common;
+using FinalProjectApi.Common.ApplicationErrors;
+using FinalProjectApi.Common.Auth;
 using FinalProjectApi.Dtos.Doctor;
 using FinalProjectApi.Dtos.Hospital;
 using FinalProjectApi.Dtos.HospitalAdmin;
@@ -7,74 +9,109 @@ using FinalProjectApi.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace FinalProjectApi.Controllers
+namespace FinalProjectApi.Controllers;
+
+[Route("api/v1/[controller]")]
+[ApiController]
+[Authorize]
+public class HospitalController : ControllerBase
 {
-    [Route("api/v1/[controller]")]
-    [ApiController]
-    [Authorize]
-    public class HospitalController : ControllerBase
+
+    private readonly IHospitalService _hospitalService;
+
+    public HospitalController(IHospitalService hospitalService) { 
+        _hospitalService = hospitalService;
+    }
+
+    [HttpPost]
+    [Route("CreateHospital")]
+    [Authorize(Roles = UserRoles.SUPERUSER)]
+    public async Task<ActionResult<Result<ViewHospitalDto>>> AddHospital(CreateHospitalDto dto) {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        try
+        {
+            return HandleCreationResult(await _hospitalService.CreateHospital(dto));
+        }
+        catch (Exception ex)
+        {
+            return HandleCreationException<ViewHospitalDto>("hospital", ex.Message);
+        }
+    }
+
+    [HttpPost]
+    [Route("CreateAdmin")]
+    [Authorize(Roles = UserRoles.SUPERUSER)]
+    public async Task<ActionResult<Result<ViewHospitalAdminDto>>> AddAdmin(CreateHospitalAdminDto dto)
     {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
 
-        private readonly IHospitalService _hospitalService;
-
-        public HospitalController(IHospitalService hospitalService) { 
-            _hospitalService = hospitalService;
-        }
-
-        [HttpPost]
-        [Route("CreateHospital")]
-        [Authorize(Roles = UserRoles.SUPERUSER)]
-        public async Task<ActionResult<string>> AddHospital(CreateHospitalDto dto) {
-            var hospitalId = await _hospitalService.CreateHospital(dto);
-
-            if (hospitalId != null)
-            {
-                return Ok(new { hospitalId });
-            }
-            return BadRequest("Hospital can't be created!");
-        }
-
-        [HttpPost]
-        [Route("CreateAdmin")]
-        [Authorize(Roles = UserRoles.SUPERUSER)]
-        public async Task<ActionResult> AddAdmin(CreateHospitalAdminDtso dto) {
-            var hospitalAdminId = await _hospitalService.CreateHospitalAdmin(dto);
-            if(hospitalAdminId != null)
-            {
-                return Ok(new { hospitalAdminId });
-            }
-            return BadRequest("Hospital Admin can't be created!");
-        }
-
-        [HttpPut]
-        [Route("UpdateHospital")]
-        [Authorize(Roles = $"{UserRoles.SUPERUSER},{UserRoles.HOPITAL_ADMIN}")]
-        public void UpdateHospital() { }
-
-        [HttpPost]
-        [Route("CreateReceptionist")]
-        [Authorize(Roles = UserRoles.HOPITAL_ADMIN)]
-        public async Task<ActionResult> AddReceptionist(CreateReceptionistDto dto)
+        try
         {
-            var receptionistId = await _hospitalService.CreateReceptionist(dto);
-            if (receptionistId != null)
-            {
-                return Ok(new { receptionistId });
-            }
-            return BadRequest("Receptionist can't be created!");
+            return HandleCreationResult(await _hospitalService.CreateHospitalAdmin(dto));
         }
-
-        [HttpPost]
-        [Route("CreateDoctor")]
-        [Authorize(Roles = UserRoles.HOPITAL_ADMIN)]
-        public async Task<ActionResult> AddDoctor(CreateDoctorDto dto)
+        catch (Exception ex)
         {
-            var doctorId = await _hospitalService.CreateDoctor(dto);
-            if (doctorId != null)
-            {
-                return Ok(new { doctorId });
-            }
-            return BadRequest("Doctor can't be created!");
+            return HandleCreationException<ViewHospitalAdminDto>("hospital admin", ex.Message);
         }
+    }
+
+    [HttpPut]
+    [Route("UpdateHospital")]
+    [Authorize(Roles = $"{UserRoles.SUPERUSER},{UserRoles.HOPITAL_ADMIN}")]
+    public void UpdateHospital() { }
+
+    [HttpPost]
+    [Route("CreateReceptionist")]
+    [Authorize(Roles = UserRoles.HOPITAL_ADMIN)]
+    public async Task<ActionResult<Result<ViewReceptionistDto>>> AddReceptionist(CreateReceptionistDto dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        try
+        {
+            return HandleCreationResult(await _hospitalService.CreateReceptionist(dto));
+        }
+        catch (Exception ex)
+        {
+            return HandleCreationException<ViewReceptionistDto>("receptionist", ex.Message);
+        }
+    }
+
+    [HttpPost]
+    [Route("CreateDoctor")]
+    [Authorize(Roles = UserRoles.HOPITAL_ADMIN)]
+    public async Task<ActionResult<Result<ViewDoctorDto>>> AddDoctor(CreateDoctorDto dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        try
+        {
+            return HandleCreationResult(await _hospitalService.CreateDoctor(dto));
+        }
+        catch (Exception e)
+        {
+            return HandleCreationException<ViewDoctorDto>("doctor", e.Message);
+        }
+    }
+
+    private ActionResult<Result<T>> HandleCreationResult<T>(Result<T> result) {
+        if (!result.IsSuccess)
+            return StatusCode(result.Error!.HttpStatus, result);
+
+        return Created(string.Empty, result);
+    }
+
+    private ActionResult<Result<T>> HandleCreationException<T>(string createdEntity, string description)
+    {
+        return StatusCode(
+            500,
+            Result<T>.Failure(
+                new ApiError(ErrorCode.Internal, $"An error occurred while creating the {createdEntity}.", 500, description)
+                ));
     }
 }

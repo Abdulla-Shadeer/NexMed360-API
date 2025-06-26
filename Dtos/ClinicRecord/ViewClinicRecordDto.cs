@@ -1,7 +1,8 @@
 ﻿namespace FinalProjectApi.Dtos.ClinicRecord;
 
-public class ClinicRecordDto
+public class ViewClinicRecordDto
 {
+    public string Id { get; set; }
     public string PatientId { get; set; }
     public string PatientName { get; set; }
     public string DoctorId { get; set; }
@@ -10,5 +11,5 @@ public class ClinicRecordDto
     public string Diagnosis { get; set; }
     public string? DoctorNotes { get; set; }
     public DateTime? FollowUpDate { get; set; }
-    public List<PrescriptionDto>? Prescriptions { get; set; }
+    public List<ViewPrescriptionDto>? Prescriptions { get; set; }
 }
