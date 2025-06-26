@@ -38,6 +38,21 @@ public class PatientsController : ControllerBase
         }
     }
 
+    [HttpGet]
+    [Route("ViewPatient/{patientId}")]
+    [Authorize(Roles = $"{UserRoles.PATIENT},{UserRoles.RECEPTIONIST},{UserRoles.DOCTOR}")]
+    public async Task<ActionResult<Result<ViewPatientDto>>> ViewPatient(string patientId)
+    {
+        try
+        {
+            return HandleResult(await _patientService.ViewPatient(patientId));
+        }
+        catch (Exception ex)
+        {
+            return HandleException<ViewPatientDto>(ex.Message);
+        }
+    }
+
     [HttpPost]
     [Route("AddClinicRecord")]
     [Authorize(Roles = UserRoles.DOCTOR)]
