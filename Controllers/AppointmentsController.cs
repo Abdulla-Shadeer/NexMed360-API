@@ -10,7 +10,7 @@ namespace FinalProjectApi.Controllers;
 
 [Route("api/v1/[controller]")]
 [ApiController]
-[Authorize]
+//[Authorize]
 public class AppointmentsController : ControllerBase
 {
     private readonly IAppointmentService _appointmentsService;
@@ -58,7 +58,7 @@ public class AppointmentsController : ControllerBase
 
     [HttpPost]
     [Route("Edit")]
-    [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
+    //[Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
     public async Task<ActionResult<Result<ViewAppointmentDto>>> ModifyAppointment(ModifyAppointmentDto modifyAppointmentDto)
     {
         if (!ModelState.IsValid)

@@ -22,7 +22,7 @@ public static class ErrorRegistry
         { ErrorCode.HOS_NotFound, new ApiError(ErrorCode.HOS_NotFound, "Hospital not found!", 404) },
         { ErrorCode.USR_RegistrationFailed, new ApiError(ErrorCode.USR_RegistrationFailed, "User registration failed!", 500) },
         { ErrorCode.CLNRD_NotFound, new ApiError(ErrorCode.CLNRD_NotFound, "Clinic record not found!", 404) },
-        { ErrorCode.GNRL_MultipleErrors, new ApiError(ErrorCode.GNRL_MultipleErrors, "Multiple errors occurred", 500) }
+        { ErrorCode.APPT_UnauthorizedEdit, new ApiError(ErrorCode.APPT_UnauthorizedEdit, "Only the creator of the appointment is allowed to edit it", 400) }
 
     };
 

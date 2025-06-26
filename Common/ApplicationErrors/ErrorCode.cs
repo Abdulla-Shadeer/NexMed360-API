@@ -39,6 +39,9 @@ public enum ErrorCode
     [EnumMember(Value = "APPT_009")]
     APPT_CancellationAlreadyRequested,
 
+    [EnumMember(Value = "APPT_010")]
+    APPT_UnauthorizedEdit,
+
     [EnumMember(Value = "USR_001")]
     USR_NotFound,
 
@@ -52,8 +55,5 @@ public enum ErrorCode
     HOS_NotFound,
 
     [EnumMember(Value = "CLNRD_001")]
-    CLNRD_NotFound,
-
-    [EnumMember(Value = "GNRL_001")]
-    GNRL_MultipleErrors
+    CLNRD_NotFound
 }

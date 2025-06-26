@@ -108,10 +108,16 @@ public class AppointmentService : IAppointmentService
         if (!Guid.TryParse(modifyAppointmentDto.Id, out var appointmentId))
             return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_InvalidGuid, "Invalid 'appointmentId' format.");
 
+        if (!Guid.TryParse(modifyAppointmentDto.RequesterId, out var requesterId))
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_InvalidGuid, "Invalid 'requesterId' format.");
+
         var appointment = await _context.Appointments.FirstOrDefaultAsync(a => a.Id == appointmentId);
 
         if (appointment == null)
             return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_NotFound);
+
+        if (appointment.CreatedById != requesterId)
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_UnauthorizedEdit);
 
         if (appointment.Status == AppointmentStatus.Cancelled)
             return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_Cancelled);

@@ -7,6 +7,9 @@ public class ModifyAppointmentDto
     [Required]
     public string Id { get; set; }
 
+    [Required]
+    public string RequesterId { get; set; }
+
     public string? PatientId { get; set; }
 
     public string? DoctorId { get; set; }
