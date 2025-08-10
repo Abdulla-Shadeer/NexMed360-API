@@ -1,4 +1,7 @@
-﻿using FinalProjectApi.Dtos.User;
+﻿using FinalProjectApi.Common;
+using FinalProjectApi.Common.ApplicationErrors;
+using FinalProjectApi.Dtos.User;
+using FinalProjectApi.Entities;
 using FinalProjectApi.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -19,13 +22,27 @@ namespace FinalProjectApi.Controllers
         [HttpPost]
         [Route("Login")]
         [AllowAnonymous]
-        public async Task<ActionResult<string>> Login(LoginUserDto userDto)
+        public async Task<ActionResult<Result<string>>> Login(LoginUserDto userDto)
         {
-            if (await _authService.ValidateUser(userDto))
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+            try
             {
-                return Ok(new { token = await _authService.GenerateToken() });
+                if (await _authService.ValidateUser(userDto))
+                {
+                    return Ok(Result<string>.Success(await _authService.GenerateToken()));
+                }
+                return Unauthorized(Result<string>.Failure(new ApiError(ErrorCode.SYS_Unauthorized, $"Incorrect username or password!", 401)));
             }
-            return Unauthorized(new { error = "Invalid username or password!" });
+            catch (Exception e)
+            {
+                return StatusCode(
+                500,
+                Result<string>.Failure(
+                new ApiError(ErrorCode.Internal, $"An error occurred while processing the request.", 500, e.Message)
+            )
+        );
+            }
         }
     }
 }

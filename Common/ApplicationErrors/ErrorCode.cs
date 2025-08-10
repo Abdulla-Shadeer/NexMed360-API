@@ -12,6 +12,9 @@ public enum ErrorCode
     [EnumMember(Value = "SYS_002")]
     SYS_InvalidGuid,
 
+    [EnumMember(Value = "SYS_003")]
+    SYS_Unauthorized,
+
     [EnumMember(Value = "APPT_001")]
     APPT_NotFound,
 
