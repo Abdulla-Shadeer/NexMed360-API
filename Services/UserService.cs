@@ -56,7 +56,9 @@ namespace FinalProjectApi.Services
             }
 
             await _userManager.AddToRoleAsync(newUser, role);
-            return Result<ViewUserDto>.Success(_mapper.Map<ViewUserDto>(await _userManager.FindByEmailAsync(user.Email)));
+            var registeredUser = _mapper.Map<ViewUserDto>(await _userManager.FindByEmailAsync(user.Email));
+            registeredUser.Roles = (await _userManager.GetRolesAsync(newUser)).ToList();
+            return Result<ViewUserDto>.Success(registeredUser);
         }
     }
 }

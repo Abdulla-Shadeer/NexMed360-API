@@ -1,10 +1,10 @@
-﻿using FinalProjectApi.Dtos.User;
+﻿using FinalProjectApi.Common;
+using FinalProjectApi.Dtos.User;
 
 namespace FinalProjectApi.Interfaces.Services
 {
     public interface IAuthService
     {
-        Task<bool> ValidateUser(LoginUserDto userDto);
-        Task<String> GenerateToken();
+        Task<Result<LoginResponseDto>> LoginAsync(LoginUserDto loginUserDto);
     }
 }

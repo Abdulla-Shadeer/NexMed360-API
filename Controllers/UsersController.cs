@@ -1,7 +1,6 @@
 ﻿using FinalProjectApi.Common;
 using FinalProjectApi.Common.ApplicationErrors;
 using FinalProjectApi.Dtos.User;
-using FinalProjectApi.Entities;
 using FinalProjectApi.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -28,11 +27,12 @@ namespace FinalProjectApi.Controllers
                 return BadRequest(ModelState);
             try
             {
-                if (await _authService.ValidateUser(userDto))
+                var loginResponse = await _authService.LoginAsync(userDto);
+                if (loginResponse.IsSuccess)
                 {
-                    return Ok(Result<string>.Success(await _authService.GenerateToken()));
+                    return Ok(loginResponse);
                 }
-                return Unauthorized(Result<string>.Failure(new ApiError(ErrorCode.SYS_Unauthorized, $"Incorrect username or password!", 401)));
+                return Unauthorized(loginResponse);
             }
             catch (Exception e)
             {

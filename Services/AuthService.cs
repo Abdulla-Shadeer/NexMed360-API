@@ -1,4 +1,7 @@
-﻿using FinalProjectApi.Dtos.User;
+﻿using AutoMapper;
+using FinalProjectApi.Common;
+using FinalProjectApi.Common.ApplicationErrors;
+using FinalProjectApi.Dtos.User;
 using FinalProjectApi.Entities;
 using FinalProjectApi.Interfaces.Services;
 using Microsoft.AspNetCore.Identity;
@@ -14,45 +17,63 @@ namespace FinalProjectApi.Services
         private readonly UserManager<User> _userManager;
         private readonly IConfiguration _config;
         private User? _user;
-        public AuthService(UserManager<User> userManager, IConfiguration configuration) { 
+        private readonly IMapper _mapper; 
+        public AuthService(UserManager<User> userManager, IConfiguration configuration, IMapper mapper) { 
             _userManager = userManager;
             _config = configuration;
+            _mapper = mapper;
         }
 
-        public async Task<bool> ValidateUser(LoginUserDto user)
+        public async Task<Result<LoginResponseDto>> LoginAsync(LoginUserDto loginUserDto) {
+            if (await IsValidUser(loginUserDto))
+            {
+                var token = await GenerateToken();
+                var authUser = _mapper.Map<ViewUserDto>(_user);
+                authUser.Roles = (await _userManager.GetRolesAsync(_user!)).ToList();
+
+                return Result<LoginResponseDto>.Success(new LoginResponseDto()
+                {
+                    AccessToken = token,
+                    User = authUser
+                });
+            }
+            else {
+                return Result<LoginResponseDto>
+                    .Failure(new ApiError(ErrorCode.SYS_Unauthorized, "Wrong credentials", 401, "Incorrect username or password!"));
+            }
+        }
+
+        private async Task<bool> IsValidUser(LoginUserDto user)
         {
             _user = await _userManager.FindByEmailAsync(user.Email);
-
-            if (_user != null)
-            {
-                return await _userManager.CheckPasswordAsync(_user, user.Password);
-            }
-            else { 
-                return false;
-            }
+            return _user != null && await _userManager.CheckPasswordAsync(_user, user.Password); 
         }
 
-        public async Task<string> GenerateToken()
+        private async Task<string> GenerateToken()
         {
             var tokenHandler = new JwtSecurityTokenHandler();
             var signingKey = Encoding.UTF8.GetBytes(_config["Auth:Jwt:Signing-Key"]!);
-            var role = (await _userManager.GetRolesAsync(_user!)).First();
+            var roles = (await _userManager.GetRolesAsync(_user!));
 
-            var tokenDescriptor = new SecurityTokenDescriptor {
-                Subject = new ClaimsIdentity(
-                    new Claim[] {
-                        new Claim(ClaimTypes.Sid, _user!.Id),
-                        new Claim(ClaimTypes.Email, _user!.Email),
-                        new Claim("name", _user!.FirstName + " " + _user!.LastName),
-                        new Claim(ClaimTypes.Role, role)
-                    }
-                    ),
-                Expires = DateTime.Now.AddDays(int.Parse(_config["Auth:Jwt:Validity"]!)),
-                Issuer = _config["Auth:Jwt:Issuer"]!,
-                Audience = _config["Auth:Jwt:Audience"]!,
-                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(signingKey), SecurityAlgorithms.HmacSha256)
+            var claims = new List<Claim>() {
+                new(JwtRegisteredClaimNames.Sub, _user!.Id),
+                new(JwtRegisteredClaimNames.Sid, Guid.NewGuid().ToString())
             };
-            var token = tokenHandler.CreateToken(tokenDescriptor);
+
+            foreach (var role in roles)
+            {
+                claims.Add(new Claim(ClaimTypes.Role, role));
+            }
+
+            var token = new JwtSecurityToken(
+                issuer: _config["Auth:Jwt:Issuer"]!,
+                audience: _config["Auth:Jwt:Audience"]!,
+                claims: claims,
+                expires: DateTime.Now.AddDays(int.Parse(_config["Auth:Jwt:Validity"]!)),
+                signingCredentials: new SigningCredentials(new SymmetricSecurityKey(signingKey), SecurityAlgorithms.HmacSha256),
+                notBefore: null
+                );
+
             return tokenHandler.WriteToken(token);
         }
     }

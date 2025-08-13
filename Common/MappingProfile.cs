@@ -25,7 +25,7 @@ public class MappingProfile: Profile
             .ForMember(dest => dest.UserName, opt => opt.MapFrom(src => src.Email))
             .ForMember(dest => dest.CreatedDate, opt => opt.MapFrom(_ => DateTime.Now))
             .ForMember(dest => dest.UpdatedDate, opt => opt.MapFrom(_ => DateTime.Now));
-        
+
         //Hospital and Staff
         CreateMap<Doctor, ViewDoctorDto>();
         CreateMap<Receptionist, ViewReceptionistDto>();
@@ -43,5 +43,5 @@ public class MappingProfile: Profile
             .ForMember(dest => dest.DoctorName, opt => opt.MapFrom(src => string.Join(" ", src.Doctor.User.FirstName, src.Doctor.User.LastName)));
         CreateMap<AddPrescriptionDto, Prescription>();
         CreateMap<Prescription, ViewPrescriptionDto>();
-    }   
+    }
 }
