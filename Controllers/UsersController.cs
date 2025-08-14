@@ -44,5 +44,29 @@ namespace FinalProjectApi.Controllers
         );
             }
         }
+
+        [HttpGet]
+        [Route("GetUser")]
+        [Authorize]
+        public async Task<ActionResult<Result<ViewUserDto>>> GetUser()
+        {
+            try
+            {
+                var authResult = await _authService.GetUserAsync(User);
+                if (authResult.IsSuccess)
+                {
+                    return Ok(authResult);
+                }
+                return Unauthorized(authResult);
+            }
+            catch (Exception e)
+            {
+                return StatusCode(
+                    500,
+                    Result<ViewUserDto>
+                    .Failure(new ApiError(ErrorCode.Internal, "An error occurred while processing the request!", 500, e.Message))
+                    );
+            }
+        }
     }
 }

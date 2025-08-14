@@ -15,6 +15,9 @@ public enum ErrorCode
     [EnumMember(Value = "SYS_003")]
     SYS_Unauthorized,
 
+    [EnumMember(Value = "SYS_004")]
+    SYS_BadRequest,
+
     [EnumMember(Value = "APPT_001")]
     APPT_NotFound,
 
