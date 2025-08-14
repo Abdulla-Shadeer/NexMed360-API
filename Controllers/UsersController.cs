@@ -21,7 +21,7 @@ namespace FinalProjectApi.Controllers
         [HttpPost]
         [Route("Login")]
         [AllowAnonymous]
-        public async Task<ActionResult<Result<string>>> Login(LoginUserDto userDto)
+        public async Task<ActionResult<Result<LoginResponseDto>>> Login(LoginUserDto userDto)
         {
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
