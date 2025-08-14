@@ -22,7 +22,7 @@ public class PatientsController : ControllerBase
 
     [HttpPost]
     [Route("CreatePatient")]
-    [Authorize(Roles = UserRoles.RECEPTIONIST)]
+    [Authorize(Roles = $"{UserRoles.RECEPTIONIST},{UserRoles.SUPERUSER}")]
     public async Task<ActionResult<Result<ViewPatientDto>>> AddPatient(CreatePatientDto dto)
     {
         if (!ModelState.IsValid)

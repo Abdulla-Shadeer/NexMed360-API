@@ -44,7 +44,9 @@ public class PatientService : IPatientService
             .Include(p => p.User)
             .FirstOrDefaultAsync(p => p.UserId == userRegistration.Data.Id);
 
-        return Result<ViewPatientDto>.Success(_mapper.Map<ViewPatientDto>(patient));
+        var viewPatientDto = _mapper.Map<ViewPatientDto>(patient);
+        viewPatientDto.User.Roles = userRegistration.Data.Roles;
+        return Result<ViewPatientDto>.Success(viewPatientDto);
     }
 
     public async Task<Result<ViewPatientDto>> ViewPatient(string id)

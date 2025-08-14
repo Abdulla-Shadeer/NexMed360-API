@@ -30,6 +30,26 @@ namespace FinalProjectApi.Services
             if (identityRole == null)
                 return Result<ViewUserDto>.Failure(ErrorCode.USR_RoleNotFound, $"The {role} role does not exist.");
 
+            // create user if no user already exists with the email
+            // add only to new role if a user profile already exists
+            var existingUser = await _userManager.FindByEmailAsync(user.Email);
+            if (existingUser != null)
+            {
+                if (!await _userManager.IsInRoleAsync(existingUser, role))
+                {
+                    await _userManager.AddToRoleAsync(existingUser, role);
+                    var updatedRoles = await _userManager.GetRolesAsync(existingUser);
+                    var viewUserDto = _mapper.Map<ViewUserDto>(existingUser);
+                    viewUserDto.Roles = updatedRoles.ToList();
+                    _logger.LogInformation($"User already exists, assigned to new role: '{role}'");
+                    return Result<ViewUserDto>.Success(viewUserDto);
+                }
+
+                var error = $"User already exists and already has the '{role}' role.";
+                _logger.LogError(error);
+                return Result<ViewUserDto>.Failure(ErrorCode.USR_RegistrationFailed, error, 400);
+            }
+
             var newUser = _mapper.Map<User>(user);
 
             var passwordValidationErrors = new List<IdentityError>();
