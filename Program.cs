@@ -61,6 +61,7 @@ namespace FinalProjectApi
             // Add services to the container.
             builder.Services.AddAutoMapper(typeof(MappingProfile));
             builder.Services.AddScoped<IDbInitializerService, DbInitializerService>();
+            builder.Services.AddScoped<IOverviewService, OverviewService>();
             builder.Services.AddScoped<IUserService, UserService>();
             builder.Services.AddScoped<IAuthService, AuthService>();
             builder.Services.AddScoped<IHospitalService, HospitalService>();
@@ -82,6 +83,7 @@ namespace FinalProjectApi
             {
                 app.UseSwagger();
                 app.UseSwaggerUI();
+                app.UseCors(opt => opt.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
             }
 
             app.UseHttpsRedirection();

@@ -1,5 +1,6 @@
 ﻿using FinalProjectApi.Common;
 using FinalProjectApi.Common.ApplicationErrors;
+using FinalProjectApi.Dtos.Overview;
 using FinalProjectApi.Dtos.User;
 using FinalProjectApi.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -12,10 +13,12 @@ namespace FinalProjectApi.Controllers
     public class UsersController : ControllerBase
     {
         private readonly IAuthService _authService;
+        private readonly IUserService _userService;
 
-        public UsersController(IAuthService authService)
+        public UsersController(IAuthService authService, IUserService userService)
         {
             _authService = authService;
+            _userService = userService;
         }
 
         [HttpPost]
@@ -66,6 +69,28 @@ namespace FinalProjectApi.Controllers
                     Result<ViewUserDto>
                     .Failure(new ApiError(ErrorCode.Internal, "An error occurred while processing the request!", 500, e.Message))
                     );
+            }
+        }
+
+        [HttpGet]
+        [Route("GetOverview")]
+        [Authorize]
+        public async Task<ActionResult<Result<List<OverviewDto>>>> GetOverview()
+        {
+            try
+            {
+                var overview = await _userService.GetOverview(User);
+                if (overview.IsSuccess)
+                {
+                    return Ok(overview);
+                }
+                return StatusCode(overview.Error!.HttpStatus, overview);
+            }
+            catch (Exception e)
+            {
+                return StatusCode(500, Result<List<OverviewDto>>.Failure(
+                    new ApiError(ErrorCode.Internal, "An error occurred while processing the request!", 500, e.Message)
+                    ));
             }
         }
     }
