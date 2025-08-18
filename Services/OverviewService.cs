@@ -136,12 +136,59 @@ public class OverviewService : IOverviewService
 
     public async Task<PatientOverviewDto> GetPatientOverview(string userId)
     {
-        throw new NotImplementedException();
+        var patientId = await _context.Patients
+            .Where(p => p.UserId == userId)
+            .Select(p => p.Id)
+            .FirstOrDefaultAsync();
+
+        var filterDates = GetFilterDates();
+
+        var ehrStats = await _context.ClinicRecords
+            .Where(cr => cr.PatientId == patientId)
+            .Include(cr => cr.Prescriptions)
+            .GroupBy(cr => 1)
+            .Select(group => new
+            {
+                ActivePrescriptions = group.Sum(cr => cr.Prescriptions!.Count(prs => prs.IsActive == true)),
+                TotalEHRs = new DatewiseStatsDto
+                {
+                    Today = group.Count(cr => cr.VisitDate >= filterDates.TodayStart && cr.VisitDate < filterDates.TomorrowStart),
+                    ThisWeek = group.Count(cr => cr.VisitDate >= filterDates.ThisWeekStart && cr.VisitDate < filterDates.Now),
+                    ThisMonth = group.Count(cr => cr.VisitDate >= filterDates.ThisMonthStart && cr.VisitDate < filterDates.Now)
+                }
+            })
+            .OrderBy(obj => 1)
+            .FirstOrDefaultAsync() ?? new { ActivePrescriptions = 0, TotalEHRs = new DatewiseStatsDto() };
+
+        var patientAppointments = _context.Appointments
+            .Where(appt => appt.PatientId == patientId)
+            .AsQueryable();
+
+        var upcomingAppointments = await patientAppointments
+            .Where(appt => appt.AppointmentDateTime > filterDates.Now && appt.Status != AppointmentStatus.Cancelled)
+            .CountAsync();
+
+        var recentAppointments = await GetRecentAppointments(patientAppointments, filterDates.Now);
+
+        return new PatientOverviewDto()
+        {
+            TotalEHRs = ehrStats.TotalEHRs,
+            ActivePrescriptions = ehrStats.ActivePrescriptions,
+            UpcomingAppointments = upcomingAppointments,
+            RecentAppointments = recentAppointments
+        };
     }
 
     public async Task<SystemOverviewDto> GetSystemOverview()
     {
-        throw new NotImplementedException();
+        return new SystemOverviewDto()
+        {
+            TotalEHRs = await _context.ClinicRecords.CountAsync(),
+            TotalHospitals = await _context.Hospitals.CountAsync(),
+            TotalMedicalStaff = (await _context.Doctors.CountAsync()) + (await _context.HospitalAdmins.CountAsync()) + (await _context.Receptionists.CountAsync()),
+            TotalPatients = await _context.Patients.CountAsync(),
+            TotalUsers = await _context.Users.CountAsync(),
+        };
     }
 
     private FilterDate GetFilterDates()
@@ -167,8 +214,7 @@ public class OverviewService : IOverviewService
     private async Task<List<ViewAppointmentDto>> GetRecentAppointments(IQueryable<Appointment> appointments, DateTime now)
     {
         return await appointments
-            .Where(appt => appt.AppointmentDateTime < now)
-            .Where(appt => appt.Status == AppointmentStatus.Completed)
+            .Where(appt => appt.AppointmentDateTime < now && appt.Status == AppointmentStatus.Completed)
             .OrderByDescending(appt => appt.AppointmentDateTime)
             .Include(appt => appt.Patient)
             .ThenInclude(pat => pat.User)
