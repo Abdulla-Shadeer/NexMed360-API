@@ -2,6 +2,7 @@
 using FinalProjectApi.Entities;
 using FinalProjectApi.Interfaces.Services;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace FinalProjectApi.Services
 {
@@ -20,9 +21,14 @@ namespace FinalProjectApi.Services
             _configuration = configuration;
         }
 
-        public async Task SeedData() { 
-            await InitializeRoles();
-            await InitializeUsers();
+        public async Task SeedData() {
+            if (!await _roleManager.Roles.AnyAsync()) {
+                await InitializeRoles();
+            }
+
+            if (!await _userManager.Users.AnyAsync()) {
+                await InitializeUsers();
+            }
         }
 
         private async Task InitializeRoles()
@@ -41,10 +47,10 @@ namespace FinalProjectApi.Services
             superUser.FirstName = "Super";
             superUser.LastName = "User";
             superUser.Email = "superuser@gmail.com";
-            superUser.CreatedDate = DateTime.Now;
-            superUser.UpdatedDate = DateTime.Now;
             superUser.PhoneNumber = "0123456789";
             superUser.UserName = "superuser@gmail.com";
+            superUser.CreatedDate = DateTime.Now;
+            superUser.UpdatedDate = DateTime.Now;
 
             var superUserPassword = _configuration["Auth:SuperUserPassword"]!;
 
