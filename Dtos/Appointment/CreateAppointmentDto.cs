@@ -10,13 +10,10 @@ public class CreateAppointmentDto
     [Required]
     public string DoctorId { get; set; }
     [Required]
-    public string CreatedById { get; set; }
+    public string HospitalId { get; set; }
 
     [Required]
     public DateTime AppointmentDateTime { get; set; }
-
-    [Required]
-    public TimeSpan Duration { get; set; }
 
     [Required]
     public string Location {  get; set; }

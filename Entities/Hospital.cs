@@ -17,5 +17,6 @@ namespace FinalProjectApi.Entities
         public List<HospitalAdmin> HospitalAdmins { get; set; } = new List<HospitalAdmin>();
         public List<Receptionist> Receptionists { get; set; } = new List<Receptionist>();
         public List<Doctor> Doctors { get; set; } = new List<Doctor>();
+        public List<Appointment> Appointments { get; set; } = [];
     }
 }

@@ -31,17 +31,19 @@ namespace FinalProjectApi.Migrations
                     b.Property<DateTime>("AppointmentDateTime")
                         .HasColumnType("timestamp without time zone");
 
-                    b.Property<Guid>("CreatedById")
-                        .HasColumnType("uuid");
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("CreatedDate")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp without time zone");
 
                     b.Property<Guid>("DoctorId")
                         .HasColumnType("uuid");
 
-                    b.Property<TimeSpan>("Duration")
-                        .HasColumnType("interval");
+                    b.Property<Guid>("HospitalId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Location")
                         .IsRequired()
@@ -57,11 +59,16 @@ namespace FinalProjectApi.Migrations
                         .HasColumnType("integer");
 
                     b.Property<DateTime?>("UpdatedDate")
+                        .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("timestamp without time zone");
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CreatedByUserId");
+
                     b.HasIndex("DoctorId");
+
+                    b.HasIndex("HospitalId");
 
                     b.HasIndex("PatientId");
 
@@ -92,6 +99,7 @@ namespace FinalProjectApi.Migrations
                         .HasColumnType("integer");
 
                     b.Property<DateTime?>("UpdatedDate")
+                        .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("timestamp without time zone");
 
                     b.HasKey("Id");
@@ -108,6 +116,7 @@ namespace FinalProjectApi.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<DateTime?>("CreatedDate")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp without time zone");
 
                     b.Property<string>("Diagnosis")
@@ -127,6 +136,7 @@ namespace FinalProjectApi.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<DateTime?>("UpdatedDate")
+                        .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("timestamp without time zone");
 
                     b.Property<DateTime>("VisitDate")
@@ -159,6 +169,7 @@ namespace FinalProjectApi.Migrations
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("UpdatedDate")
+                        .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("timestamp without time zone");
 
                     b.Property<string>("UserId")
@@ -210,6 +221,7 @@ namespace FinalProjectApi.Migrations
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("UpdatedDate")
+                        .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("timestamp without time zone");
 
                     b.HasKey("Id");
@@ -231,6 +243,7 @@ namespace FinalProjectApi.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<DateTime?>("UpdatedDate")
+                        .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("timestamp without time zone");
 
                     b.Property<string>("UserId")
@@ -265,6 +278,7 @@ namespace FinalProjectApi.Migrations
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("UpdatedDate")
+                        .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("timestamp without time zone");
 
                     b.Property<string>("UserId")
@@ -289,6 +303,7 @@ namespace FinalProjectApi.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<DateTime?>("CreatedDate")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp without time zone");
 
                     b.Property<string>("Dosage")
@@ -311,6 +326,7 @@ namespace FinalProjectApi.Migrations
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("UpdatedDate")
+                        .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("timestamp without time zone");
 
                     b.HasKey("Id");
@@ -342,6 +358,7 @@ namespace FinalProjectApi.Migrations
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("UpdatedDate")
+                        .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("timestamp without time zone");
 
                     b.Property<string>("UserId")
@@ -445,6 +462,7 @@ namespace FinalProjectApi.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<DateTime?>("CreatedDate")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp without time zone");
 
                     b.Property<Guid>("HospitalId")
@@ -457,6 +475,7 @@ namespace FinalProjectApi.Migrations
                         .HasColumnType("integer");
 
                     b.Property<DateTime?>("UpdatedDate")
+                        .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("timestamp without time zone");
 
                     b.Property<string>("UserId")
@@ -612,9 +631,21 @@ namespace FinalProjectApi.Migrations
 
             modelBuilder.Entity("FinalProjectApi.Entities.Appointment", b =>
                 {
+                    b.HasOne("FinalProjectApi.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("FinalProjectApi.Entities.Doctor", "Doctor")
                         .WithMany("Appointments")
                         .HasForeignKey("DoctorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("FinalProjectApi.Entities.Hospital", "Hospital")
+                        .WithMany("Appointments")
+                        .HasForeignKey("HospitalId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -624,7 +655,11 @@ namespace FinalProjectApi.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.Navigation("CreatedByUser");
+
                     b.Navigation("Doctor");
+
+                    b.Navigation("Hospital");
 
                     b.Navigation("Patient");
                 });
@@ -824,6 +859,8 @@ namespace FinalProjectApi.Migrations
 
             modelBuilder.Entity("FinalProjectApi.Entities.Hospital", b =>
                 {
+                    b.Navigation("Appointments");
+
                     b.Navigation("Doctors");
 
                     b.Navigation("HospitalAdmins");

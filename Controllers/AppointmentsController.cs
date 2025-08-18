@@ -5,12 +5,13 @@ using FinalProjectApi.Dtos.Appointment;
 using FinalProjectApi.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace FinalProjectApi.Controllers;
 
 [Route("api/v1/[controller]")]
 [ApiController]
-//[Authorize]
+[Authorize]
 public class AppointmentsController : ControllerBase
 {
     private readonly IAppointmentService _appointmentsService;
@@ -30,7 +31,8 @@ public class AppointmentsController : ControllerBase
 
         try
         {
-            return HandleResult(await _appointmentsService.CreateAppointment(createAppointment), true);
+            var requesterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            return HandleResult(await _appointmentsService.CreateAppointment(createAppointment, requesterId!), true);
         }
         catch (Exception ex)
         {
@@ -58,7 +60,7 @@ public class AppointmentsController : ControllerBase
 
     [HttpPost]
     [Route("Edit")]
-    //[Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
+    [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
     public async Task<ActionResult<Result<ViewAppointmentDto>>> ModifyAppointment(ModifyAppointmentDto modifyAppointmentDto)
     {
         if (!ModelState.IsValid)
@@ -66,7 +68,8 @@ public class AppointmentsController : ControllerBase
 
         try
         {
-            return HandleResult(await _appointmentsService.ModifyAppointment(modifyAppointmentDto));
+            var requesterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            return HandleResult(await _appointmentsService.ModifyAppointment(modifyAppointmentDto, requesterId!));
         }
         catch (Exception ex)
         {
@@ -96,7 +99,22 @@ public class AppointmentsController : ControllerBase
     {
         try
         {
-            return HandleResult(await _appointmentsService.ConfirmAppointment(appointmentId));
+            return HandleResult(await _appointmentsService.ConfirmOrCompleteAppointment(appointmentId, false));
+        }
+        catch (Exception ex)
+        {
+            return HandleException<ViewAppointmentDto>(ex.Message);
+        }
+    }
+
+    [HttpGet]
+    [Route("Complete/{appointmentId}")]
+    [Authorize(Roles = $"{UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
+    public async Task<ActionResult<Result<ViewAppointmentDto>>> CompleteAppointment(string appointmentId)
+    {
+        try
+        {
+            return HandleResult(await _appointmentsService.ConfirmOrCompleteAppointment(appointmentId, true));
         }
         catch (Exception ex)
         {
@@ -114,7 +132,8 @@ public class AppointmentsController : ControllerBase
 
         try
         {
-            return HandleResult(await _appointmentsService.CancelAppointment(cancellationRequestDto));
+            var requesterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            return HandleResult(await _appointmentsService.CancelAppointment(cancellationRequestDto, requesterId!));
         }
         catch (Exception ex)
         {

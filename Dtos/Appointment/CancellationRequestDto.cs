@@ -6,8 +6,7 @@ public class CancellationRequestDto
 {
     [Required]
     public string AppointmentId { get; set; }
-    [Required]
-    public string RequestedById { get; set; }
+
     [Required]
     public string Reason { get; set; }
 }
