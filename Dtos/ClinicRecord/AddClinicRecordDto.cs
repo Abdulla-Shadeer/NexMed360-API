@@ -8,11 +8,6 @@ public class AddClinicRecordDto
     public string PatientId { get; set; }
 
     [Required]
-    public string DoctorId { get; set; }
-
-    [Required]
-    public DateTime VisitDate { get; set; }
-    [Required]
     public string Diagnosis { get; set; }
     public string? DoctorNotes { get; set; }
     public DateTime? FollowUpDate { get; set; }

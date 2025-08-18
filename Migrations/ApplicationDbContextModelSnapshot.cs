@@ -310,13 +310,11 @@ namespace FinalProjectApi.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("DurationDays")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<int>("DurationDays")
+                        .HasColumnType("integer");
 
-                    b.Property<string>("Frequency")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("MedicineName")
                         .IsRequired()
@@ -324,6 +322,9 @@ namespace FinalProjectApi.Migrations
 
                     b.Property<string>("Notes")
                         .HasColumnType("text");
+
+                    b.Property<int>("TimesPerDay")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime?>("UpdatedDate")
                         .ValueGeneratedOnAddOrUpdate()

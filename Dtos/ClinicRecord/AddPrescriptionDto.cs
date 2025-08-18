@@ -9,7 +9,8 @@ public class AddPrescriptionDto
     [Required]
     public string Dosage { get; set; }
     [Required]
-    public string Frequency { get; set; }
-    public string? DurationDays { get; set; }
+    public int TimesPerDay { get; set; }
+    [Required]
+    public int DurationDays { get; set; }
     public string? Notes { get; set; }
 }

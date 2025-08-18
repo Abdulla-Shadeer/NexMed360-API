@@ -4,9 +4,13 @@ public class ViewPrescriptionDto
 {
     public string Id { get; set; }
     public string ClinicRecordId { get; set; }
+    public DateTime IssuedOn { get; set; }
+    public string IssuedByDoctor { get; set; }
+    public string IssuedAtHospital { get; set; }
     public string MedicineName { get; set; }
     public string Dosage { get; set; }
-    public string Frequency { get; set; }
-    public string DurationDays { get; set; }
+    public int TimesPerDay { get; set; }
+    public int DurationDays { get; set; }
     public string? Notes { get; set; }
+    public bool IsActive { get; set; }
 }

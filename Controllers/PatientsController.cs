@@ -6,6 +6,7 @@ using FinalProjectApi.Dtos.Patient;
 using FinalProjectApi.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace FinalProjectApi.Controllers;
 
@@ -63,7 +64,8 @@ public class PatientsController : ControllerBase
 
         try
         {
-            return HandleResult(await _patientService.AddToClinicRecords(dto), true);
+            var doctorUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            return HandleResult(await _patientService.AddToClinicRecords(dto, doctorUserId!), true);
         }
         catch (Exception ex)
         {
@@ -73,7 +75,7 @@ public class PatientsController : ControllerBase
 
     [HttpGet]
     [Route("GetClinicRecord")]
-    [Authorize(Roles = UserRoles.DOCTOR)]
+    [Authorize(Roles = $"{UserRoles.DOCTOR}, {UserRoles.PATIENT}")]
     [ProducesResponseType(typeof(Result<ViewClinicRecordDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
@@ -91,7 +93,7 @@ public class PatientsController : ControllerBase
 
     [HttpGet]
     [Route("GetClinicRecords")]
-    [Authorize(Roles = UserRoles.DOCTOR)]
+    [Authorize(Roles = $"{UserRoles.DOCTOR}, {UserRoles.PATIENT}")]
     [ProducesResponseType(typeof(Result<List<ViewClinicRecordDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]

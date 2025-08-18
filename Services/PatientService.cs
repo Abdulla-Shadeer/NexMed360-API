@@ -62,28 +62,33 @@ public class PatientService : IPatientService
         return Result<ViewPatientDto>.Success(_mapper.Map<ViewPatientDto>(patient));
     }
 
-    public async Task<Result<ViewClinicRecordDto>> AddToClinicRecords(AddClinicRecordDto dto)
+    public async Task<Result<ViewClinicRecordDto>> AddToClinicRecords(AddClinicRecordDto dto, string doctorUserId)
     {
-        var doctorCheck = await UserCheck(dto.DoctorId, true);
-        if (!doctorCheck.IsSuccess)
-            return Result<ViewClinicRecordDto>.Failure(doctorCheck.Error!);
+        var doctorId = await _dbContext.Doctors
+            .Where(d => d.UserId == doctorUserId)
+            .Select(d => d.Id).FirstOrDefaultAsync();
 
         var patientCheck = await UserCheck(dto.PatientId);
         if (!patientCheck.IsSuccess)
             return Result<ViewClinicRecordDto>.Failure(patientCheck.Error!);
 
-        var clinicRecordEntry = await _dbContext.ClinicRecords.AddAsync(_mapper.Map<ClinicRecord>(dto));
+        var clinicRec = _mapper.Map<ClinicRecord>(dto);
+        clinicRec.DoctorId = doctorId;
+
+        var clinicRecordEntry = await _dbContext.ClinicRecords.AddAsync(clinicRec);
         await _dbContext.SaveChangesAsync();
 
-        var clinicRecord = await _dbContext.ClinicRecords
+        var addedClinicRecord = await _dbContext.ClinicRecords
             .Include(cr => cr.Doctor)
             .ThenInclude(dr => dr.User)
+            .Include(cr => cr.Doctor)
+            .ThenInclude(dr => dr.Hospital)
             .Include(cr => cr.Patient)
             .ThenInclude(pt => pt.User)
             .Include(cr => cr.Prescriptions)
             .FirstOrDefaultAsync(cr => cr.Id == clinicRecordEntry.Entity.Id);
 
-        return Result<ViewClinicRecordDto>.Success(_mapper.Map<ViewClinicRecordDto>(clinicRecord));
+        return Result<ViewClinicRecordDto>.Success(_mapper.Map<ViewClinicRecordDto>(addedClinicRecord));
     }
 
     public async Task<Result<ViewClinicRecordDto>> ViewClinicRecord(string id)
@@ -92,12 +97,14 @@ public class PatientService : IPatientService
             return Result<ViewClinicRecordDto>.Failure(ErrorCode.SYS_InvalidGuid, "Invalid clinic record ID format.");
 
         var clinicRecord = await _dbContext.ClinicRecords
-                .Include(cr => cr.Patient)
-                .ThenInclude(p => p.User)
-                .Include(cr => cr.Doctor)
-                .ThenInclude(dr => dr.User)
-                .Include(cr => cr.Prescriptions)
-                .FirstOrDefaultAsync(cr => cr.Id == clinicRecordId);
+            .Include(cr => cr.Doctor)
+            .ThenInclude(dr => dr.User)
+            .Include(cr => cr.Doctor)
+            .ThenInclude(dr => dr.Hospital)
+            .Include(cr => cr.Patient)
+            .ThenInclude(pt => pt.User)
+            .Include(cr => cr.Prescriptions)
+            .FirstOrDefaultAsync(cr => cr.Id == clinicRecordId);
 
         if (clinicRecord == null)
             return Result<ViewClinicRecordDto>.Failure(ErrorCode.CLNRD_NotFound, $"Clinic record with ID '{id}' not found.");
@@ -115,15 +122,14 @@ public class PatientService : IPatientService
 
         var clinicRecords = await _dbContext.ClinicRecords
             .Where(cr => cr.PatientId == id)
-            .Include(cr => cr.Patient)
-            .ThenInclude(p => p.User)
             .Include(cr => cr.Doctor)
             .ThenInclude(dr => dr.User)
+            .Include(cr => cr.Doctor)
+            .ThenInclude(dr => dr.Hospital)
+            .Include(cr => cr.Patient)
+            .ThenInclude(pt => pt.User)
             .Include(cr => cr.Prescriptions)
             .ToListAsync();
-
-        if (clinicRecords == null || clinicRecords.Count == 0)
-            return Result<List<ViewClinicRecordDto>>.Failure(ErrorCode.USR_NotFound, $"No clinic records found for patient with ID '{patientId}'.");
 
         return Result<List<ViewClinicRecordDto>>.Success(
             clinicRecords.Select(cr => _mapper.Map<ViewClinicRecordDto>(cr)).ToList()
