@@ -12,8 +12,6 @@ public class ModifyAppointmentDto
     public string? DoctorId { get; set; }
 
     public DateTime? AppointmentDateTime { get; set; }
-    
-    public string? Location { get; set; }
 
     public string? Remarks { get; set; }
 }

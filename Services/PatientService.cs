@@ -5,6 +5,7 @@ using FinalProjectApi.Common.Auth;
 using FinalProjectApi.Data;
 using FinalProjectApi.Dtos.ClinicRecord;
 using FinalProjectApi.Dtos.Patient;
+using FinalProjectApi.Dtos.User;
 using FinalProjectApi.Entities;
 using FinalProjectApi.Interfaces.Services;
 using Microsoft.EntityFrameworkCore;
@@ -24,11 +25,11 @@ public class PatientService : IPatientService
         _mapper = mapper;
     }
 
-    public async Task<Result<ViewPatientDto>> CreatePatient(CreatePatientDto dto)
+    public async Task<Result<ViewUserDto>> CreatePatient(CreatePatientDto dto)
     {
         var userRegistration = await _userService.RegisterUser(dto.PersonalInformation, UserRoles.PATIENT);
         if (!userRegistration.IsSuccess)
-            return Result<ViewPatientDto>.Failure(userRegistration.Error!);
+            return userRegistration;
 
         var patientEntry = new Patient()
         {
@@ -41,25 +42,27 @@ public class PatientService : IPatientService
         await _dbContext.SaveChangesAsync();
 
         var patient = await _dbContext.Patients
-            .Include(p => p.User)
-            .FirstOrDefaultAsync(p => p.UserId == userRegistration.Data.Id);
+            .Where(p => p.UserId == userRegistration.Data.Id)
+            .Select(p => _mapper.Map<ViewPatientDto>(p))
+            .FirstOrDefaultAsync();
 
-        var viewPatientDto = _mapper.Map<ViewPatientDto>(patient);
-        viewPatientDto.User.Roles = userRegistration.Data.Roles;
-        return Result<ViewPatientDto>.Success(viewPatientDto);
+        userRegistration.Data.PatientProfile = patient;
+
+        return userRegistration;
     }
 
-    public async Task<Result<ViewPatientDto>> ViewPatient(string id)
+    public async Task<Result<ViewUserDto>> ViewPatient(string id)
     {
         var patientCheck = await UserCheck(id);
         if (!patientCheck.IsSuccess)
-            return Result<ViewPatientDto>.Failure(patientCheck.Error!);
+            return Result<ViewUserDto>.Failure(patientCheck.Error!);
 
-        var patient = await _dbContext.Patients
-            .Include(p => p.User)
-            .FirstOrDefaultAsync(p => p.Id == patientCheck.Data);
+        var userId = await _dbContext.Patients
+            .Where(p => p.Id == patientCheck.Data)
+            .Select(p => p.UserId)
+            .FirstOrDefaultAsync();
 
-        return Result<ViewPatientDto>.Success(_mapper.Map<ViewPatientDto>(patient));
+        return await _userService.GetUserAsync(userId!);
     }
 
     public async Task<Result<ViewClinicRecordDto>> AddToClinicRecords(AddClinicRecordDto dto, string doctorUserId)

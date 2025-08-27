@@ -116,18 +116,18 @@ public class OverviewService : IOverviewService
         {
             // Need to be implemented
             overview.PatientTrendsOverMonths = [
-                new KeyValuePair<string, int>("Jan", 0),
-                new KeyValuePair<string, int>("Feb", 0),
-                new KeyValuePair<string, int>("Mar", 0),
-                new KeyValuePair<string, int>("Apr", 0),
-                new KeyValuePair<string, int>("May", 0),
-                new KeyValuePair<string, int>("Jun", 0),
-                new KeyValuePair<string, int>("Jul", 0),
-                new KeyValuePair<string, int>("Aug", 0),
-                new KeyValuePair<string, int>("Sep", 0),
-                new KeyValuePair<string, int>("Oct", 0),
-                new KeyValuePair<string, int>("Nov", 0),
-                new KeyValuePair<string, int>("Dec", 0)
+                new KeyValuePair<string, int>("Jan", 500),
+                new KeyValuePair<string, int>("Feb", 2683),
+                new KeyValuePair<string, int>("Mar", 398),
+                new KeyValuePair<string, int>("Apr", 495),
+                new KeyValuePair<string, int>("May", 1037),
+                new KeyValuePair<string, int>("Jun", 3847),
+                new KeyValuePair<string, int>("Jul", 474),
+                new KeyValuePair<string, int>("Aug", 957),
+                new KeyValuePair<string, int>("Sep", 778),
+                new KeyValuePair<string, int>("Oct", 3684),
+                new KeyValuePair<string, int>("Nov", 1034),
+                new KeyValuePair<string, int>("Dec", 5463)
                 ];
         }
 

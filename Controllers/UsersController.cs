@@ -5,6 +5,7 @@ using FinalProjectApi.Dtos.User;
 using FinalProjectApi.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace FinalProjectApi.Controllers
 {
@@ -26,13 +27,12 @@ namespace FinalProjectApi.Controllers
         [AllowAnonymous]
         public async Task<ActionResult<Result<LoginResponseDto>>> Login(LoginUserDto userDto)
         {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
             try
             {
                 var loginResponse = await _authService.LoginAsync(userDto);
                 if (loginResponse.IsSuccess)
                 {
+                    Thread.Sleep(2000);
                     return Ok(loginResponse);
                 }
                 return Unauthorized(loginResponse);
@@ -55,7 +55,8 @@ namespace FinalProjectApi.Controllers
         {
             try
             {
-                var authResult = await _authService.GetUserAsync(User);
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var authResult = await _userService.GetUserAsync(userId);
                 if (authResult.IsSuccess)
                 {
                     return Ok(authResult);
@@ -82,6 +83,7 @@ namespace FinalProjectApi.Controllers
                 var overview = await _userService.GetOverview(User);
                 if (overview.IsSuccess)
                 {
+                    Thread.Sleep(2000);
                     return Ok(overview);
                 }
                 return StatusCode(overview.Error!.HttpStatus, overview);

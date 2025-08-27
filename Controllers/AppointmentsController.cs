@@ -26,9 +26,6 @@ public class AppointmentsController : ControllerBase
     [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
     public async Task<ActionResult<Result<ViewAppointmentDto>>> CreateAppointment(CreateAppointmentDto createAppointment)
     {
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
-
         try
         {
             var requesterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -45,9 +42,6 @@ public class AppointmentsController : ControllerBase
     [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
     public async Task<ActionResult<Result<List<ViewAppointmentDto>>>> ViewAppointments([FromQuery] ViewAppointmentsFilterDto filter)
     {
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
-
         try
         {
             return HandleResult(await _appointmentsService.ViewAppointments(filter));
@@ -63,9 +57,6 @@ public class AppointmentsController : ControllerBase
     [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
     public async Task<ActionResult<Result<ViewAppointmentDto>>> ModifyAppointment(ModifyAppointmentDto modifyAppointmentDto)
     {
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
-
         try
         {
             var requesterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -127,9 +118,6 @@ public class AppointmentsController : ControllerBase
     [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
     public async Task<ActionResult<Result<ViewAppointmentDto>>> CancelAppointment(CancellationRequestDto cancellationRequestDto)
     {
-        if(!ModelState.IsValid)
-            return BadRequest(ModelState);
-
         try
         {
             var requesterId = User.FindFirstValue(ClaimTypes.NameIdentifier);

@@ -67,11 +67,14 @@ namespace FinalProjectApi
             builder.Services.AddScoped<IHospitalService, HospitalService>();
             builder.Services.AddScoped<IPatientService, PatientService>();
             builder.Services.AddScoped<IAppointmentService, AppointmentService>();
+            builder.Services.AddScoped<ISearchService, SearchService>();
 
             // Migrate and seed database
             await MigrateAndSeedDatabaseAsync(builder.Services.BuildServiceProvider());
 
-            builder.Services.AddControllers();
+            builder.Services.AddControllers()
+                .ConfigureApiBehaviorOptions(opt => 
+                opt.InvalidModelStateResponseFactory = InvalidModelStateResponseFactory.Function );
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();

@@ -17,52 +17,32 @@ namespace FinalProjectApi.Services
         private readonly UserManager<User> _userManager;
         private readonly IConfiguration _config;
         private User? _user;
-        private readonly IMapper _mapper;
-        private readonly ILogger<AuthService> _logger;
-        public AuthService(UserManager<User> userManager, IConfiguration configuration, IMapper mapper, ILogger<AuthService> logger) { 
+        private readonly IUserService _userService;
+        public AuthService(
+            UserManager<User> userManager, 
+            IConfiguration configuration,
+            IUserService userService) 
+        { 
             _userManager = userManager;
             _config = configuration;
-            _mapper = mapper;
-            _logger = logger;
+            _userService = userService;
         }
 
         public async Task<Result<LoginResponseDto>> LoginAsync(LoginUserDto loginUserDto) {
             if (await IsValidUser(loginUserDto))
             {
                 var token = await GenerateToken();
-                var authUser = _mapper.Map<ViewUserDto>(_user);
-                authUser.Roles = (await _userManager.GetRolesAsync(_user!)).ToList();
+                var userRes = await _userService.GetUserAsync(_user!.Id);
 
                 return Result<LoginResponseDto>.Success(new LoginResponseDto()
                 {
                     AccessToken = token,
-                    User = authUser
+                    User = userRes.Data!,
                 });
             }
             else {
                 return Result<LoginResponseDto>
                     .Failure(ErrorCode.SYS_Unauthorized, "Incorrect username or password!");
-            }
-        }
-
-        public async Task<Result<ViewUserDto>> GetUserAsync(ClaimsPrincipal user) {
-            var userId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (userId != null)
-            {
-                var searchUser = await _userManager.FindByIdAsync(userId);
-                if (searchUser != null)
-                {
-                    var viewUserDto = _mapper.Map<ViewUserDto>(searchUser);
-                    viewUserDto.Roles = (await _userManager.GetRolesAsync(searchUser)).ToList();
-                    return Result<ViewUserDto>.Success(viewUserDto);
-                }
-                else
-                {
-                    return Result<ViewUserDto>.Failure(ErrorCode.SYS_Unauthorized, $"User with id {userId} not found.");
-                }
-            }
-            else {
-                return Result<ViewUserDto>.Failure(ErrorCode.SYS_BadRequest, "The received token is missing a valid 'sub' claim");
             }
         }
 

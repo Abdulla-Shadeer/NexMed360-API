@@ -7,6 +7,7 @@ using FinalProjectApi.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using FinalProjectApi.Dtos.User;
 
 namespace FinalProjectApi.Controllers;
 
@@ -24,25 +25,22 @@ public class PatientsController : ControllerBase
     [HttpPost]
     [Route("CreatePatient")]
     [Authorize(Roles = UserRoles.RECEPTIONIST)]
-    public async Task<ActionResult<Result<ViewPatientDto>>> AddPatient(CreatePatientDto dto)
+    public async Task<ActionResult<Result<ViewUserDto>>> AddPatient(CreatePatientDto dto)
     {
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
-
         try
         {
             return HandleResult(await _patientService.CreatePatient(dto), true);
         }
         catch (Exception ex)
         {
-            return HandleException<ViewPatientDto>(ex.Message);
+            return HandleException<ViewUserDto>(ex.Message);
         }
     }
 
     [HttpGet]
     [Route("ViewPatient/{patientId}")]
     [Authorize(Roles = $"{UserRoles.PATIENT},{UserRoles.RECEPTIONIST},{UserRoles.DOCTOR}")]
-    public async Task<ActionResult<Result<ViewPatientDto>>> ViewPatient(string patientId)
+    public async Task<ActionResult<Result<ViewUserDto>>> ViewPatient(string patientId)
     {
         try
         {
@@ -50,7 +48,7 @@ public class PatientsController : ControllerBase
         }
         catch (Exception ex)
         {
-            return HandleException<ViewPatientDto>(ex.Message);
+            return HandleException<ViewUserDto>(ex.Message);
         }
     }
 
@@ -59,9 +57,6 @@ public class PatientsController : ControllerBase
     [Authorize(Roles = UserRoles.DOCTOR)]
     public async Task<ActionResult<Result<ViewClinicRecordDto>>> AddClinicRecord(AddClinicRecordDto dto)
     {
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
-
         try
         {
             var doctorUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);

@@ -1,4 +1,9 @@
-﻿namespace FinalProjectApi.Dtos.User;
+﻿using FinalProjectApi.Dtos.Doctor;
+using FinalProjectApi.Dtos.HospitalAdmin;
+using FinalProjectApi.Dtos.Patient;
+using FinalProjectApi.Dtos.Receptionist;
+
+namespace FinalProjectApi.Dtos.User;
 
 public class ViewUserDto
 {
@@ -7,5 +12,9 @@ public class ViewUserDto
     public string LastName { get; set; }
     public string Email { get; set; }
     public string PhoneNumber { get; set; }
-    public List<string> Roles { get; set; } = new List<string>();
+    public List<string> Roles { get; set; } = [];
+    public ViewPatientDto? PatientProfile { get; set; }
+    public ViewDoctorDto? DoctorProfile { get; set; }
+    public ViewReceptionistDto? ReceptionistProfile { get; set; }
+    public ViewHospitalAdminDto? HospitalAdminProfile { get;set; }
 }

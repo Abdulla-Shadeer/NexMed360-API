@@ -7,6 +7,7 @@ using FinalProjectApi.Dtos.Doctor;
 using FinalProjectApi.Dtos.Hospital;
 using FinalProjectApi.Dtos.HospitalAdmin;
 using FinalProjectApi.Dtos.Receptionist;
+using FinalProjectApi.Dtos.User;
 using FinalProjectApi.Entities;
 using FinalProjectApi.Interfaces.Services;
 using Microsoft.EntityFrameworkCore;
@@ -34,17 +35,17 @@ public class HospitalService : IHospitalService
         return Result<ViewHospitalDto>.Success(_mapper.Map<ViewHospitalDto>(hospitalEntry.Entity));
     }
 
-    public async Task<Result<ViewHospitalAdminDto>> CreateHospitalAdmin(CreateHospitalAdminDto dto)
+    public async Task<Result<ViewUserDto>> CreateHospitalAdmin(CreateHospitalAdminDto dto)
     {
         if (!Guid.TryParse(dto.HospitalId, out var hospitalId))
-            return Result<ViewHospitalAdminDto>.Failure(ErrorCode.SYS_InvalidGuid);
+            return Result<ViewUserDto>.Failure(ErrorCode.SYS_InvalidGuid);
 
         if (!await _dbContext.Hospitals.AnyAsync(h => h.Id == hospitalId))
-            return Result<ViewHospitalAdminDto>.Failure(ErrorCode.HOS_NotFound);
+            return Result<ViewUserDto>.Failure(ErrorCode.HOS_NotFound);
 
         var userRegistration = await _userService.RegisterUser(dto.PersonalInformation, UserRoles.HOSPITAL_ADMIN);
         if (!userRegistration.IsSuccess)
-            return Result<ViewHospitalAdminDto>.Failure(userRegistration.Error!);
+            return userRegistration;
 
 
         var hospitalAdminEntry = new HospitalAdmin()
@@ -59,25 +60,28 @@ public class HospitalService : IHospitalService
         await _dbContext.SaveChangesAsync();
 
         var hospitalAdmin = await _dbContext.HospitalAdmins
+            .Where(ha => ha.UserId == userRegistration.Data.Id)
             .Include(ha => ha.Hospital)
-            .Include(ha => ha.User)
-            .FirstOrDefaultAsync(ha => ha.UserId == userRegistration.Data.Id);
+            .Select(ha => _mapper.Map<ViewHospitalAdminDto>(ha))
+            .FirstOrDefaultAsync();
 
-        return Result<ViewHospitalAdminDto>.Success(_mapper.Map<ViewHospitalAdminDto>(hospitalAdmin));
+        userRegistration.Data.HospitalAdminProfile = hospitalAdmin;
+
+        return userRegistration;
     }
 
-    public async Task<Result<ViewReceptionistDto>> CreateReceptionist(CreateReceptionistDto dto)
+    public async Task<Result<ViewUserDto>> CreateReceptionist(CreateReceptionistDto dto)
     {
         if (!Guid.TryParse(dto.HospitalId, out var hospitalId))
-            return Result<ViewReceptionistDto>.Failure(ErrorCode.SYS_InvalidGuid);
+            return Result<ViewUserDto>.Failure(ErrorCode.SYS_InvalidGuid);
 
         if (!await _dbContext.Hospitals.AnyAsync(h => h.Id == hospitalId))
-            return Result<ViewReceptionistDto>.Failure(ErrorCode.HOS_NotFound);
+            return Result<ViewUserDto>.Failure(ErrorCode.HOS_NotFound);
 
         var userRegistration = await _userService.RegisterUser(dto.PersonalInformation, UserRoles.RECEPTIONIST);
 
         if (!userRegistration.IsSuccess)
-            return Result<ViewReceptionistDto>.Failure(userRegistration.Error!);
+            return userRegistration;
 
         var receptionistEntry = new Receptionist()
         {
@@ -93,23 +97,27 @@ public class HospitalService : IHospitalService
         await _dbContext.SaveChangesAsync();
 
         var receptionist = await _dbContext.Receptionists
+            .Where(r => r.UserId == userRegistration.Data.Id)
             .Include(r => r.Hospital)
-            .Include(r => r.User)
-            .FirstOrDefaultAsync(r => r.UserId == userRegistration.Data.Id);
-        return Result<ViewReceptionistDto>.Success(_mapper.Map<ViewReceptionistDto>(receptionist));
+            .Select(r => _mapper.Map<ViewReceptionistDto>(r))
+            .FirstOrDefaultAsync();
+
+        userRegistration.Data.ReceptionistProfile = receptionist;
+
+        return userRegistration;
     }
 
-    public async Task<Result<ViewDoctorDto>> CreateDoctor(CreateDoctorDto dto)
+    public async Task<Result<ViewUserDto>> CreateDoctor(CreateDoctorDto dto)
     {
         if (!Guid.TryParse(dto.HospitalId, out var hospitalId))
-            return Result<ViewDoctorDto>.Failure(ErrorCode.SYS_InvalidGuid);
+            return Result<ViewUserDto>.Failure(ErrorCode.SYS_InvalidGuid);
 
         if (!await _dbContext.Hospitals.AnyAsync(h => h.Id == hospitalId))
-            return Result<ViewDoctorDto>.Failure(ErrorCode.HOS_NotFound);
+            return Result<ViewUserDto>.Failure(ErrorCode.HOS_NotFound);
 
         var userRegistrationResult = await _userService.RegisterUser(dto.PersonalInformation, UserRoles.DOCTOR);
         if (!userRegistrationResult.IsSuccess)
-            return Result<ViewDoctorDto>.Failure(userRegistrationResult.Error!);
+            return userRegistrationResult;
 
         var doctorEntry = new Doctor()
         {
@@ -123,10 +131,12 @@ public class HospitalService : IHospitalService
         await _dbContext.Doctors.AddAsync(doctorEntry);
         await _dbContext.SaveChangesAsync();
 
-        var doctor = await _dbContext.Doctors
+        userRegistrationResult.Data.DoctorProfile = await _dbContext.Doctors
+            .Where(dr => dr.UserId == userRegistrationResult.Data!.Id)
             .Include(dr => dr.Hospital)
-            .Include(dr => dr.User)
-            .FirstOrDefaultAsync(dr => dr.UserId == userRegistrationResult.Data!.Id);
-        return Result<ViewDoctorDto>.Success(_mapper.Map<ViewDoctorDto>(doctor));
+            .Select(dr => _mapper.Map<ViewDoctorDto>(dr))
+            .FirstOrDefaultAsync();
+
+        return userRegistrationResult;
     }
 }

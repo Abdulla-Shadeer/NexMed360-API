@@ -15,6 +15,5 @@ public class Appointment: Entity
 
     public DateTime AppointmentDateTime { get; set; }
     public string? Remarks { get; set; }
-    public string Location { get; set; }
     public AppointmentStatus Status { get; set; } = AppointmentStatus.Pending;
 }

@@ -15,8 +15,5 @@ public class CreateAppointmentDto
     [Required]
     public DateTime AppointmentDateTime { get; set; }
 
-    [Required]
-    public string Location {  get; set; }
-
     public string? Remarks { get; set; }
 }

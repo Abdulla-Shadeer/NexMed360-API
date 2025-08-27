@@ -31,10 +31,14 @@ public class AppointmentService : IAppointmentService
             return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_InvalidGuid, "Invalid Patient ID format.");
 
         if (!Guid.TryParse(createAppointment.HospitalId, out var hospitalId))
-            return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_InvalidGuid, "Invalid CreatedBy ID format.");
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_InvalidGuid, "Invalid Hospital ID format.");
 
         if (!await _context.Hospitals.AnyAsync(h => h.Id == hospitalId))
             return Result<ViewAppointmentDto>.Failure(ErrorCode.HOS_NotFound, $"Hospital with Id '{hospitalId}' not found!");
+
+        if (!await _context.Hospitals.Where(h => h.Id == hospitalId).Include(h => h.Doctors).AnyAsync(h => h.Doctors.Any(d => d.Id == doctorId))) {
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_BadRequest, "Requested doctor is not available at the selected hospital!");
+        }
 
         var doctorCheck = IsPersonValidAndAvailable(doctorId, true, createAppointment.AppointmentDateTime, true);
         if (!doctorCheck.IsSuccess)
@@ -172,7 +176,6 @@ public class AppointmentService : IAppointmentService
         appointment.DoctorId = doctorId;
         appointment.PatientId = patientId;
         appointment.AppointmentDateTime = apptDateAndTime;
-        appointment.Location = modifyAppointmentDto.Location ?? appointment.Location;
         appointment.Remarks = modifyAppointmentDto.Remarks ?? appointment.Remarks;
         appointment.Status = appointment.Status; // Status is not modified in this method
 

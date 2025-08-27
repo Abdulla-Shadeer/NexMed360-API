@@ -5,6 +5,7 @@ using FinalProjectApi.Dtos.Doctor;
 using FinalProjectApi.Dtos.Hospital;
 using FinalProjectApi.Dtos.HospitalAdmin;
 using FinalProjectApi.Dtos.Receptionist;
+using FinalProjectApi.Dtos.User;
 using FinalProjectApi.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -27,9 +28,6 @@ public class HospitalController : ControllerBase
     [Route("CreateHospital")]
     [Authorize(Roles = UserRoles.SUPERUSER)]
     public async Task<ActionResult<Result<ViewHospitalDto>>> AddHospital(CreateHospitalDto dto) {
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
-
         try
         {
             return HandleCreationResult(await _hospitalService.CreateHospital(dto));
@@ -43,18 +41,15 @@ public class HospitalController : ControllerBase
     [HttpPost]
     [Route("CreateAdmin")]
     [Authorize(Roles = UserRoles.SUPERUSER)]
-    public async Task<ActionResult<Result<ViewHospitalAdminDto>>> AddAdmin(CreateHospitalAdminDto dto)
+    public async Task<ActionResult<Result<ViewUserDto>>> AddAdmin(CreateHospitalAdminDto dto)
     {
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
-
         try
         {
             return HandleCreationResult(await _hospitalService.CreateHospitalAdmin(dto));
         }
         catch (Exception ex)
         {
-            return HandleCreationException<ViewHospitalAdminDto>("hospital admin", ex.Message);
+            return HandleCreationException<ViewUserDto>("hospital admin", ex.Message);
         }
     }
 
@@ -66,36 +61,30 @@ public class HospitalController : ControllerBase
     [HttpPost]
     [Route("CreateReceptionist")]
     [Authorize(Roles = UserRoles.HOSPITAL_ADMIN)]
-    public async Task<ActionResult<Result<ViewReceptionistDto>>> AddReceptionist(CreateReceptionistDto dto)
+    public async Task<ActionResult<Result<ViewUserDto>>> AddReceptionist(CreateReceptionistDto dto)
     {
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
-
         try
         {
             return HandleCreationResult(await _hospitalService.CreateReceptionist(dto));
         }
         catch (Exception ex)
         {
-            return HandleCreationException<ViewReceptionistDto>("receptionist", ex.Message);
+            return HandleCreationException<ViewUserDto>("receptionist", ex.Message);
         }
     }
 
     [HttpPost]
     [Route("CreateDoctor")]
     [Authorize(Roles = UserRoles.HOSPITAL_ADMIN)]
-    public async Task<ActionResult<Result<ViewDoctorDto>>> AddDoctor(CreateDoctorDto dto)
+    public async Task<ActionResult<Result<ViewUserDto>>> AddDoctor(CreateDoctorDto dto)
     {
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
-
         try
         {
             return HandleCreationResult(await _hospitalService.CreateDoctor(dto));
         }
         catch (Exception e)
         {
-            return HandleCreationException<ViewDoctorDto>("doctor", e.Message);
+            return HandleCreationException<ViewUserDto>("doctor", e.Message);
         }
     }
 

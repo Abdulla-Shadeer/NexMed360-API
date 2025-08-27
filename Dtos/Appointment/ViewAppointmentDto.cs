@@ -11,9 +11,9 @@ public class ViewAppointmentDto
     public string HospitalName { get; set; }
     public string HospitalAddress { get; set; }
     public string HospitalPhone { get; set; }
+    public string CreatedByUserId { get; set; }
     public string CreatedByUserName { get; set; }
     public string AppointmentDateTime { get; set; }
     public string? Remarks { get; set; }
-    public string Location { get; set; }
     public string Status { get; set; }
 }

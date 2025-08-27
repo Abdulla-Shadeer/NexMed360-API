@@ -2,12 +2,18 @@
 using FinalProjectApi.Common;
 using FinalProjectApi.Common.ApplicationErrors;
 using FinalProjectApi.Common.Auth;
+using FinalProjectApi.Data;
+using FinalProjectApi.Dtos.Doctor;
+using FinalProjectApi.Dtos.HospitalAdmin;
 using FinalProjectApi.Dtos.Overview;
+using FinalProjectApi.Dtos.Patient;
+using FinalProjectApi.Dtos.Receptionist;
 using FinalProjectApi.Dtos.User;
 using FinalProjectApi.Entities;
 using FinalProjectApi.Extensions;
 using FinalProjectApi.Interfaces.Services;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
 namespace FinalProjectApi.Services;
@@ -19,16 +25,22 @@ public class UserService : IUserService
     private readonly ILogger<UserService> _logger;
     private readonly IMapper _mapper;
     private readonly IOverviewService _overviewService;
+    private readonly ApplicationDbContext _context;
 
-    public UserService
-        (UserManager<User> userManager, RoleManager<IdentityRole> roleManager, ILogger<UserService> logger, IMapper mapper, 
-        IOverviewService overviewService)
+    public UserService(
+        UserManager<User> userManager, 
+        RoleManager<IdentityRole> roleManager, 
+        ILogger<UserService> logger, 
+        IMapper mapper, 
+        IOverviewService overviewService,
+        ApplicationDbContext context)
     {
         _userManager = userManager;
         _roleManager = roleManager;
         _logger = logger;
         _mapper = mapper;
         _overviewService = overviewService;
+        _context = context;
     }
 
     public async Task<Result<ViewUserDto>> RegisterUser(RegisterUserDto user, string role)
@@ -83,9 +95,8 @@ public class UserService : IUserService
         }
 
         await _userManager.AddToRoleAsync(newUser, role);
-        var registeredUser = _mapper.Map<ViewUserDto>(await _userManager.FindByEmailAsync(user.Email));
-        registeredUser.Roles = (await _userManager.GetRolesAsync(newUser)).ToList();
-        return Result<ViewUserDto>.Success(registeredUser);
+        var userId = await _userManager.GetUserIdAsync(newUser);
+        return await GetUserAsync(userId);
     }
 
     public async Task<Result<List<OverviewDto>>> GetOverview(ClaimsPrincipal user)
@@ -115,5 +126,56 @@ public class UserService : IUserService
             overviews.Add(await _overviewService.GetPatientOverview(userId));
 
         return Result<List<OverviewDto>>.Success(overviews);
+    }
+
+    public async Task<Result<ViewUserDto>> GetUserAsync(string userId)
+    {
+        var user = await _userManager.FindByIdAsync(userId);
+        if (user != null)
+        {
+            var viewUserDto = _mapper.Map<ViewUserDto>(user);
+            viewUserDto.Roles = (await _userManager.GetRolesAsync(user)).ToList();
+
+            if (viewUserDto.Roles.Any(role => role == UserRoles.PATIENT))
+            {
+                viewUserDto.PatientProfile = await _context.Patients
+                    .Where(p => p.UserId == userId)
+                    .Select(p => _mapper.Map<ViewPatientDto>(p))
+                    .FirstOrDefaultAsync();
+            }
+
+            if (viewUserDto.Roles.Any(role => role == UserRoles.DOCTOR))
+            {
+                viewUserDto.DoctorProfile = await _context.Doctors
+                    .Where(d => d.UserId == userId)
+                    .Include(d => d.Hospital)
+                    .Select(d => _mapper.Map<ViewDoctorDto>(d))
+                    .FirstOrDefaultAsync();
+            }
+
+            if (viewUserDto.Roles.Any(role => role == UserRoles.RECEPTIONIST))
+            {
+                viewUserDto.ReceptionistProfile = await _context.Receptionists
+                    .Where(r => r.UserId == userId)
+                    .Include(r => r.Hospital)
+                    .Select(r => _mapper.Map<ViewReceptionistDto>(r))
+                    .FirstOrDefaultAsync();
+            }
+
+            if (viewUserDto.Roles.Any(role => role == UserRoles.HOSPITAL_ADMIN))
+            {
+                viewUserDto.HospitalAdminProfile = await _context.HospitalAdmins
+                    .Where(hsAdmn => hsAdmn.UserId == userId)
+                    .Include(hsAdmn => hsAdmn.Hospital)
+                    .Select(hsAdmn => _mapper.Map<ViewHospitalAdminDto>(hsAdmn))
+                    .FirstOrDefaultAsync();
+            }
+
+            return Result<ViewUserDto>.Success(viewUserDto);
+        }
+        else
+        {
+            return Result<ViewUserDto>.Failure(ErrorCode.SYS_Unauthorized, $"User with id {userId} not found.");
+        }
     }
 }
