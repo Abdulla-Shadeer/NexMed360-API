@@ -7,7 +7,8 @@ public interface IAppointmentService
 {
     public Task<Result<ViewAppointmentDto>> CreateAppointment(CreateAppointmentDto createAppointment, string requesterId);
 
-    public Task<Result<List<ViewAppointmentDto>>> ViewAppointments(ViewAppointmentsFilterDto filter);
+    public Task<Result<List<ViewAppointmentDto>>> ViewOwnAppointments(ViewAppointmentsFilterDto filter, string userId);
+    public Task<Result<List<ViewAppointmentDto>>> ViewHospitalAppointments(ViewAppointmentsFilterDto filter, string userId);
 
     public Task<Result<ViewAppointmentDto>> ModifyAppointment(ModifyAppointmentDto modifyAppointmentDto, string requesterId);
 

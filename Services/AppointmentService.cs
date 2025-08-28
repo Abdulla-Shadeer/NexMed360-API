@@ -7,7 +7,6 @@ using FinalProjectApi.Entities;
 using FinalProjectApi.Entities.Enums;
 using FinalProjectApi.Interfaces.Services;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
 
 namespace FinalProjectApi.Services;
 
@@ -58,90 +57,129 @@ public class AppointmentService : IAppointmentService
         return Result<ViewAppointmentDto>.Success(_mapper.Map<ViewAppointmentDto>(createdAppointment));
     }
 
-    public async Task<Result<List<ViewAppointmentDto>>> ViewAppointments(ViewAppointmentsFilterDto filter)
+    public async Task<Result<List<ViewAppointmentDto>>> ViewOwnAppointments(ViewAppointmentsFilterDto filter, string userId)
     {
-        if (filter == null || (filter.PatientId.IsNullOrEmpty() && filter.DoctorId.IsNullOrEmpty()))
-            return Result<List<ViewAppointmentDto>>.Failure(ErrorCode.APPT_MinimumFilterRequirement);
-
-
-        if (filter.FromDate.HasValue && filter.ToDate.HasValue && filter.FromDate > filter.ToDate)
-            return Result<List<ViewAppointmentDto>>.Failure(ErrorCode.APPT_FromDateAfterToDate);
-
-        if (Guid.TryParse(filter.PatientId, out var patientId))
-        {
-            if (!IsValidPerson(patientId, false))
-                return Result<List<ViewAppointmentDto>>.Failure(ErrorCode.APPT_PatientNotFound);
-        }
-        else
-        {
-            return Result<List<ViewAppointmentDto>>.Failure(ErrorCode.SYS_InvalidGuid, "Patient ID has invalid GUID format!");
+        var filterValidation = await ValidateFilter(filter);
+        if (!filterValidation.IsSuccess) {
+            return filterValidation;
         }
 
-        if (Guid.TryParse(filter.DoctorId, out var doctorId))
-        {
-            if (!IsValidPerson(doctorId, true))
-                return Result<List<ViewAppointmentDto>>.Failure(ErrorCode.APPT_DoctorNotFound);
-        }
-        else
-        {
-            return Result<List<ViewAppointmentDto>>.Failure(ErrorCode.SYS_InvalidGuid, "Doctor ID has invalid GUID format!");
-        }
+        var ownPatientId = await _context.Patients
+            .Where(p => p.UserId == userId)
+            .Select(p => p.Id)
+            .FirstOrDefaultAsync();
+        var ownDoctorId = await _context.Doctors
+            .Where(d => d.UserId == userId)
+            .Select(d => d.Id)
+            .FirstOrDefaultAsync();
 
-        if (Guid.TryParse(filter.HospitalId, out var hospitalId))
-        {
-            if (!await _context.Hospitals.AnyAsync(hs => hs.Id == hospitalId))
-            {
-                return Result<List<ViewAppointmentDto>>.Failure(ErrorCode.HOS_NotFound, $"Hospital not found with ID {hospitalId}");
-            }
-        }
-        else
-        {
-            return Result<List<ViewAppointmentDto>>.Failure(ErrorCode.SYS_InvalidGuid, "Hospital ID has invalid GUID format!");
-        }
+        var baseQuery = _context.Appointments
+            .Where(appt => appt.PatientId == ownPatientId || appt.DoctorId == ownDoctorId)
+            .AsQueryable();
 
-
-        var query = PrepareQueryWithFilters(filter);
-
-        var appointments = await query
-            .Select(appt => _mapper.Map<ViewAppointmentDto>(appt))
-            .ToListAsync();
-
-        if (appointments.Count < 1)
-            return Result<List<ViewAppointmentDto>>.Failure(ErrorCode.APPT_NotFound, "Please adjust the filter and try again.");
-
-        return Result<List<ViewAppointmentDto>>.Success(appointments);
+        return Result<List<ViewAppointmentDto>>.Success(await ApplyFilter(filter, baseQuery));
     }
 
-    private IQueryable<Appointment> PrepareQueryWithFilters(ViewAppointmentsFilterDto filter)
+    public async Task<Result<List<ViewAppointmentDto>>> ViewHospitalAppointments(ViewAppointmentsFilterDto filter, string userId)
     {
-        var query = _context.Appointments.AsQueryable();
+        var filterValidation = await ValidateFilter(filter);
+        if (!filterValidation.IsSuccess)
+        {
+            return filterValidation;
+        }
 
+        var ownHospitalId = await _context.Receptionists
+            .Where(r => r.UserId == userId)
+            .Select(r => r.HospitalId)
+            .FirstOrDefaultAsync();
+
+        var baseQuery = _context.Appointments
+            .Where(appt => appt.HospitalId == ownHospitalId)
+            .AsQueryable();
+
+        return Result<List<ViewAppointmentDto>>.Success(await ApplyFilter(filter, baseQuery));
+    }
+
+    private async Task<Result<List<ViewAppointmentDto>>> ValidateFilter(ViewAppointmentsFilterDto filter) {
+        if (filter.FromDate.HasValue && filter.ToDate.HasValue && filter.FromDate > filter.ToDate)
+        {
+            return Result<List<ViewAppointmentDto>>.Failure(ErrorCode.APPT_FromDateAfterToDate);
+        }
+
+        if (filter.PatientId != null)
+        {
+            if (Guid.TryParse(filter.PatientId, out var patientId))
+            {
+                if (!IsValidPerson(patientId, false))
+                    return Result<List<ViewAppointmentDto>>.Failure(ErrorCode.APPT_PatientNotFound);
+            }
+            else
+            {
+                return Result<List<ViewAppointmentDto>>.Failure(ErrorCode.SYS_InvalidGuid, "Patient ID has invalid GUID format!");
+            }
+        }
+
+        if (filter.DoctorId != null)
+        {
+            if (Guid.TryParse(filter.DoctorId, out var doctorId))
+            {
+                if (!IsValidPerson(doctorId, true))
+                    return Result<List<ViewAppointmentDto>>.Failure(ErrorCode.APPT_DoctorNotFound);
+            }
+            else
+            {
+                return Result<List<ViewAppointmentDto>>.Failure(ErrorCode.SYS_InvalidGuid, "Doctor ID has invalid GUID format!");
+            }
+        }
+
+        if (filter.HospitalId != null)
+        {
+            if (Guid.TryParse(filter.HospitalId, out var hospitalId))
+            {
+                if (!await _context.Hospitals.AnyAsync(hs => hs.Id == hospitalId))
+                {
+                    return Result<List<ViewAppointmentDto>>.Failure(ErrorCode.HOS_NotFound, $"Hospital not found with ID {hospitalId}");
+                }
+            }
+            else
+            {
+                return Result<List<ViewAppointmentDto>>.Failure(ErrorCode.SYS_InvalidGuid, "Hospital ID has invalid GUID format!");
+            }
+        }
+
+        return Result<List<ViewAppointmentDto>>.Success([]);
+    }
+
+    private async Task<List<ViewAppointmentDto>> ApplyFilter(ViewAppointmentsFilterDto filter, IQueryable<Appointment> baseQuery)
+    {
         if (filter.FromDate.HasValue)
-            query = query.Where(a => a.AppointmentDateTime.Date >= filter.FromDate.Value);
+            baseQuery = baseQuery.Where(a => a.AppointmentDateTime.Date >= filter.FromDate.Value);
 
         if (filter.ToDate.HasValue)
-            query = query.Where(a => a.AppointmentDateTime.Date <= filter.ToDate.Value);
+            baseQuery = baseQuery.Where(a => a.AppointmentDateTime.Date <= filter.ToDate.Value);
 
         if (Guid.TryParse(filter.PatientId, out var patientId))
-            query = query.Where(a => a.PatientId.Equals(patientId));
+            baseQuery = baseQuery.Where(a => a.PatientId.Equals(patientId));
 
         if (Guid.TryParse(filter.DoctorId, out var doctorId))
-            query = query.Where(a => a.DoctorId.Equals(doctorId));
+            baseQuery = baseQuery.Where(a => a.DoctorId.Equals(doctorId));
 
         if (Guid.TryParse(filter.HospitalId, out var hospitalId))
-            query = query.Where(a => a.HospitalId == hospitalId);
+            baseQuery = baseQuery.Where(a => a.HospitalId == hospitalId);
 
         if (filter.Status is not null)
-            query = query.Where(a => a.Status.Equals(filter.Status));
+            baseQuery = baseQuery.Where(a => a.Status == filter.Status);
 
-        query = query.Include(appt => appt.Patient)
+        baseQuery = baseQuery.Include(appt => appt.Patient)
                 .ThenInclude(pat => pat.User)
                 .Include(appt => appt.Doctor)
                 .ThenInclude(doc => doc.User)
                 .Include(appt => appt.CreatedByUser)
                 .Include(appt => appt.Hospital);
 
-        return query;
+        return await baseQuery
+            .Select(appt => _mapper.Map<ViewAppointmentDto>(appt))
+            .ToListAsync(); ;
     }
 
     public async Task<Result<ViewAppointmentDto>> ModifyAppointment(ModifyAppointmentDto modifyAppointmentDto, string requesterId)

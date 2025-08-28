@@ -1,4 +1,6 @@
-﻿namespace FinalProjectApi.Dtos.Appointment;
+﻿using FinalProjectApi.Entities.Enums;
+
+namespace FinalProjectApi.Dtos.Appointment;
 
 public class ViewAppointmentDto
 {
@@ -15,5 +17,5 @@ public class ViewAppointmentDto
     public string CreatedByUserName { get; set; }
     public string AppointmentDateTime { get; set; }
     public string? Remarks { get; set; }
-    public string Status { get; set; }
+    public AppointmentStatus Status { get; set; }
 }

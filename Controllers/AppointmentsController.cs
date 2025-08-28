@@ -38,13 +38,30 @@ public class AppointmentsController : ControllerBase
     }
 
     [HttpGet]
-    [Route("View")]
-    [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
-    public async Task<ActionResult<Result<List<ViewAppointmentDto>>>> ViewAppointments([FromQuery] ViewAppointmentsFilterDto filter)
+    [Route("ViewOwn")]
+    [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.DOCTOR}")]
+    public async Task<ActionResult<Result<List<ViewAppointmentDto>>>> ViewOwnAppointments([FromQuery] ViewAppointmentsFilterDto filter)
     {
         try
         {
-            return HandleResult(await _appointmentsService.ViewAppointments(filter));
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            return HandleResult(await _appointmentsService.ViewOwnAppointments(filter, userId));
+        }
+        catch (Exception ex)
+        {
+            return HandleException<List<ViewAppointmentDto>>(ex.Message);
+        }
+    }
+
+    [HttpGet]
+    [Route("ViewHospital")]
+    [Authorize(Roles = UserRoles.RECEPTIONIST)]
+    public async Task<ActionResult<Result<List<ViewAppointmentDto>>>> ViewHospitalAppointments([FromQuery] ViewAppointmentsFilterDto filter)
+    {
+        try
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            return HandleResult(await _appointmentsService.ViewHospitalAppointments(filter, userId));
         }
         catch (Exception ex)
         {
