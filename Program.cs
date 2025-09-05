@@ -1,5 +1,6 @@
 using System.Text;
 using FinalProjectApi.Common;
+using FinalProjectApi.Common.Exceptions;
 using FinalProjectApi.Data;
 using FinalProjectApi.Entities;
 using FinalProjectApi.Extensions;
@@ -68,6 +69,7 @@ namespace FinalProjectApi
             builder.Services.AddScoped<IPatientService, PatientService>();
             builder.Services.AddScoped<IAppointmentService, AppointmentService>();
             builder.Services.AddScoped<ISearchService, SearchService>();
+            builder.Services.AddScoped<GlobalExceptionMiddleware>();
 
             // Migrate and seed database
             await MigrateAndSeedDatabaseAsync(builder.Services.BuildServiceProvider());
@@ -92,6 +94,7 @@ namespace FinalProjectApi
             app.UseHttpsRedirection();
             app.UseAuthentication();
             app.UseAuthorization();
+            app.UseMiddleware<GlobalExceptionMiddleware>();
 
             app.MapControllers();
 
