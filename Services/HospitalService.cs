@@ -11,6 +11,7 @@ using FinalProjectApi.Dtos.User;
 using FinalProjectApi.Entities;
 using FinalProjectApi.Interfaces.Services;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace FinalProjectApi.Services;
 
@@ -27,7 +28,7 @@ public class HospitalService : IHospitalService
         _mapper = mapper;
     }
 
-    public async Task<Result<ViewHospitalDto>> CreateHospital(CreateHospitalDto dto)
+    public async Task<Result<ViewHospitalDto>> Add(CreateHospitalDto dto)
     {
         var hospitalEntry = await _dbContext.Hospitals.AddAsync(_mapper.Map<Hospital>(dto));
         await _dbContext.SaveChangesAsync();
@@ -35,7 +36,7 @@ public class HospitalService : IHospitalService
         return Result<ViewHospitalDto>.Success(_mapper.Map<ViewHospitalDto>(hospitalEntry.Entity));
     }
 
-    public async Task<Result<ViewUserDto>> CreateHospitalAdmin(CreateHospitalAdminDto dto)
+    public async Task<Result<ViewUserDto>> AssignAdmin(CreateHospitalAdminDto dto)
     {
         if (!Guid.TryParse(dto.HospitalId, out var hospitalId))
             return Result<ViewUserDto>.Failure(ErrorCode.SYS_InvalidGuid);
@@ -70,7 +71,7 @@ public class HospitalService : IHospitalService
         return userRegistration;
     }
 
-    public async Task<Result<ViewUserDto>> CreateReceptionist(CreateReceptionistDto dto)
+    public async Task<Result<ViewUserDto>> AddReceptionist(CreateReceptionistDto dto)
     {
         if (!Guid.TryParse(dto.HospitalId, out var hospitalId))
             return Result<ViewUserDto>.Failure(ErrorCode.SYS_InvalidGuid);
@@ -107,7 +108,7 @@ public class HospitalService : IHospitalService
         return userRegistration;
     }
 
-    public async Task<Result<ViewUserDto>> CreateDoctor(CreateDoctorDto dto)
+    public async Task<Result<ViewUserDto>> AddDoctor(CreateDoctorDto dto)
     {
         if (!Guid.TryParse(dto.HospitalId, out var hospitalId))
             return Result<ViewUserDto>.Failure(ErrorCode.SYS_InvalidGuid);
@@ -138,5 +139,99 @@ public class HospitalService : IHospitalService
             .FirstOrDefaultAsync();
 
         return userRegistrationResult;
+    }
+
+    public async Task<Result<List<ViewHospitalDto>>> GetAll()
+    {
+        var query = _dbContext.Hospitals
+            .AsQueryable();
+
+        var result = await query
+            .Select(h => _mapper.Map<ViewHospitalDto>(h))
+            .ToListAsync();
+
+        return Result<List<ViewHospitalDto>>.Success(result);
+    }
+
+    public async Task<Result<ViewHospitalDto>> Update(UpdateHospitalDto updateDto)
+    {
+        if (!Guid.TryParse(updateDto.Id, out var hospitalId))
+            return Result<ViewHospitalDto>.Failure(ErrorCode.SYS_InvalidGuid, "Hospital ID has invalid format!");
+
+        var existingHospital = await _dbContext.Hospitals
+            .FirstOrDefaultAsync(hs => hs.Id == hospitalId);
+
+        if (existingHospital == null)
+            return Result<ViewHospitalDto>.Failure(ErrorCode.HOS_NotFound);
+
+        existingHospital.Name = updateDto.Name ?? existingHospital.Name;
+        existingHospital.Street = updateDto.Street ?? existingHospital.Street;
+        existingHospital.City = updateDto.City ?? existingHospital.City;
+        existingHospital.District = updateDto.District ?? existingHospital.District;
+        existingHospital.Phone = updateDto.Phone ?? existingHospital.Phone;
+        existingHospital.Grade = updateDto.Grade ?? existingHospital.Grade;
+
+        await _dbContext.SaveChangesAsync();
+        return Result<ViewHospitalDto>.Success(_mapper.Map<ViewHospitalDto>(existingHospital));
+    }
+
+    public async Task<Result<ViewHospitalDto>> FindById(string Id, bool isSuperUser) { 
+        if (!Guid.TryParse(Id, out var hospitalId))
+            return Result<ViewHospitalDto>.Failure(ErrorCode.SYS_InvalidGuid, "Hospital ID has invalid format!");
+
+        var query = _dbContext.Hospitals
+            .Where(hs => hs.Id == hospitalId)
+            .AsQueryable();
+
+        if (isSuperUser)
+        {
+            query = query.Include(hs => hs.HospitalAdmins)
+                .ThenInclude(admn => admn.User);
+        }
+        var hospital = await query
+            .Select(hs => _mapper.Map<ViewHospitalDto>(hs))
+            .FirstOrDefaultAsync();
+
+        return Result<ViewHospitalDto>.Success(hospital);
+    }
+
+    public async Task<Result<List<ViewUserDto>>> GetMembers(string hospitalId, string userId)
+    {
+        if (!Guid.TryParse(hospitalId, out var _hospitalId))
+            return Result<List<ViewUserDto>>.Failure(ErrorCode.SYS_InvalidGuid, "Invalid hospital ID format.");
+
+        var query = _dbContext.Hospitals
+            .Where(h => h.Id == _hospitalId)
+            .AsQueryable();
+
+        if (!await query.AnyAsync())
+            return Result<List<ViewUserDto>>.Failure(ErrorCode.HOS_NotFound, $"Hospital with ID {hospitalId} not found!");
+
+        if (!await query.Include(h => h.HospitalAdmins).AnyAsync(h => h.HospitalAdmins.Any(ha => ha.UserId == userId)))
+            return Result<List<ViewUserDto>>.Failure(ErrorCode.SYS_Unauthorized, "Access denied, only admins of this hospital can view its members.");
+
+        var membersObj = await query
+            .Include(hs => hs.Doctors)
+            .ThenInclude(dr => dr.User)
+            .Include(hs => hs.Doctors)
+            .ThenInclude(dr => dr.Hospital)
+            .Include(hs => hs.Receptionists)
+            .ThenInclude(rc => rc.User)
+            .Include(hs => hs.Receptionists)
+            .ThenInclude(rc => rc.Hospital)
+            .Select(hs => new {
+                doctors = hs.Doctors
+                    .Select(dr => _mapper.Map<ViewUserDto>(dr)),
+                receptionists = hs.Receptionists
+                    .Select(rc => _mapper.Map<ViewUserDto>(rc)),
+            })
+            .AsSplitQuery()
+            .FirstOrDefaultAsync();
+
+        List<ViewUserDto> members = [];
+        members.AddRange(membersObj?.doctors ?? []);
+        members.AddRange(membersObj?.receptionists ?? []);
+
+        return Result<List<ViewUserDto>>.Success(members);
     }
 }
