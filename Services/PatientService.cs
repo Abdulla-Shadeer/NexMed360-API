@@ -51,7 +51,7 @@ public class PatientService : IPatientService
         return userRegistration;
     }
 
-    public async Task<Result<ViewUserDto>> ViewPatient(string id)
+    public async Task<Result<ViewUserDto>> GetPatient(string id)
     {
         var patientCheck = await UserCheck(id);
         if (!patientCheck.IsSuccess)

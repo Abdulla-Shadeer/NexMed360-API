@@ -7,7 +7,7 @@ namespace FinalProjectApi.Dtos.Doctor
     {
         [Required]
         public RegisterUserDto PersonalInformation { get; set; }
-
+        [Required]
         public string Speciality { get; set; }
 
         [Required]

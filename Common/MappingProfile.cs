@@ -39,13 +39,46 @@ public class MappingProfile: Profile
             .ForMember(dest => dest.UpdatedDate, opt => opt.MapFrom(_ => DateTime.Now));
 
         //Hospital and Staff
-        CreateMap<Doctor, ViewDoctorDto>();
-        CreateMap<Receptionist, ViewReceptionistDto>();
-        CreateMap<Hospital, ViewHospitalDto>();
+        CreateMap<Doctor, ViewDoctorDto>()
+            .ForMember(dest => dest.HospitalName, opt => opt.MapFrom(src => src.Hospital.Name));
+
+        CreateMap<Receptionist, ViewReceptionistDto>()
+            .ForMember(dest => dest.HospitalName, opt => opt.MapFrom(src => src.Hospital.Name));
+
+        CreateMap<HospitalAdmin, ViewUserDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.UserId))
+            .ForMember(dest => dest.FirstName, opt => opt.MapFrom(src => src.User.FirstName))
+            .ForMember(dest => dest.LastName, opt => opt.MapFrom(src => src.User.LastName))
+            .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.User.Email))
+            .ForMember(dest => dest.PhoneNumber, opt => opt.MapFrom(src => src.User.PhoneNumber))
+            .ForMember(dest => dest.HospitalAdminProfile, opt => opt.MapFrom(src => src));
+
+        CreateMap<Doctor, ViewUserDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.UserId))
+            .ForMember(dest => dest.FirstName, opt => opt.MapFrom(src => src.User.FirstName))
+            .ForMember(dest => dest.LastName, opt => opt.MapFrom(src => src.User.LastName))
+            .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.User.Email))
+            .ForMember(dest => dest.PhoneNumber, opt => opt.MapFrom(src => src.User.PhoneNumber))
+            .ForMember(dest => dest.DoctorProfile, opt => opt.MapFrom(src => src));
+
+        CreateMap<Receptionist, ViewUserDto>()
+            .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.UserId))
+            .ForMember(dest => dest.FirstName, opt => opt.MapFrom(src => src.User.FirstName))
+            .ForMember(dest => dest.LastName, opt => opt.MapFrom(src => src.User.LastName))
+            .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.User.Email))
+            .ForMember(dest => dest.PhoneNumber, opt => opt.MapFrom(src => src.User.PhoneNumber))
+            .ForMember(dest => dest.ReceptionistProfile, opt => opt.MapFrom(src => src));
+
+
+        CreateMap<Hospital, ViewHospitalDto>()
+            .ForMember(dest => dest.Admins, opt => opt.MapFrom(src => src.HospitalAdmins));
+
         CreateMap<CreateHospitalDto, Hospital>()
             .ForMember(dest => dest.CreatedDate, opt => opt.MapFrom(_ => DateTime.Now))
             .ForMember(dest => dest.UpdatedDate, opt => opt.MapFrom(_ => DateTime.Now));
-        CreateMap<HospitalAdmin, ViewHospitalAdminDto>();
+
+        CreateMap<HospitalAdmin, ViewHospitalAdminDto>()
+            .ForMember(dest => dest.HospitalName, opt => opt.MapFrom(src => src.Hospital.Name));
 
         //Patient
         CreateMap<Patient, ViewPatientDto>();

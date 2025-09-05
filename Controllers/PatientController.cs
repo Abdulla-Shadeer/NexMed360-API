@@ -13,19 +13,19 @@ namespace FinalProjectApi.Controllers;
 
 [Route("api/v1/[controller]")]
 [ApiController]
-public class PatientsController : ControllerBase
+public class PatientController : ControllerBase
 {
     private readonly IPatientService _patientService;
 
-    public PatientsController(IPatientService patientService)
+    public PatientController(IPatientService patientService)
     {
         _patientService = patientService;
     }
 
     [HttpPost]
-    [Route("CreatePatient")]
+    [Route("Create")]
     [Authorize(Roles = UserRoles.RECEPTIONIST)]
-    public async Task<ActionResult<Result<ViewUserDto>>> AddPatient(CreatePatientDto dto)
+    public async Task<ActionResult<Result<ViewUserDto>>> Create(CreatePatientDto dto)
     {
         try
         {
@@ -38,13 +38,13 @@ public class PatientsController : ControllerBase
     }
 
     [HttpGet]
-    [Route("ViewPatient/{patientId}")]
-    [Authorize(Roles = $"{UserRoles.PATIENT},{UserRoles.RECEPTIONIST},{UserRoles.DOCTOR}")]
-    public async Task<ActionResult<Result<ViewUserDto>>> ViewPatient(string patientId)
+    [Route("Get/{patientId}")]
+    [Authorize(Roles = $"{UserRoles.RECEPTIONIST},{UserRoles.DOCTOR}")]
+    public async Task<ActionResult<Result<ViewUserDto>>> GetPatient(string patientId)
     {
         try
         {
-            return HandleResult(await _patientService.ViewPatient(patientId));
+            return HandleResult(await _patientService.GetPatient(patientId));
         }
         catch (Exception ex)
         {

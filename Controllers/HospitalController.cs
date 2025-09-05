@@ -61,7 +61,6 @@ public class HospitalController : ControllerBase
     {
         try
         {
-            Thread.Sleep(2000);
             return HandleCreationResult(await _hospitalService.AssignAdmin(dto));
         }
         catch (Exception ex)
