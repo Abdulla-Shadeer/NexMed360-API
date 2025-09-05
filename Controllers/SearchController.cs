@@ -1,5 +1,4 @@
 ﻿using FinalProjectApi.Common;
-using FinalProjectApi.Common.ApplicationErrors;
 using FinalProjectApi.Dtos.Search;
 using FinalProjectApi.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -24,22 +23,11 @@ public class SearchController : ControllerBase
     [Authorize]
     public async Task<ActionResult<Result<object>>> EntitySearch(EntitySearchDto dto)
     {
-        try
+        var res = await _searchService.EntitySearch(dto, User);
+        if (res.IsSuccess)
         {
-            var res = await _searchService.EntitySearch(dto, User);
-            if (res.IsSuccess)
-            {
-                return Ok(res);
-            }
-            return StatusCode(res.Error!.HttpStatus, res);
+            return Ok(res);
         }
-        catch (Exception e)
-        {
-            return StatusCode(
-            500,
-            Result<object>.Failure(
-                new ApiError(ErrorCode.Internal, $"An error occurred while processing the request.", 500, e.Message)
-            ));
-        }
+        return StatusCode(res.Error!.HttpStatus, res);
     }
 }

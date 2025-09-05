@@ -1,5 +1,4 @@
 ﻿using FinalProjectApi.Common;
-using FinalProjectApi.Common.ApplicationErrors;
 using FinalProjectApi.Dtos.Overview;
 using FinalProjectApi.Dtos.User;
 using FinalProjectApi.Interfaces.Services;
@@ -27,24 +26,12 @@ public class UsersController : ControllerBase
     [AllowAnonymous]
     public async Task<ActionResult<Result<LoginResponseDto>>> Login(LoginUserDto userDto)
     {
-        try
+        var loginResponse = await _authService.LoginAsync(userDto);
+        if (loginResponse.IsSuccess)
         {
-            var loginResponse = await _authService.LoginAsync(userDto);
-            if (loginResponse.IsSuccess)
-            {
-                return Ok(loginResponse);
-            }
-            return Unauthorized(loginResponse);
+            return Ok(loginResponse);
         }
-        catch (Exception e)
-        {
-            return StatusCode(
-            500,
-            Result<string>.Failure(
-            new ApiError(ErrorCode.Internal, $"An error occurred while processing the request.", 500, e.Message)
-        )
-    );
-        }
+        return Unauthorized(loginResponse);
     }
 
     [HttpGet]
@@ -52,24 +39,13 @@ public class UsersController : ControllerBase
     [Authorize]
     public async Task<ActionResult<Result<ViewUserDto>>> GetUser()
     {
-        try
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var authResult = await _userService.GetUserAsync(userId);
+        if (authResult.IsSuccess)
         {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var authResult = await _userService.GetUserAsync(userId);
-            if (authResult.IsSuccess)
-            {
-                return Ok(authResult);
-            }
-            return Unauthorized(authResult);
+            return Ok(authResult);
         }
-        catch (Exception e)
-        {
-            return StatusCode(
-                500,
-                Result<ViewUserDto>
-                .Failure(new ApiError(ErrorCode.Internal, "An error occurred while processing the request!", 500, e.Message))
-                );
-        }
+        return Unauthorized(authResult);
     }
 
     [HttpGet]
@@ -77,21 +53,12 @@ public class UsersController : ControllerBase
     [Authorize]
     public async Task<ActionResult<Result<List<OverviewDto>>>> GetOverview()
     {
-        try
+        var overview = await _userService.GetOverview(User);
+        if (overview.IsSuccess)
         {
-            var overview = await _userService.GetOverview(User);
-            if (overview.IsSuccess)
-            {
-                return Ok(overview);
-            }
-            return StatusCode(overview.Error!.HttpStatus, overview);
+            return Ok(overview);
         }
-        catch (Exception e)
-        {
-            return StatusCode(500, Result<List<OverviewDto>>.Failure(
-                new ApiError(ErrorCode.Internal, "An error occurred while processing the request!", 500, e.Message)
-                ));
-        }
+        return StatusCode(overview.Error!.HttpStatus, overview);
     }
 
     [HttpPost]
@@ -99,20 +66,11 @@ public class UsersController : ControllerBase
     [Authorize]
     public async Task<ActionResult<Result<ViewUserDto>>> UpdateUser(UpdateUserDto updateUserDto)
     {
-        try
+        var updatedUser = await _userService.UpdateUser(updateUserDto);
+        if (updatedUser.IsSuccess)
         {
-            var updatedUser = await _userService.UpdateUser(updateUserDto);
-            if (updatedUser.IsSuccess)
-            {
-                return Ok(updatedUser);
-            }
-            return StatusCode(updatedUser.Error!.HttpStatus, updatedUser);
+            return Ok(updatedUser);
         }
-        catch (Exception e)
-        {
-            return StatusCode(500, Result<List<OverviewDto>>.Failure(
-                new ApiError(ErrorCode.Internal, "An error occurred while processing the request!", 500, e.Message)
-                ));
-        }
+        return StatusCode(updatedUser.Error!.HttpStatus, updatedUser);
     }
 }

@@ -1,5 +1,4 @@
-﻿using FinalProjectApi.Common.ApplicationErrors;
-using FinalProjectApi.Common;
+﻿using FinalProjectApi.Common;
 using FinalProjectApi.Common.Auth;
 using FinalProjectApi.Dtos.ClinicRecord;
 using FinalProjectApi.Dtos.Patient;
@@ -27,14 +26,7 @@ public class PatientController : ControllerBase
     [Authorize(Roles = UserRoles.RECEPTIONIST)]
     public async Task<ActionResult<Result<ViewUserDto>>> Create(CreatePatientDto dto)
     {
-        try
-        {
-            return HandleResult(await _patientService.CreatePatient(dto), true);
-        }
-        catch (Exception ex)
-        {
-            return HandleException<ViewUserDto>(ex.Message);
-        }
+        return HandleResult(await _patientService.CreatePatient(dto), true);
     }
 
     [HttpGet]
@@ -42,14 +34,7 @@ public class PatientController : ControllerBase
     [Authorize(Roles = $"{UserRoles.RECEPTIONIST},{UserRoles.DOCTOR}")]
     public async Task<ActionResult<Result<ViewUserDto>>> GetPatient(string patientId)
     {
-        try
-        {
-            return HandleResult(await _patientService.GetPatient(patientId));
-        }
-        catch (Exception ex)
-        {
-            return HandleException<ViewUserDto>(ex.Message);
-        }
+        return HandleResult(await _patientService.GetPatient(patientId));
     }
 
     [HttpPost]
@@ -57,15 +42,8 @@ public class PatientController : ControllerBase
     [Authorize(Roles = UserRoles.DOCTOR)]
     public async Task<ActionResult<Result<ViewClinicRecordDto>>> AddClinicRecord(AddClinicRecordDto dto)
     {
-        try
-        {
-            var doctorUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            return HandleResult(await _patientService.AddToClinicRecords(dto, doctorUserId!), true);
-        }
-        catch (Exception ex)
-        {
-            return HandleException<ViewClinicRecordDto>(ex.Message);
-        }
+        var doctorUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return HandleResult(await _patientService.AddToClinicRecords(dto, doctorUserId!), true);
     }
 
     [HttpGet]
@@ -76,14 +54,7 @@ public class PatientController : ControllerBase
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<Result<ViewClinicRecordDto>>> GetClinicRecord([FromQuery] string recordId)
     {
-        try
-        {
-            return HandleResult(await _patientService.ViewClinicRecord(recordId));
-        }
-        catch (Exception ex)
-        {
-            return HandleException<ViewClinicRecordDto>(ex.Message);
-        }
+        return HandleResult(await _patientService.ViewClinicRecord(recordId));
     }
 
     [HttpGet]
@@ -94,14 +65,7 @@ public class PatientController : ControllerBase
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<Result<List<ViewClinicRecordDto>>>> GetClinicRecords([FromQuery] string patientId)
     {
-        try
-        {
-            return HandleResult(await _patientService.ViewAllClinicRecords(patientId));
-        }
-        catch (Exception ex)
-        {
-            return HandleException<List<ViewClinicRecordDto>>(ex.Message);
-        }
+        return HandleResult(await _patientService.ViewAllClinicRecords(patientId));
     }
 
     private ActionResult<Result<T>> HandleResult<T>(Result<T> result, bool isCreatedResult = false)
@@ -109,15 +73,5 @@ public class PatientController : ControllerBase
         if (!result.IsSuccess)
             return StatusCode(result.Error!.HttpStatus, result);
         return isCreatedResult ? Created(string.Empty, result) : Ok(result);
-    }
-
-    private ActionResult<Result<T>> HandleException<T>(string description)
-    {
-        return StatusCode(
-            500,
-            Result<T>.Failure(
-                new ApiError(ErrorCode.Internal, $"An error occurred while processing the request.", 500, description)
-            )
-        );
     }
 }

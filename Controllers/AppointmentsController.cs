@@ -1,5 +1,4 @@
 ﻿using FinalProjectApi.Common;
-using FinalProjectApi.Common.ApplicationErrors;
 using FinalProjectApi.Common.Auth;
 using FinalProjectApi.Dtos.Appointment;
 using FinalProjectApi.Interfaces.Services;
@@ -26,15 +25,8 @@ public class AppointmentsController : ControllerBase
     [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
     public async Task<ActionResult<Result<ViewAppointmentDto>>> CreateAppointment(CreateAppointmentDto createAppointment)
     {
-        try
-        {
-            var requesterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            return HandleResult(await _appointmentsService.CreateAppointment(createAppointment, requesterId!), true);
-        }
-        catch (Exception ex)
-        {
-            return HandleException<ViewAppointmentDto>(ex.Message);
-        }
+        var requesterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return HandleResult(await _appointmentsService.CreateAppointment(createAppointment, requesterId!), true);
     }
 
     [HttpGet]
@@ -42,15 +34,8 @@ public class AppointmentsController : ControllerBase
     [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.DOCTOR}")]
     public async Task<ActionResult<Result<List<ViewAppointmentDto>>>> ViewOwnAppointments([FromQuery] ViewAppointmentsFilterDto filter)
     {
-        try
-        {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            return HandleResult(await _appointmentsService.ViewOwnAppointments(filter, userId));
-        }
-        catch (Exception ex)
-        {
-            return HandleException<List<ViewAppointmentDto>>(ex.Message);
-        }
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return HandleResult(await _appointmentsService.ViewOwnAppointments(filter, userId));
     }
 
     [HttpGet]
@@ -58,15 +43,8 @@ public class AppointmentsController : ControllerBase
     [Authorize(Roles = UserRoles.RECEPTIONIST)]
     public async Task<ActionResult<Result<List<ViewAppointmentDto>>>> ViewHospitalAppointments([FromQuery] ViewAppointmentsFilterDto filter)
     {
-        try
-        {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            return HandleResult(await _appointmentsService.ViewHospitalAppointments(filter, userId));
-        }
-        catch (Exception ex)
-        {
-            return HandleException<List<ViewAppointmentDto>>(ex.Message);
-        }
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return HandleResult(await _appointmentsService.ViewHospitalAppointments(filter, userId));
     }
 
     [HttpPost]
@@ -74,15 +52,8 @@ public class AppointmentsController : ControllerBase
     [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
     public async Task<ActionResult<Result<ViewAppointmentDto>>> ModifyAppointment(ModifyAppointmentDto modifyAppointmentDto)
     {
-        try
-        {
-            var requesterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            return HandleResult(await _appointmentsService.ModifyAppointment(modifyAppointmentDto, requesterId!));
-        }
-        catch (Exception ex)
-        {
-            return HandleException<ViewAppointmentDto>(ex.Message);
-        }
+        var requesterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return HandleResult(await _appointmentsService.ModifyAppointment(modifyAppointmentDto, requesterId!));
     }
 
     [HttpGet]
@@ -90,14 +61,7 @@ public class AppointmentsController : ControllerBase
     [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
     public async Task<ActionResult<Result<ViewAppointmentDto>>> ViewAppointment(string appointmentId)
     {
-        try
-        {
-            return HandleResult(await _appointmentsService.ViewAppointment(appointmentId));
-        }
-        catch (Exception ex)
-        {
-            return HandleException<ViewAppointmentDto>(ex.Message);
-        }
+        return HandleResult(await _appointmentsService.ViewAppointment(appointmentId));
     }
 
     [HttpGet]
@@ -105,14 +69,7 @@ public class AppointmentsController : ControllerBase
     [Authorize(Roles = $"{UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
     public async Task<ActionResult<Result<ViewAppointmentDto>>> ConfirmAppointment(string appointmentId)
     {
-        try
-        {
-            return HandleResult(await _appointmentsService.ConfirmOrCompleteAppointment(appointmentId, false));
-        }
-        catch (Exception ex)
-        {
-            return HandleException<ViewAppointmentDto>(ex.Message);
-        }
+        return HandleResult(await _appointmentsService.ConfirmOrCompleteAppointment(appointmentId, false));
     }
 
     [HttpGet]
@@ -120,14 +77,7 @@ public class AppointmentsController : ControllerBase
     [Authorize(Roles = $"{UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
     public async Task<ActionResult<Result<ViewAppointmentDto>>> CompleteAppointment(string appointmentId)
     {
-        try
-        {
-            return HandleResult(await _appointmentsService.ConfirmOrCompleteAppointment(appointmentId, true));
-        }
-        catch (Exception ex)
-        {
-            return HandleException<ViewAppointmentDto>(ex.Message);
-        }
+        return HandleResult(await _appointmentsService.ConfirmOrCompleteAppointment(appointmentId, true));
     }
 
     [HttpPost]
@@ -135,15 +85,8 @@ public class AppointmentsController : ControllerBase
     [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
     public async Task<ActionResult<Result<ViewAppointmentDto>>> CancelAppointment(CancellationRequestDto cancellationRequestDto)
     {
-        try
-        {
-            var requesterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            return HandleResult(await _appointmentsService.CancelAppointment(cancellationRequestDto, requesterId!));
-        }
-        catch (Exception ex)
-        {
-            return HandleException<ViewAppointmentDto>(ex.Message);
-        }
+        var requesterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return HandleResult(await _appointmentsService.CancelAppointment(cancellationRequestDto, requesterId!));
     }
 
     private ActionResult<Result<T>> HandleResult<T>(Result<T> result, bool isCreationResult = false)
@@ -151,15 +94,5 @@ public class AppointmentsController : ControllerBase
         if (!result.IsSuccess)
             return StatusCode(result.Error!.HttpStatus, result);
         return isCreationResult ? Created(string.Empty, result) : Ok(result);
-    }
-
-    private ActionResult<Result<T>> HandleException<T>(string description)
-    {
-        return StatusCode(
-            500,
-            Result<T>.Failure(
-                new ApiError(ErrorCode.Internal, $"An error occurred while processing the request.", 500, description)
-            )
-        );
     }
 }
