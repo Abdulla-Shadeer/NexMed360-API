@@ -178,4 +178,30 @@ public class UserService : IUserService
             return Result<ViewUserDto>.Failure(ErrorCode.SYS_Unauthorized, $"User with id {userId} not found.");
         }
     }
+
+    public async Task<Result<ViewUserDto>> UpdateUser(UpdateUserDto updateDto) {
+        if (updateDto.Email != null && 
+            await _context.Users.AnyAsync(u => u.Email == updateDto.Email)) {
+            return Result<ViewUserDto>.Failure(ErrorCode.SYS_DuplicateEntry, $"This email '{updateDto.Email}' is already used by someone.");
+        }
+
+        var usr = await _context.Users
+            .Include(u => u.Patient)
+            .Include(u => u.Doctor)
+            .ThenInclude(dr => dr.Hospital)
+            .Include(u => u.Receptionist)
+            .ThenInclude(rc => rc.Hospital)
+            .Include(u => u.HospitalAdmin)
+            .ThenInclude(hs => hs.Hospital)
+            .FirstOrDefaultAsync(u => u.Id == updateDto.Id);
+        if (usr == null)
+            return Result<ViewUserDto>.Failure(ErrorCode.USR_NotFound);
+        usr.FirstName = updateDto.FirstName ?? usr.FirstName;
+        usr.LastName = updateDto.LastName ?? usr.LastName;
+        usr.Email = updateDto.Email ?? usr.Email;
+        usr.PhoneNumber = updateDto.PhoneNumber ?? usr.PhoneNumber;
+
+        await _context.SaveChangesAsync();
+        return await GetUserAsync(usr.Id);
+    }
 }

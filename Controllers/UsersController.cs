@@ -7,93 +7,112 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
-namespace FinalProjectApi.Controllers
+namespace FinalProjectApi.Controllers;
+
+[Route("api/v1/[controller]")]
+[ApiController]
+public class UsersController : ControllerBase
 {
-    [Route("api/v1/[controller]")]
-    [ApiController]
-    public class UsersController : ControllerBase
+    private readonly IAuthService _authService;
+    private readonly IUserService _userService;
+
+    public UsersController(IAuthService authService, IUserService userService)
     {
-        private readonly IAuthService _authService;
-        private readonly IUserService _userService;
+        _authService = authService;
+        _userService = userService;
+    }
 
-        public UsersController(IAuthService authService, IUserService userService)
+    [HttpPost]
+    [Route("Login")]
+    [AllowAnonymous]
+    public async Task<ActionResult<Result<LoginResponseDto>>> Login(LoginUserDto userDto)
+    {
+        try
         {
-            _authService = authService;
-            _userService = userService;
-        }
-
-        [HttpPost]
-        [Route("Login")]
-        [AllowAnonymous]
-        public async Task<ActionResult<Result<LoginResponseDto>>> Login(LoginUserDto userDto)
-        {
-            try
+            var loginResponse = await _authService.LoginAsync(userDto);
+            if (loginResponse.IsSuccess)
             {
-                var loginResponse = await _authService.LoginAsync(userDto);
-                if (loginResponse.IsSuccess)
-                {
-                    Thread.Sleep(2000);
-                    return Ok(loginResponse);
-                }
-                return Unauthorized(loginResponse);
+                return Ok(loginResponse);
             }
-            catch (Exception e)
+            return Unauthorized(loginResponse);
+        }
+        catch (Exception e)
+        {
+            return StatusCode(
+            500,
+            Result<string>.Failure(
+            new ApiError(ErrorCode.Internal, $"An error occurred while processing the request.", 500, e.Message)
+        )
+    );
+        }
+    }
+
+    [HttpGet]
+    [Route("GetUser")]
+    [Authorize]
+    public async Task<ActionResult<Result<ViewUserDto>>> GetUser()
+    {
+        try
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var authResult = await _userService.GetUserAsync(userId);
+            if (authResult.IsSuccess)
             {
-                return StatusCode(
+                return Ok(authResult);
+            }
+            return Unauthorized(authResult);
+        }
+        catch (Exception e)
+        {
+            return StatusCode(
                 500,
-                Result<string>.Failure(
-                new ApiError(ErrorCode.Internal, $"An error occurred while processing the request.", 500, e.Message)
-            )
-        );
-            }
+                Result<ViewUserDto>
+                .Failure(new ApiError(ErrorCode.Internal, "An error occurred while processing the request!", 500, e.Message))
+                );
         }
+    }
 
-        [HttpGet]
-        [Route("GetUser")]
-        [Authorize]
-        public async Task<ActionResult<Result<ViewUserDto>>> GetUser()
+    [HttpGet]
+    [Route("GetOverview")]
+    [Authorize]
+    public async Task<ActionResult<Result<List<OverviewDto>>>> GetOverview()
+    {
+        try
         {
-            try
+            var overview = await _userService.GetOverview(User);
+            if (overview.IsSuccess)
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-                var authResult = await _userService.GetUserAsync(userId);
-                if (authResult.IsSuccess)
-                {
-                    return Ok(authResult);
-                }
-                return Unauthorized(authResult);
+                return Ok(overview);
             }
-            catch (Exception e)
-            {
-                return StatusCode(
-                    500,
-                    Result<ViewUserDto>
-                    .Failure(new ApiError(ErrorCode.Internal, "An error occurred while processing the request!", 500, e.Message))
-                    );
-            }
+            return StatusCode(overview.Error!.HttpStatus, overview);
         }
-
-        [HttpGet]
-        [Route("GetOverview")]
-        [Authorize]
-        public async Task<ActionResult<Result<List<OverviewDto>>>> GetOverview()
+        catch (Exception e)
         {
-            try
+            return StatusCode(500, Result<List<OverviewDto>>.Failure(
+                new ApiError(ErrorCode.Internal, "An error occurred while processing the request!", 500, e.Message)
+                ));
+        }
+    }
+
+    [HttpPost]
+    [Route("UpdateUser")]
+    [Authorize]
+    public async Task<ActionResult<Result<ViewUserDto>>> UpdateUser(UpdateUserDto updateUserDto)
+    {
+        try
+        {
+            var updatedUser = await _userService.UpdateUser(updateUserDto);
+            if (updatedUser.IsSuccess)
             {
-                var overview = await _userService.GetOverview(User);
-                if (overview.IsSuccess)
-                {
-                    Thread.Sleep(2000);
-                    return Ok(overview);
-                }
-                return StatusCode(overview.Error!.HttpStatus, overview);
+                return Ok(updatedUser);
             }
-            catch (Exception e)
-            {
-                return StatusCode(500, Result<List<OverviewDto>>.Failure(
-                    new ApiError(ErrorCode.Internal, "An error occurred while processing the request!", 500, e.Message)
-                    ));
-            }
+            return StatusCode(updatedUser.Error!.HttpStatus, updatedUser);
+        }
+        catch (Exception e)
+        {
+            return StatusCode(500, Result<List<OverviewDto>>.Failure(
+                new ApiError(ErrorCode.Internal, "An error occurred while processing the request!", 500, e.Message)
+                ));
         }
     }
 }

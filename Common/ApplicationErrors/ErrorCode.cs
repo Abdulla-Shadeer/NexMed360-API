@@ -18,6 +18,9 @@ public enum ErrorCode
     [EnumMember(Value = "SYS_004")]
     SYS_BadRequest,
 
+    [EnumMember(Value = "SYS_005")]
+    SYS_DuplicateEntry,
+
     [EnumMember(Value = "APPT_001")]
     APPT_NotFound,
 
