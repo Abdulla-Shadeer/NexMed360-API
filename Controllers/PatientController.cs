@@ -47,23 +47,23 @@ public class PatientController : ControllerBase
     }
 
     [HttpGet]
-    [Route("GetClinicRecord")]
+    [Route("GetClinicRecord/{recordId}")]
     [Authorize(Roles = $"{UserRoles.DOCTOR}, {UserRoles.PATIENT}")]
     [ProducesResponseType(typeof(Result<ViewClinicRecordDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<Result<ViewClinicRecordDto>>> GetClinicRecord([FromQuery] string recordId)
+    public async Task<ActionResult<Result<ViewClinicRecordDto>>> GetClinicRecord(string recordId)
     {
         return HandleResult(await _patientService.ViewClinicRecord(recordId));
     }
 
     [HttpGet]
-    [Route("GetClinicRecords")]
+    [Route("GetClinicRecords/{patientId}")]
     [Authorize(Roles = $"{UserRoles.DOCTOR}, {UserRoles.PATIENT}")]
     [ProducesResponseType(typeof(Result<List<ViewClinicRecordDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<Result<List<ViewClinicRecordDto>>>> GetClinicRecords([FromQuery] string patientId)
+    public async Task<ActionResult<Result<List<ViewClinicRecordDto>>>> GetClinicRecords(string patientId)
     {
         return HandleResult(await _patientService.ViewAllClinicRecords(patientId));
     }
