@@ -1,7 +1,10 @@
 ﻿using FinalProjectApi.Entities;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using System.Text.Json;
 
 namespace FinalProjectApi.Data;
 
@@ -18,6 +21,20 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .ValueGeneratedOnAdd()
             .Metadata.SetAfterSaveBehavior(PropertySaveBehavior.Save);
         ;
+
+        var occurrenceConverter = new ValueConverter<List<SessionOccurrence>, string>(
+            v => JsonSerializer.Serialize(v, (JsonSerializerOptions)null),
+            v => JsonSerializer.Deserialize<List<SessionOccurrence>>(v, (JsonSerializerOptions)null)
+            ?? new List<SessionOccurrence>());
+
+        var occurrenceComparer = new ValueComparer<List<SessionOccurrence>>(
+            (c1, c2) => c1 != null && c2 != null && c1.SequenceEqual(c2),
+            c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
+            c => c.ToList());
+
+        builder.Entity<DoctorSession>()
+            .Property(ds => ds.Occurrences)
+            .HasConversion(occurrenceConverter, occurrenceComparer);
     }
 
     public DbSet<Patient> Patients { get; set; }
@@ -30,4 +47,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Prescription> Prescriptions { get; set; }
     public DbSet<Appointment> Appointments { get; set; }
     public DbSet<CancellationRequest> CancellationRequests { get; set; }
+    public DbSet<DoctorSession> DoctorSessions { get; set; }
+    public DbSet<SessionSlot> SessionSlots { get; set; }
 }

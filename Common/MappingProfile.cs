@@ -31,6 +31,17 @@ public class MappingProfile: Profile
         CreateMap<ViewAppointmentDto, Appointment>();
         CreateMap<CreateAppointmentDto, Appointment>();
 
+        CreateMap<CreateDoctorSessionDto, DoctorSession>()
+            .ForMember(dest => dest.SlotDurationMinutes, opt => opt.MapFrom(src => src.SlotDurationMinutes ?? AppointmentHelper.DEFAULT_SLOT_DURATION_MINUTES));
+
+        CreateMap<DoctorSession, ViewDoctorSessionDto>()
+            .ForMember(dest => dest.HospitalName, opt => opt.MapFrom(src => src.Hospital.Name))
+            .ForMember(dest => dest.HospitalAddress, opt => opt.MapFrom(src => $"{src.Hospital.Street}, {src.Hospital.City}, {src.Hospital.District}"))
+            .ForMember(dest => dest.TotalSlots, opt => opt.MapFrom(src => AppointmentHelper.GetTotalSlots(src)));
+
+        CreateMap<SessionSlot, ViewSessionSlotDto>();
+
+
         //User
         CreateMap<User, ViewUserDto>();
         CreateMap<RegisterUserDto, User>()

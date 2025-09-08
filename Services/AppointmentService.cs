@@ -7,6 +7,8 @@ using FinalProjectApi.Entities;
 using FinalProjectApi.Entities.Enums;
 using FinalProjectApi.Interfaces.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.IdentityModel.Tokens;
 
 namespace FinalProjectApi.Services;
 
@@ -339,5 +341,96 @@ public class AppointmentService : IAppointmentService
                 .Include(appt => appt.CreatedByUser)
                 .Include(appt => appt.Hospital)
                 .FirstOrDefaultAsync();
+    }
+
+    public async Task<Result<ViewDoctorSessionDto>> CreateDoctorSession(CreateDoctorSessionDto dto)
+    {
+        if (!await _context.Doctors.AnyAsync(dr => dr.Id == dto.DoctorId))
+        {
+            return Result<ViewDoctorSessionDto>.Failure(ErrorCode.APPT_DoctorNotFound);
+        }
+
+        if (!await _context.Hospitals.AnyAsync(hs => hs.Id == dto.HospitalId))
+        {
+            return Result<ViewDoctorSessionDto>.Failure(ErrorCode.HOS_NotFound);
+        }
+
+        if (dto.StartTime > dto.EndTime)
+        {
+            return Result<ViewDoctorSessionDto>.Failure(ErrorCode.SYS_BadRequest, "Start time cannot be after End time!");
+        }
+
+        var doctorSessions = _context.DoctorSessions.AsEnumerable();
+
+        // Todo: Also consider time overlapping
+        // (ex, session A 6.00-10.00 and session B 8.00-11.00 will cause conflict appointment bookings for same doctor at same hospital and same date time)
+        if (doctorSessions.Any(
+            ds => ds.DoctorId == dto.DoctorId
+            && ds.HospitalId == dto.HospitalId
+            && ds.StartTime == dto.StartTime
+            && ds.EndTime == dto.EndTime
+            && ds.Occurrences.OrderBy(x => x).SequenceEqual(dto.Occurrences.OrderBy(x => x))
+            )) {
+            return Result<ViewDoctorSessionDto>.Failure(ErrorCode.SYS_DuplicateEntry, "Session already exist!");
+        }
+
+        var addedEntityId = (await _context.DoctorSessions.AddAsync(_mapper.Map<DoctorSession>(dto))).Entity.Id;
+        await _context.SaveChangesAsync();
+
+        var doctorSession = await _context.DoctorSessions
+            .Where(ds => ds.Id == addedEntityId)
+            .Include(ds => ds.Hospital)
+            .Select(ds => _mapper.Map<ViewDoctorSessionDto>(ds))
+            .FirstOrDefaultAsync();
+
+        return Result<ViewDoctorSessionDto>.Success(doctorSession);
+    }
+
+    public async Task<Result<List<ViewDoctorSessionDto>>> GetDoctorSessions(Guid doctorId)
+    {
+        return Result<List<ViewDoctorSessionDto>>.Success(
+            await _context.DoctorSessions
+                .Where(ds => ds.DoctorId == doctorId)
+                .Include(ds => ds.Hospital)
+                .Select(ds => _mapper.Map<ViewDoctorSessionDto>(ds))
+                .ToListAsync());
+    }
+
+    public async Task<Result<List<ViewSessionSlotDto>>> GetSessionSlots(GetSessionSlotsDto dto)
+    {
+        var session = await _context.DoctorSessions.FirstOrDefaultAsync(ds => ds.Id == dto.SessionId);
+
+        if (session == null)
+        {
+            return Result<List<ViewSessionSlotDto>>.Failure(ErrorCode.SYS_BadRequest, "No sessions found with given ID");
+        }
+
+        // return if slots present with given date and id
+        var existingSlots = await _context.SessionSlots
+            .Where(ss => ss.SessionId == dto.SessionId && ss.Date == dto.Date)
+            .Select(ss => _mapper.Map<ViewSessionSlotDto>(ss))
+            .ToListAsync();
+
+        if (existingSlots != null && !existingSlots.IsNullOrEmpty())
+        {
+            return Result<List<ViewSessionSlotDto>>.Success(existingSlots);
+        }
+
+        var slotGeneration = AppointmentHelper.CheckAndGenerateSlots(session, dto.Date);
+
+        if (!slotGeneration.IsSuccess)
+        {
+            return Result<List<ViewSessionSlotDto>>.Failure(slotGeneration.Error!);
+        }
+
+        await _context.SessionSlots.AddRangeAsync(slotGeneration.Data!);
+        await _context.SaveChangesAsync();
+
+        return Result<List<ViewSessionSlotDto>>.Success(
+            await _context.SessionSlots
+            .Where(ss => ss.SessionId == dto.SessionId && ss.Date == dto.Date)
+            .Select(ss => _mapper.Map<ViewSessionSlotDto>(ss))
+            .ToListAsync()
+            );
     }
 }

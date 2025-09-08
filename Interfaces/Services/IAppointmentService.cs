@@ -17,4 +17,7 @@ public interface IAppointmentService
     public Task<Result<ViewAppointmentDto>> ConfirmOrCompleteAppointment(string appointmentId, bool isComplete);
 
     public Task<Result<ViewAppointmentDto>> CancelAppointment(CancellationRequestDto cancellationRequestDto, string requesterId);
+    public Task<Result<ViewDoctorSessionDto>> CreateDoctorSession(CreateDoctorSessionDto dto);
+    public Task<Result<List<ViewDoctorSessionDto>>> GetDoctorSessions(Guid doctorId);
+    public Task<Result<List<ViewSessionSlotDto>>> GetSessionSlots(GetSessionSlotsDto dto);
 }
