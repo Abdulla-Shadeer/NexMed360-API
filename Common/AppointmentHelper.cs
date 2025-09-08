@@ -55,6 +55,7 @@ public static class AppointmentHelper
             slot.EndTime = slot.StartTime.AddMinutes(session.SlotDurationMinutes);
             slot.IsAvailable = true;
             slot.Date = date;
+            slot.SlotNumber = i + 1;
             slots.Add(slot);
         }
         return Result<List<SessionSlot>>.Success(slots);

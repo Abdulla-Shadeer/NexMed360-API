@@ -24,6 +24,8 @@ public class SessionSlot : Entity
     public TimeOnly StartTime { get; set; }
     public TimeOnly EndTime { get; set; }
     public bool IsAvailable { get; set; }
+    public bool BookingAllowed { get; set; } = true;
+    public int SlotNumber { get; set; }
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter))]

@@ -8,4 +8,6 @@ public class ViewSessionSlotDto
     public TimeOnly EndTime { get; set; }
     public DateOnly Date {  get; set; }
     public bool IsAvailable { get; set; }
+    public bool BookingAllowed { get; set; }
+    public int SlotNumber { get; set; }
 }
