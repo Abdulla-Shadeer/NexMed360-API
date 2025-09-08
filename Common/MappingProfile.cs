@@ -18,6 +18,7 @@ public class MappingProfile: Profile
 
         //Appointments
         CreateMap<Appointment, ViewAppointmentDto>()
+            .ForMember(dest => dest.BookingReference, opt => opt.MapFrom(src => src.Id))
             .ForMember(dest => dest.PatientName, opt => opt.MapFrom(src => $"{src.Patient.User.FirstName} {src.Patient.User.LastName}"))
             .ForMember(dest => dest.PatientPhone, opt => opt.MapFrom(src => src.Patient.User.PhoneNumber))
             .ForMember(dest => dest.PatientEmail, opt => opt.MapFrom(src => src.Patient.User.Email))
@@ -26,7 +27,8 @@ public class MappingProfile: Profile
             .ForMember(dest => dest.CreatedByUserName, opt => opt.MapFrom(src => $"{src.CreatedByUser.FirstName} {src.CreatedByUser.LastName}"))
             .ForMember(dest => dest.HospitalName, opt => opt.MapFrom(src => src.Hospital.Name))
             .ForMember(dest => dest.HospitalAddress, opt => opt.MapFrom(src => $"{src.Hospital.Street}, {src.Hospital.City}, {src.Hospital.District}"))
-            .ForMember(dest => dest.HospitalPhone, opt => opt.MapFrom(src => src.Hospital.Phone));
+            .ForMember(dest => dest.HospitalPhone, opt => opt.MapFrom(src => src.Hospital.Phone))
+            .ForMember(dest => dest.AppointmentNumber, opt => opt.MapFrom(src => src.SessionSlot.SlotNumber));
 
         CreateMap<ViewAppointmentDto, Appointment>();
         CreateMap<CreateAppointmentDto, Appointment>();

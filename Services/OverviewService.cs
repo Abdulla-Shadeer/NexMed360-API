@@ -222,6 +222,7 @@ public class OverviewService : IOverviewService
             .ThenInclude(doc => doc.User)
             .Include(appt => appt.CreatedByUser)
             .Include(appt => appt.Hospital)
+            .Include(appt => appt.SessionSlot)
             .Take(5)
             .Select(appt => _mapper.Map<ViewAppointmentDto>(appt))
             .ToListAsync();

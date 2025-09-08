@@ -45,11 +45,17 @@ namespace FinalProjectApi.Migrations
                     b.Property<Guid>("HospitalId")
                         .HasColumnType("uuid");
 
+                    b.Property<int>("Number")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("PatientId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Remarks")
                         .HasColumnType("text");
+
+                    b.Property<Guid>("SessionSlotId")
+                        .HasColumnType("uuid");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
@@ -67,6 +73,8 @@ namespace FinalProjectApi.Migrations
                     b.HasIndex("HospitalId");
 
                     b.HasIndex("PatientId");
+
+                    b.HasIndex("SessionSlotId");
 
                     b.ToTable("Appointments");
                 });
@@ -736,6 +744,12 @@ namespace FinalProjectApi.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("FinalProjectApi.Entities.SessionSlot", "SessionSlot")
+                        .WithMany()
+                        .HasForeignKey("SessionSlotId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.Navigation("CreatedByUser");
 
                     b.Navigation("Doctor");
@@ -743,6 +757,8 @@ namespace FinalProjectApi.Migrations
                     b.Navigation("Hospital");
 
                     b.Navigation("Patient");
+
+                    b.Navigation("SessionSlot");
                 });
 
             modelBuilder.Entity("FinalProjectApi.Entities.CancellationRequest", b =>

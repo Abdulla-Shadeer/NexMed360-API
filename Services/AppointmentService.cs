@@ -7,7 +7,6 @@ using FinalProjectApi.Entities;
 using FinalProjectApi.Entities.Enums;
 using FinalProjectApi.Interfaces.Services;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.IdentityModel.Tokens;
 
 namespace FinalProjectApi.Services;
@@ -25,34 +24,34 @@ public class AppointmentService : IAppointmentService
 
     public async Task<Result<ViewAppointmentDto>> CreateAppointment(CreateAppointmentDto createAppointment, string requesterId)
     {
-        if (!Guid.TryParse(createAppointment.DoctorId, out var doctorId))
-            return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_InvalidGuid, "Invalid Doctor ID format.");
+        var slotToBook = await _context.SessionSlots
+            .FirstOrDefaultAsync(ss => ss.Id == createAppointment.SessionSlotId);
 
-        if (!Guid.TryParse(createAppointment.PatientId, out var patientId))
-            return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_InvalidGuid, "Invalid Patient ID format.");
-
-        if (!Guid.TryParse(createAppointment.HospitalId, out var hospitalId))
-            return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_InvalidGuid, "Invalid Hospital ID format.");
-
-        if (!await _context.Hospitals.AnyAsync(h => h.Id == hospitalId))
-            return Result<ViewAppointmentDto>.Failure(ErrorCode.HOS_NotFound, $"Hospital with Id '{hospitalId}' not found!");
-
-        if (!await _context.Hospitals.Where(h => h.Id == hospitalId).Include(h => h.Doctors).AnyAsync(h => h.Doctors.Any(d => d.Id == doctorId))) {
-            return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_BadRequest, "Requested doctor is not available at the selected hospital!");
+        if (slotToBook == null) {
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_BadRequest, "No slots found with given ID!");
         }
 
-        var doctorCheck = IsPersonValidAndAvailable(doctorId, true, createAppointment.AppointmentDateTime, true);
-        if (!doctorCheck.IsSuccess)
-            return Result<ViewAppointmentDto>.Failure(doctorCheck.Error!);
+        var session = await _context.DoctorSessions
+            .FirstOrDefaultAsync(ds => ds.Id == slotToBook.SessionId);
 
-        var patientCheck = IsPersonValidAndAvailable(patientId, false, createAppointment.AppointmentDateTime, true);
-        if (!patientCheck.IsSuccess)
-            return Result<ViewAppointmentDto>.Failure(patientCheck.Error!);
+        if (session == null) {
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_BadRequest, "No session found for given slot ID!");
+        }
 
-        var newAppointment = _mapper.Map<Appointment>(createAppointment);
-        newAppointment.CreatedByUserId = requesterId;
+        var appointment = new Appointment() 
+        { 
+            PatientId = createAppointment.PatientId,
+            DoctorId = session.DoctorId,
+            HospitalId = session.HospitalId,
+            CreatedByUserId = requesterId,
+            AppointmentDateTime = slotToBook.Date.ToDateTime(slotToBook.StartTime),
+            Number = slotToBook.SlotNumber,
+            SessionSlotId = slotToBook.Id,
+            Remarks = createAppointment.Remarks,
+        };
 
-        var newAppointmentId = (await _context.Appointments.AddAsync(newAppointment)).Entity.Id;
+        var newAppointmentId = (await _context.Appointments.AddAsync(appointment)).Entity.Id;
+        slotToBook.IsAvailable = false;
         await _context.SaveChangesAsync();
 
         var createdAppointment = await LoadFullAppointmentData(newAppointmentId);
@@ -177,7 +176,8 @@ public class AppointmentService : IAppointmentService
                 .Include(appt => appt.Doctor)
                 .ThenInclude(doc => doc.User)
                 .Include(appt => appt.CreatedByUser)
-                .Include(appt => appt.Hospital);
+                .Include(appt => appt.Hospital)
+                .Include(appt => appt.SessionSlot);
 
         return await baseQuery
             .Select(appt => _mapper.Map<ViewAppointmentDto>(appt))
@@ -186,10 +186,8 @@ public class AppointmentService : IAppointmentService
 
     public async Task<Result<ViewAppointmentDto>> ModifyAppointment(ModifyAppointmentDto modifyAppointmentDto, string requesterId)
     {
-        if (!Guid.TryParse(modifyAppointmentDto.Id, out var appointmentId))
-            return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_InvalidGuid, "Invalid 'appointmentId' format.");
 
-        var appointment = await LoadFullAppointmentData(appointmentId);
+        var appointment = await _context.Appointments.FirstOrDefaultAsync(appt => appt.Id == modifyAppointmentDto.Id);
 
         if (appointment == null)
             return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_NotFound);
@@ -200,27 +198,47 @@ public class AppointmentService : IAppointmentService
         if (appointment.Status == AppointmentStatus.Cancelled)
             return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_Cancelled);
 
-        var doctorId = Guid.TryParse(modifyAppointmentDto.DoctorId, out var newDoctorId) ? newDoctorId : appointment.DoctorId;
-        var patientId = Guid.TryParse(modifyAppointmentDto.PatientId, out var newPatientId) ? newPatientId : appointment.PatientId;
-        var apptDateAndTime = modifyAppointmentDto.AppointmentDateTime ?? appointment.AppointmentDateTime;
-        var shouldCheckAvailability = modifyAppointmentDto.AppointmentDateTime.HasValue;
-
-        var doctorCheck = IsPersonValidAndAvailable(doctorId, true, apptDateAndTime, shouldCheckAvailability);
-        if (!doctorCheck.IsSuccess)
-            return Result<ViewAppointmentDto>.Failure(doctorCheck.Error!);
-
-        var patientCheck = IsPersonValidAndAvailable(patientId, false, apptDateAndTime, shouldCheckAvailability);
-        if (!patientCheck.IsSuccess)
-            return Result<ViewAppointmentDto>.Failure(patientCheck.Error!);
-
-        appointment.DoctorId = doctorId;
-        appointment.PatientId = patientId;
-        appointment.AppointmentDateTime = apptDateAndTime;
         appointment.Remarks = modifyAppointmentDto.Remarks ?? appointment.Remarks;
         appointment.Status = appointment.Status; // Status is not modified in this method
 
+        if (modifyAppointmentDto.SlotId != null)
+        {
+            var newSlot = await _context.SessionSlots.FirstOrDefaultAsync(ss => ss.Id == modifyAppointmentDto.SlotId);
+            if (newSlot == null)
+                return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_BadRequest, "No session slots found with given ID");
+
+            if (!newSlot.IsAvailable || !newSlot.BookingAllowed)
+                return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_BadRequest, "Requested slot is unavailable.");
+
+            var session = await _context.DoctorSessions.FirstOrDefaultAsync(ds => ds.Id == newSlot.SessionId);
+            if (session == null)
+                return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_BadRequest, "No associated session data found for the given slot ID");
+
+            var oldSlotId = appointment.SessionSlotId; // to release the current slot
+            appointment.SessionSlotId = newSlot.Id;
+            appointment.DoctorId = session.DoctorId;
+            appointment.HospitalId = session.HospitalId;
+            appointment.Number = newSlot.SlotNumber;
+            appointment.AppointmentDateTime = newSlot.Date.ToDateTime(newSlot.StartTime);
+
+            // release old slot
+            newSlot.IsAvailable = false;
+            var oldSlot = await _context.SessionSlots.FirstOrDefaultAsync(ss => ss.Id == oldSlotId);
+            oldSlot!.IsAvailable = true;
+        }
+
+        // patient update should happen after any date time update to prevent patient unavailable error
+        var patientId = modifyAppointmentDto.PatientId ?? appointment.PatientId;
+        var patientCheck = IsPersonValidAndAvailable(patientId, false, appointment.AppointmentDateTime, modifyAppointmentDto.SlotId != null);
+        if (!patientCheck.IsSuccess)
+            return Result<ViewAppointmentDto>.Failure(patientCheck.Error!);
+
+        appointment.PatientId = patientId;
+
         await _context.SaveChangesAsync();
-        return Result<ViewAppointmentDto>.Success(_mapper.Map<ViewAppointmentDto>(appointment));
+        return Result<ViewAppointmentDto>.Success(_mapper.Map<ViewAppointmentDto>(
+            await LoadFullAppointmentData(appointment.Id)
+            ));
     }
 
     private Result<bool> IsPersonValidAndAvailable(Guid personId, bool isDoctor, DateTime appointmentDateTime, bool shouldCheckAvailability)
@@ -285,17 +303,22 @@ public class AppointmentService : IAppointmentService
             return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_InvalidGuid, "AppointmentId has invalid GUID format!");
 
         var appointment = await LoadFullAppointmentData(appointmentId);
+
         if (appointment == null)
             return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_NotFound);
 
         if (appointment.Status == AppointmentStatus.Cancelled)
             return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_Cancelled);
 
+        var bookedSlot = await _context.SessionSlots.FirstOrDefaultAsync(ss => ss.Id == appointment.SessionSlotId);
+
         if (appointment.Status == AppointmentStatus.CancelRequested && appointment.CreatedByUserId == requesterId)
         {
             appointment.Status = AppointmentStatus.Cancelled;
             var existingRequest = await _context.CancellationRequests.FirstOrDefaultAsync(cr => cr.AppointmentId == appointmentId);
             existingRequest!.Status = AppointmentStatus.Cancelled;
+
+            bookedSlot!.IsAvailable = true;
 
             await _context.SaveChangesAsync();
             return Result<ViewAppointmentDto>.Success(_mapper.Map<ViewAppointmentDto>(appointment));
@@ -319,6 +342,7 @@ public class AppointmentService : IAppointmentService
         {
             appointment.Status = AppointmentStatus.Cancelled;
             cancellationRequest.Status = AppointmentStatus.Cancelled;
+            bookedSlot!.IsAvailable = true;
         }
         else
         {
@@ -340,6 +364,7 @@ public class AppointmentService : IAppointmentService
                 .ThenInclude(doc => doc.User)
                 .Include(appt => appt.CreatedByUser)
                 .Include(appt => appt.Hospital)
+                .Include(appt => appt.SessionSlot)
                 .FirstOrDefaultAsync();
     }
 

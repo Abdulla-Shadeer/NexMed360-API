@@ -12,8 +12,10 @@ public class Appointment: Entity
     public Hospital Hospital { get; set; }
     public string CreatedByUserId { get; set; }
     public User CreatedByUser { get; set; }
-
     public DateTime AppointmentDateTime { get; set; }
+    public int Number { get; set; }
+    public Guid SessionSlotId { get; set; }
+    public SessionSlot SessionSlot { get; set; }
     public string? Remarks { get; set; }
     public AppointmentStatus Status { get; set; } = AppointmentStatus.Pending;
 }
