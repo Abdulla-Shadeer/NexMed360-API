@@ -53,10 +53,18 @@ public class MappingProfile: Profile
 
         //Hospital and Staff
         CreateMap<Doctor, ViewDoctorDto>()
-            .ForMember(dest => dest.HospitalName, opt => opt.MapFrom(src => src.Hospital.Name));
+            .ForMember(dest => dest.HospitalName, opt => opt.MapFrom(src => src.Hospital.Name))
+            .ForMember(dest => dest.FirstName, opt => opt.MapFrom(src => src.User.FirstName))
+            .ForMember(dest => dest.LastName, opt => opt.MapFrom(src => src.User.LastName))
+            .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.User.Email))
+            .ForMember(dest => dest.PhoneNumber, opt => opt.MapFrom(src => src.User.PhoneNumber));
 
         CreateMap<Receptionist, ViewReceptionistDto>()
-            .ForMember(dest => dest.HospitalName, opt => opt.MapFrom(src => src.Hospital.Name));
+            .ForMember(dest => dest.HospitalName, opt => opt.MapFrom(src => src.Hospital.Name))
+            .ForMember(dest => dest.FirstName, opt => opt.MapFrom(src => src.User.FirstName))
+            .ForMember(dest => dest.LastName, opt => opt.MapFrom(src => src.User.LastName))
+            .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.User.Email))
+            .ForMember(dest => dest.PhoneNumber, opt => opt.MapFrom(src => src.User.PhoneNumber));
 
         CreateMap<HospitalAdmin, ViewUserDto>()
             .ForMember(dest => dest.Id, opt => opt.MapFrom(src => src.UserId))
@@ -94,7 +102,11 @@ public class MappingProfile: Profile
             .ForMember(dest => dest.HospitalName, opt => opt.MapFrom(src => src.Hospital.Name));
 
         //Patient
-        CreateMap<Patient, ViewPatientDto>();
+        CreateMap<Patient, ViewPatientDto>()
+            .ForMember(dest => dest.FirstName, opt => opt.MapFrom(src => src.User.FirstName))
+            .ForMember(dest => dest.LastName, opt => opt.MapFrom(src => src.User.LastName))
+            .ForMember(dest => dest.Email, opt => opt.MapFrom(src => src.User.Email))
+            .ForMember(dest => dest.PhoneNumber, opt => opt.MapFrom(src => src.User.PhoneNumber));
         CreateMap<AddClinicRecordDto, ClinicRecord>()
             .ForMember(dest => dest.VisitDate, opt => opt.MapFrom(_ => DateTime.UtcNow));
         CreateMap<ClinicRecord, ViewClinicRecordDto>()

@@ -9,7 +9,9 @@ using FinalProjectApi.Dtos.Patient;
 using FinalProjectApi.Dtos.Search;
 using FinalProjectApi.Dtos.User;
 using FinalProjectApi.Interfaces.Services;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
 using System.Security.Claims;
 
 namespace FinalProjectApi.Services;
@@ -109,5 +111,23 @@ public class SearchService : ISearchService
             .Where(h => EF.Functions.ILike(h.Name, $"%{input}%"))
             .Select(h => _mapper.Map<ViewHospitalDto>(h))
             .ToListAsync();
+    }
+
+    public async Task<Result<List<ViewDoctorDto>>> SearchDoctor(SearchDoctorDto dto)
+    {
+        if (String.IsNullOrEmpty(dto.Name) && String.IsNullOrEmpty(dto.Email) && string.IsNullOrEmpty(dto.Speciality))
+            return Result<List<ViewDoctorDto>>.Failure(ErrorCode.SYS_BadRequest, "Empty filter!");
+
+        return Result<List<ViewDoctorDto>>.Success(
+            await _context.Doctors
+            .Include(dr => dr.User)
+            .Include(dr => dr.Hospital)
+            .Where(dr =>
+                (String.IsNullOrEmpty(dto.Name) || EF.Functions.ILike(string.Join(" ", dr.User.FirstName, dr.User.LastName), $"%{dto.Name}%")) &&
+                (String.IsNullOrEmpty(dto.Email) || EF.Functions.ILike(dr.User.Email!, $"%{dto.Email}%")) &&
+                (String.IsNullOrEmpty(dto.Speciality) || EF.Functions.ILike(dr.Speciality, $"%{dto.Speciality}%")))
+            .Select(dr => _mapper.Map<ViewDoctorDto>(dr))
+            .ToListAsync()
+            );
     }
 }
