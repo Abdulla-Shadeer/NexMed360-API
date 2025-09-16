@@ -356,10 +356,13 @@ namespace FinalProjectApi.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<int>("DurationDays")
-                        .HasColumnType("integer");
+                    b.Property<string>("Duration")
+                        .HasColumnType("text");
 
                     b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsLongTermUse")
                         .HasColumnType("boolean");
 
                     b.Property<string>("MedicineName")

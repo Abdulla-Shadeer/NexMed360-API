@@ -1,6 +1,7 @@
 ﻿using FinalProjectApi.Common;
 using FinalProjectApi.Common.Auth;
 using FinalProjectApi.Dtos.Appointment;
+using FinalProjectApi.Entities.Enums;
 using FinalProjectApi.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -26,7 +27,7 @@ public class AppointmentsController : ControllerBase
     public async Task<ActionResult<Result<ViewAppointmentDto>>> CreateAppointment(CreateAppointmentDto createAppointment)
     {
         var requesterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        return HandleResult(await _appointmentsService.CreateAppointment(createAppointment, requesterId!), true);
+        return HandleResult(await _appointmentsService.Create(createAppointment, requesterId!), true);
     }
 
     [HttpGet]
@@ -35,7 +36,7 @@ public class AppointmentsController : ControllerBase
     public async Task<ActionResult<Result<List<ViewAppointmentDto>>>> ViewOwnAppointments([FromQuery] ViewAppointmentsFilterDto filter)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        return HandleResult(await _appointmentsService.ViewOwnAppointments(filter, userId));
+        return HandleResult(await _appointmentsService.GetOwn(filter, userId));
     }
 
     [HttpGet]
@@ -44,7 +45,7 @@ public class AppointmentsController : ControllerBase
     public async Task<ActionResult<Result<List<ViewAppointmentDto>>>> ViewHospitalAppointments([FromQuery] ViewAppointmentsFilterDto filter)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        return HandleResult(await _appointmentsService.ViewHospitalAppointments(filter, userId));
+        return HandleResult(await _appointmentsService.GetHospitalAppointments(filter, userId));
     }
 
     [HttpPost]
@@ -53,7 +54,7 @@ public class AppointmentsController : ControllerBase
     public async Task<ActionResult<Result<ViewAppointmentDto>>> ModifyAppointment(ModifyAppointmentDto modifyAppointmentDto)
     {
         var requesterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        return HandleResult(await _appointmentsService.ModifyAppointment(modifyAppointmentDto, requesterId!));
+        return HandleResult(await _appointmentsService.Modify(modifyAppointmentDto, requesterId!));
     }
 
     [HttpGet]
@@ -61,7 +62,7 @@ public class AppointmentsController : ControllerBase
     [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
     public async Task<ActionResult<Result<ViewAppointmentDto>>> ViewAppointment(string appointmentId)
     {
-        return HandleResult(await _appointmentsService.ViewAppointment(appointmentId));
+        return HandleResult(await _appointmentsService.Get(appointmentId));
     }
 
     [HttpGet]
@@ -69,7 +70,7 @@ public class AppointmentsController : ControllerBase
     [Authorize(Roles = $"{UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
     public async Task<ActionResult<Result<ViewAppointmentDto>>> ConfirmAppointment(string appointmentId)
     {
-        return HandleResult(await _appointmentsService.ConfirmOrCompleteAppointment(appointmentId, false));
+        return HandleResult(await _appointmentsService.ChangeStatus(appointmentId, AppointmentStatus.Confirmed));
     }
 
     [HttpGet]
@@ -77,7 +78,23 @@ public class AppointmentsController : ControllerBase
     [Authorize(Roles = $"{UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
     public async Task<ActionResult<Result<ViewAppointmentDto>>> CompleteAppointment(string appointmentId)
     {
-        return HandleResult(await _appointmentsService.ConfirmOrCompleteAppointment(appointmentId, true));
+        return HandleResult(await _appointmentsService.ChangeStatus(appointmentId, AppointmentStatus.Completed));
+    }
+
+    [HttpGet]
+    [Route("ConfirmArrival/{appointmentId}")]
+    [Authorize(Roles = $"{UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
+    public async Task<ActionResult<Result<ViewAppointmentDto>>> ConfirmArrival(string appointmentId)
+    {
+        return HandleResult(await _appointmentsService.ChangeStatus(appointmentId, AppointmentStatus.Arrived));
+    }
+
+    [HttpGet]
+    [Route("ConfirmInProgress/{appointmentId}")]
+    [Authorize(Roles = UserRoles.DOCTOR)]
+    public async Task<ActionResult<Result<ViewAppointmentDto>>> ConfirmInProgress(string appointmentId)
+    {
+        return HandleResult(await _appointmentsService.ChangeStatus(appointmentId, AppointmentStatus.InProgress));
     }
 
     [HttpPost]
@@ -86,7 +103,7 @@ public class AppointmentsController : ControllerBase
     public async Task<ActionResult<Result<ViewAppointmentDto>>> CancelAppointment(CancellationRequestDto cancellationRequestDto)
     {
         var requesterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        return HandleResult(await _appointmentsService.CancelAppointment(cancellationRequestDto, requesterId!));
+        return HandleResult(await _appointmentsService.Cancel(cancellationRequestDto, requesterId!));
     }
 
     [HttpPost]

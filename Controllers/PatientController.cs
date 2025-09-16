@@ -6,7 +6,6 @@ using FinalProjectApi.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
-using FinalProjectApi.Dtos.User;
 
 namespace FinalProjectApi.Controllers;
 
@@ -24,7 +23,7 @@ public class PatientController : ControllerBase
     [HttpPost]
     [Route("Create")]
     [Authorize(Roles = UserRoles.RECEPTIONIST)]
-    public async Task<ActionResult<Result<ViewUserDto>>> Create(CreatePatientDto dto)
+    public async Task<ActionResult<Result<ViewPatientDto>>> Create(CreatePatientDto dto)
     {
         return HandleResult(await _patientService.CreatePatient(dto), true);
     }
@@ -32,7 +31,7 @@ public class PatientController : ControllerBase
     [HttpGet]
     [Route("Get/{patientId}")]
     [Authorize(Roles = $"{UserRoles.RECEPTIONIST},{UserRoles.DOCTOR}")]
-    public async Task<ActionResult<Result<ViewUserDto>>> GetPatient(string patientId)
+    public async Task<ActionResult<Result<ViewPatientDto>>> GetPatient(string patientId)
     {
         return HandleResult(await _patientService.GetPatient(patientId));
     }

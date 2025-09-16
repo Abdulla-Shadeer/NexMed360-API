@@ -25,11 +25,11 @@ public class PatientService : IPatientService
         _mapper = mapper;
     }
 
-    public async Task<Result<ViewUserDto>> CreatePatient(CreatePatientDto dto)
+    public async Task<Result<ViewPatientDto>> CreatePatient(CreatePatientDto dto)
     {
         var userRegistration = await _userService.RegisterUser(dto.PersonalInformation, UserRoles.PATIENT);
         if (!userRegistration.IsSuccess)
-            return userRegistration;
+            return Result<ViewPatientDto>.Failure(userRegistration.Error!);
 
         var patientEntry = new Patient()
         {
@@ -43,26 +43,26 @@ public class PatientService : IPatientService
 
         var patient = await _dbContext.Patients
             .Where(p => p.UserId == userRegistration.Data.Id)
+            .Include(p => p.User)
             .Select(p => _mapper.Map<ViewPatientDto>(p))
             .FirstOrDefaultAsync();
 
-        userRegistration.Data.PatientProfile = patient;
-
-        return userRegistration;
+        return Result<ViewPatientDto>.Success(patient);
     }
 
-    public async Task<Result<ViewUserDto>> GetPatient(string id)
+    public async Task<Result<ViewPatientDto>> GetPatient(string id)
     {
         var patientCheck = await UserCheck(id);
         if (!patientCheck.IsSuccess)
-            return Result<ViewUserDto>.Failure(patientCheck.Error!);
+            return Result<ViewPatientDto>.Failure(patientCheck.Error!);
 
-        var userId = await _dbContext.Patients
+        var patient = await _dbContext.Patients
             .Where(p => p.Id == patientCheck.Data)
-            .Select(p => p.UserId)
+            .Include(p => p.User)
+            .Select(p => _mapper.Map<ViewPatientDto>(p))
             .FirstOrDefaultAsync();
 
-        return await _userService.GetUserAsync(userId!);
+        return Result<ViewPatientDto>.Success(patient);
     }
 
     public async Task<Result<ViewClinicRecordDto>> AddToClinicRecords(AddClinicRecordDto dto, string doctorUserId)

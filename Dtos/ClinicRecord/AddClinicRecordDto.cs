@@ -10,6 +10,7 @@ public class AddClinicRecordDto
     [Required]
     public string Diagnosis { get; set; }
     public string? DoctorNotes { get; set; }
+    public DateTime VisitDate { get; set; }
     public DateTime? FollowUpDate { get; set; }
     public List<AddPrescriptionDto>? Prescriptions { get; set; } = new List<AddPrescriptionDto>();
 }

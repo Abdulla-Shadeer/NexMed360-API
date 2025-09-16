@@ -11,6 +11,7 @@ public class AddPrescriptionDto
     [Required]
     public int TimesPerDay { get; set; }
     [Required]
-    public int DurationDays { get; set; }
+    public bool? IsLongTermUse { get; set; }
+    public string? Duration { get; set; }
     public string? Notes { get; set; }
 }

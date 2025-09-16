@@ -22,7 +22,7 @@ public class AppointmentService : IAppointmentService
         _mapper = mapper;
     }
 
-    public async Task<Result<ViewAppointmentDto>> CreateAppointment(CreateAppointmentDto createAppointment, string requesterId)
+    public async Task<Result<ViewAppointmentDto>> Create(CreateAppointmentDto createAppointment, string requesterId)
     {
         var slotToBook = await _context.SessionSlots
             .FirstOrDefaultAsync(ss => ss.Id == createAppointment.SessionSlotId);
@@ -58,7 +58,7 @@ public class AppointmentService : IAppointmentService
         return Result<ViewAppointmentDto>.Success(_mapper.Map<ViewAppointmentDto>(createdAppointment));
     }
 
-    public async Task<Result<List<ViewAppointmentDto>>> ViewOwnAppointments(ViewAppointmentsFilterDto filter, string userId)
+    public async Task<Result<List<ViewAppointmentDto>>> GetOwn(ViewAppointmentsFilterDto filter, string userId)
     {
         var filterValidation = await ValidateFilter(filter);
         if (!filterValidation.IsSuccess) {
@@ -81,7 +81,7 @@ public class AppointmentService : IAppointmentService
         return Result<List<ViewAppointmentDto>>.Success(await ApplyFilter(filter, baseQuery));
     }
 
-    public async Task<Result<List<ViewAppointmentDto>>> ViewHospitalAppointments(ViewAppointmentsFilterDto filter, string userId)
+    public async Task<Result<List<ViewAppointmentDto>>> GetHospitalAppointments(ViewAppointmentsFilterDto filter, string userId)
     {
         var filterValidation = await ValidateFilter(filter);
         if (!filterValidation.IsSuccess)
@@ -184,7 +184,7 @@ public class AppointmentService : IAppointmentService
             .ToListAsync(); ;
     }
 
-    public async Task<Result<ViewAppointmentDto>> ModifyAppointment(ModifyAppointmentDto modifyAppointmentDto, string requesterId)
+    public async Task<Result<ViewAppointmentDto>> Modify(ModifyAppointmentDto modifyAppointmentDto, string requesterId)
     {
 
         var appointment = await _context.Appointments.FirstOrDefaultAsync(appt => appt.Id == modifyAppointmentDto.Id);
@@ -259,7 +259,7 @@ public class AppointmentService : IAppointmentService
             : _context.Patients.Any(p => p.Id == id);
     }
 
-    public async Task<Result<ViewAppointmentDto>> ViewAppointment(string appointmentId)
+    public async Task<Result<ViewAppointmentDto>> Get(string appointmentId)
     {
         if (!Guid.TryParse(appointmentId, out var id))
             return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_InvalidGuid);
@@ -272,32 +272,7 @@ public class AppointmentService : IAppointmentService
         return Result<ViewAppointmentDto>.Success(_mapper.Map<ViewAppointmentDto>(appointment));
     }
 
-    public async Task<Result<ViewAppointmentDto>> ConfirmOrCompleteAppointment(string appointmentId, bool isComplete)
-    {
-        if (!Guid.TryParse(appointmentId, out var id))
-            return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_InvalidGuid);
-
-        var appointment = await LoadFullAppointmentData(id);
-        if (appointment == null)
-            return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_NotFound);
-
-        if (appointment.Status == AppointmentStatus.Cancelled)
-            return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_Cancelled);
-
-        // Reset cancellation request if exists
-        if (appointment.Status == AppointmentStatus.CancelRequested)
-        {
-            var cancellationRequest = await _context.CancellationRequests.FirstOrDefaultAsync(cr => cr.AppointmentId == id);
-            _context.CancellationRequests.Remove(cancellationRequest!);
-            await _context.SaveChangesAsync();
-        }
-
-        appointment.Status = isComplete? AppointmentStatus.Completed: AppointmentStatus.Confirmed;
-        await _context.SaveChangesAsync();
-        return Result<ViewAppointmentDto>.Success(_mapper.Map<ViewAppointmentDto>(appointment));
-    }
-
-    public async Task<Result<ViewAppointmentDto>> CancelAppointment(CancellationRequestDto cancellationRequestDto, string requesterId)
+    public async Task<Result<ViewAppointmentDto>> Cancel(CancellationRequestDto cancellationRequestDto, string requesterId)
     {
         if (!Guid.TryParse(cancellationRequestDto.AppointmentId, out var appointmentId))
             return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_InvalidGuid, "AppointmentId has invalid GUID format!");
@@ -457,5 +432,30 @@ public class AppointmentService : IAppointmentService
             .Select(ss => _mapper.Map<ViewSessionSlotDto>(ss))
             .ToListAsync()
             );
+    }
+
+    public async Task<Result<ViewAppointmentDto>> ChangeStatus(string appointmentId, AppointmentStatus status)
+    {
+        if (!Guid.TryParse(appointmentId, out var id))
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_InvalidGuid);
+
+        var appointment = await LoadFullAppointmentData(id);
+        if (appointment == null)
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_NotFound);
+
+        if (appointment.Status == AppointmentStatus.Cancelled)
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_Cancelled);
+
+        // Reset cancellation request if exists
+        if (appointment.Status == AppointmentStatus.CancelRequested && status != AppointmentStatus.CancelRequested)
+        {
+            var cancellationRequest = await _context.CancellationRequests.FirstOrDefaultAsync(cr => cr.AppointmentId == id);
+            _context.CancellationRequests.Remove(cancellationRequest!);
+            await _context.SaveChangesAsync();
+        }
+
+        appointment.Status = status;
+        await _context.SaveChangesAsync();
+        return Result<ViewAppointmentDto>.Success(_mapper.Map<ViewAppointmentDto>(appointment));
     }
 }
