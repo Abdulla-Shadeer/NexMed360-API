@@ -425,6 +425,48 @@ namespace FinalProjectApi.Migrations
                     b.ToTable("Receptionists");
                 });
 
+            modelBuilder.Entity("FinalProjectApi.Entities.SessionHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CreatedDate")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("DoctorSessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("EncountersCount")
+                        .HasColumnType("integer");
+
+                    b.Property<TimeOnly?>("EndTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<Guid?>("LastKnownAppointmentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SessionStatus")
+                        .HasColumnType("integer");
+
+                    b.Property<TimeOnly>("StartTime")
+                        .HasColumnType("time without time zone");
+
+                    b.Property<DateTime?>("UpdatedDate")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("timestamp without time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DoctorSessionId");
+
+                    b.ToTable("SessionHistories");
+                });
+
             modelBuilder.Entity("FinalProjectApi.Entities.SessionSlot", b =>
                 {
                     b.Property<Guid>("Id")
@@ -892,6 +934,17 @@ namespace FinalProjectApi.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("FinalProjectApi.Entities.SessionHistory", b =>
+                {
+                    b.HasOne("FinalProjectApi.Entities.DoctorSession", "DoctorSession")
+                        .WithMany("History")
+                        .HasForeignKey("DoctorSessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("DoctorSession");
+                });
+
             modelBuilder.Entity("FinalProjectApi.Entities.SessionSlot", b =>
                 {
                     b.HasOne("FinalProjectApi.Entities.DoctorSession", "Session")
@@ -991,6 +1044,8 @@ namespace FinalProjectApi.Migrations
 
             modelBuilder.Entity("FinalProjectApi.Entities.DoctorSession", b =>
                 {
+                    b.Navigation("History");
+
                     b.Navigation("SessionSlots");
                 });
 

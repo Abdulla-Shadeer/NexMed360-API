@@ -25,8 +25,9 @@ public static class ErrorRegistry
         { ErrorCode.APPT_UnauthorizedEdit, new ApiError(ErrorCode.APPT_UnauthorizedEdit, "Only the creator of the appointment is allowed to edit it", 400) },
         { ErrorCode.SYS_Unauthorized, new ApiError(ErrorCode.SYS_Unauthorized, "Unauthorized!",401) },
         { ErrorCode.SYS_BadRequest, new ApiError(ErrorCode.SYS_BadRequest, "Bad request!", 400)},
-        { ErrorCode.SYS_DuplicateEntry, new ApiError(ErrorCode.SYS_DuplicateEntry, "Duplicate entry found", 409)}
-
+        { ErrorCode.SYS_DuplicateEntry, new ApiError(ErrorCode.SYS_DuplicateEntry, "Duplicate entry found", 409)},
+        { ErrorCode.DRSSN_NotFound, new ApiError(ErrorCode.DRSSN_NotFound, "Doctor Session not found", 404)},
+        { ErrorCode.DRSSN_HSTRY_NotFound, new ApiError(ErrorCode.DRSSN_HSTRY_NotFound, "History not found for Doctor Session", 404)},
     };
 
     public static ApiError GetError(ErrorCode errorCode)

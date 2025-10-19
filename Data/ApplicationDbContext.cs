@@ -49,4 +49,5 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<CancellationRequest> CancellationRequests { get; set; }
     public DbSet<DoctorSession> DoctorSessions { get; set; }
     public DbSet<SessionSlot> SessionSlots { get; set; }
+    public DbSet<SessionHistory> SessionHistories { get; set; }
 }

@@ -14,6 +14,7 @@ public class DoctorSession : Entity
     public int SlotDurationMinutes { get; set; } = AppointmentHelper.DEFAULT_SLOT_DURATION_MINUTES;
     public List<SessionSlot> SessionSlots { get; set; } = [];
     public List<SessionOccurrence> Occurrences { get; set; } = [];
+    public List<SessionHistory> History { get; set; } = [];
 }
 
 public class SessionSlot : Entity

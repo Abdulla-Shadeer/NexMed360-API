@@ -2,12 +2,14 @@
 using FinalProjectApi.Dtos.Appointment;
 using FinalProjectApi.Dtos.ClinicRecord;
 using FinalProjectApi.Dtos.Doctor;
+using FinalProjectApi.Dtos.doctorSession;
 using FinalProjectApi.Dtos.Hospital;
 using FinalProjectApi.Dtos.HospitalAdmin;
 using FinalProjectApi.Dtos.Patient;
 using FinalProjectApi.Dtos.Receptionist;
 using FinalProjectApi.Dtos.User;
 using FinalProjectApi.Entities;
+using FinalProjectApi.Entities.Enums;
 
 namespace FinalProjectApi.Common;
 
@@ -42,7 +44,27 @@ public class MappingProfile: Profile
             .ForMember(dest => dest.TotalSlots, opt => opt.MapFrom(src => AppointmentHelper.GetTotalSlots(src)));
 
         CreateMap<SessionSlot, ViewSessionSlotDto>();
+        CreateMap<SessionHistory, ViewSessionHistoryDto>()
+            .ForMember(dest => dest.DoctorName, opt => opt.MapFrom(src => src.DoctorSession.Doctor.User.FirstName + " " + src.DoctorSession.Doctor.User.LastName))
+            .ForMember(dest => dest.DoctorSpeciality, opt => opt.MapFrom(src => src.DoctorSession.Doctor.Speciality))
+            .ForMember(dest => dest.StartTime, opt => opt.MapFrom(src => src.DoctorSession.StartTime))
+            .ForMember(dest => dest.EndTime, opt => opt.MapFrom(src => src.DoctorSession.EndTime))
+            .ForMember(dest => dest.StartedTime, opt => opt.MapFrom(src => src.StartTime))
+            .ForMember(dest => dest.EndedTime, opt => opt.MapFrom(src => src.EndTime));
 
+        CreateMap<DoctorSession, ViewCurrentOrNextSessionDto>()
+            .ForMember(dest => dest.IsCurrent, opt => opt.MapFrom(src => src.History.Any()))
+            .ForMember(dest => dest.SessionId, opt => opt.MapFrom(src => src.Id))
+            .ForMember(dest => dest.StartedTime, opt => opt.MapFrom(src => src.History.Any() ? src.History[0].StartTime.ToString() : null))
+            .ForMember(dest => dest.LastKnownAppointmentId, opt => opt.MapFrom(src => src.History.Count > 0 ? src.History[0].LastKnownAppointmentId : null ))
+            .ForMember(dest => dest.EncountersCount, opt => opt.MapFrom(src => src.History.Any() ? src.History[0].EncountersCount : 0));
+
+        CreateMap<SessionHistory, ViewCurrentOrNextSessionDto>()
+            .ForMember(dest => dest.IsCurrent, opt => opt.MapFrom(src => src.SessionStatus == SessionStatus.Started))
+            .ForMember(dest => dest.SessionId, opt => opt.MapFrom(src => src.DoctorSessionId))
+            .ForMember(dest => dest.StartTime, opt => opt.MapFrom(src => src.DoctorSession.StartTime))
+            .ForMember(dest => dest.EndTime, opt => opt.MapFrom(src => src.DoctorSession.EndTime))
+            .ForMember(dest => dest.StartedTime, opt => opt.MapFrom(src => src.StartTime));
 
         //User
         CreateMap<User, ViewUserDto>();

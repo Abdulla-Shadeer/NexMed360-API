@@ -1,4 +1,4 @@
-﻿namespace FinalProjectApi.Dtos.Appointment;
+﻿namespace FinalProjectApi.Dtos.doctorSession;
 
 public class ViewSessionSlotDto
 {

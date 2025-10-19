@@ -64,5 +64,11 @@ public enum ErrorCode
     HOS_NotFound,
 
     [EnumMember(Value = "CLNRD_001")]
-    CLNRD_NotFound
+    CLNRD_NotFound,
+
+    [EnumMember(Value = "DRSSN_001")]
+    DRSSN_NotFound,
+
+    [EnumMember(Value = "DRSSN_002")]
+    DRSSN_HSTRY_NotFound,
 }

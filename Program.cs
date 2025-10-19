@@ -69,6 +69,7 @@ namespace FinalProjectApi
             builder.Services.AddScoped<IPatientService, PatientService>();
             builder.Services.AddScoped<IAppointmentService, AppointmentService>();
             builder.Services.AddScoped<ISearchService, SearchService>();
+            builder.Services.AddScoped<IDoctorSessionService, DoctorSessionService>();
             builder.Services.AddScoped<GlobalExceptionMiddleware>();
 
             // Migrate and seed database

@@ -106,29 +106,6 @@ public class AppointmentsController : ControllerBase
         return HandleResult(await _appointmentsService.Cancel(cancellationRequestDto, requesterId!));
     }
 
-    [HttpPost]
-    [Route("CreateDoctorSession")]
-    [Authorize(Roles = $"{UserRoles.HOSPITAL_ADMIN}, {UserRoles.DOCTOR}")]
-    public async Task<ActionResult<Result<ViewDoctorSessionDto>>> CreateDoctorSession(CreateDoctorSessionDto createSessionDto)
-    { 
-        return HandleResult(await  _appointmentsService.CreateDoctorSession(createSessionDto), true);
-    }
-
-    [HttpGet]
-    [Route("GetDoctorSessions/{doctorId}")]
-    [Authorize(Roles = $"{UserRoles.HOSPITAL_ADMIN}, {UserRoles.DOCTOR}, {UserRoles.PATIENT}")]
-    public async Task<ActionResult<Result<List<ViewDoctorSessionDto>>>> GetDoctorSessions(Guid doctorId)
-    {
-        return HandleResult(await _appointmentsService.GetDoctorSessions(doctorId));
-    }
-
-    [HttpGet]
-    [Route("GetSessionSlots")]
-    [Authorize(Roles = $"{UserRoles.HOSPITAL_ADMIN}, {UserRoles.DOCTOR}, {UserRoles.PATIENT}")]
-    public async Task<ActionResult<Result<List<ViewSessionSlotDto>>>> GetSessionSlots([FromQuery] GetSessionSlotsDto dto) {
-        return HandleResult(await _appointmentsService.GetSessionSlots(dto));
-    }
-
     private ActionResult<Result<T>> HandleResult<T>(Result<T> result, bool isCreationResult = false)
     {
         if (!result.IsSuccess)
