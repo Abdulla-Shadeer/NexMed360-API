@@ -11,7 +11,7 @@ public class ViewPrescriptionDto
     public string Dosage { get; set; }
     public int TimesPerDay { get; set; }
     public bool IsLongTermUse { get; set; }
-    public string? DurationDays { get; set; }
+    public string? Duration { get; set; }
     public string? Notes { get; set; }
     public bool IsActive { get; set; }
 }
