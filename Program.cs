@@ -98,7 +98,7 @@ namespace FinalProjectApi
                 {
                     opt.SwaggerDoc(description.GroupName, new Microsoft.OpenApi.Models.OpenApiInfo
                     {
-                        Title = $"HHIMS API {description.ApiVersion}",
+                        Title = $"NexMed 360 API {description.ApiVersion}",
                         Version = description.ApiVersion.ToString(),
                         Description = description.IsDeprecated ? "This API version has been deprecated." : ""
                     });
