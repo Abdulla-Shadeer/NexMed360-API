@@ -1,4 +1,4 @@
-using System.Text;
+using Asp.Versioning.ApiExplorer;
 using FinalProjectApi.Common;
 using FinalProjectApi.Common.Exceptions;
 using FinalProjectApi.Data;
@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Configuration;
 using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 namespace FinalProjectApi
 {
@@ -78,9 +79,31 @@ namespace FinalProjectApi
             builder.Services.AddControllers()
                 .ConfigureApiBehaviorOptions(opt => 
                 opt.InvalidModelStateResponseFactory = InvalidModelStateResponseFactory.Function );
+            builder.Services.AddApiVersioning(opt => {
+                opt.DefaultApiVersion = new Asp.Versioning.ApiVersion(1, 0);
+                opt.AssumeDefaultVersionWhenUnspecified = true;
+                opt.ReportApiVersions = true;
+            }).AddApiExplorer(opt => {
+                opt.GroupNameFormat = "'v'VVV";
+                opt.SubstituteApiVersionInUrl = true;
+            });
+
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen();
+            builder.Services.AddSwaggerGen(opt => {
+                var provider = builder.Services.BuildServiceProvider()
+                .GetRequiredService<IApiVersionDescriptionProvider>();
+
+                foreach (var description in provider.ApiVersionDescriptions)
+                {
+                    opt.SwaggerDoc(description.GroupName, new Microsoft.OpenApi.Models.OpenApiInfo
+                    {
+                        Title = $"HHIMS API {description.ApiVersion}",
+                        Version = description.ApiVersion.ToString(),
+                        Description = description.IsDeprecated ? "This API version has been deprecated." : ""
+                    });
+                }
+            });
 
             var app = builder.Build();
 
@@ -88,7 +111,17 @@ namespace FinalProjectApi
             if (app.Environment.IsDevelopment())
             {
                 app.UseSwagger();
-                app.UseSwaggerUI();
+                app.UseSwaggerUI(options =>
+                {
+                    var provider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
+
+                    foreach (var description in provider.ApiVersionDescriptions)
+                    {
+                        options.SwaggerEndpoint($"/swagger/{description.GroupName}/swagger.json",
+                            $"API {description.ApiVersion}");
+                    }
+                });
+
                 app.UseCors(opt => opt.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
             }
 

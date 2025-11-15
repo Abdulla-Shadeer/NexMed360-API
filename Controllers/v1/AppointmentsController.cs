@@ -1,4 +1,5 @@
-﻿using FinalProjectApi.Common;
+﻿using Asp.Versioning;
+using FinalProjectApi.Common;
 using FinalProjectApi.Common.Auth;
 using FinalProjectApi.Dtos.Appointment;
 using FinalProjectApi.Entities.Enums;
@@ -7,10 +8,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
-namespace FinalProjectApi.Controllers;
+namespace FinalProjectApi.Controllers.v1;
 
-[Route("api/v1/[controller]")]
 [ApiController]
+[ApiVersion(1.0)]
+[Route("api/v{version:apiVersion}/[controller]")]
 [Authorize]
 public class AppointmentsController : ControllerBase
 {

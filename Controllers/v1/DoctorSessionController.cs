@@ -1,4 +1,5 @@
-﻿using FinalProjectApi.Common;
+﻿using Asp.Versioning;
+using FinalProjectApi.Common;
 using FinalProjectApi.Common.Auth;
 using FinalProjectApi.Dtos.doctorSession;
 using FinalProjectApi.Interfaces.Services;
@@ -6,10 +7,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
-namespace FinalProjectApi.Controllers;
+namespace FinalProjectApi.Controllers.v1;
 
 [ApiController]
-[Route("api/v1/[controller]")]
+[ApiVersion(1.0)]
+[Route("api/v{version:apiVersion}/[controller]")]
 public class DoctorSessionController: ControllerBase
 {
     private readonly IDoctorSessionService _sessionService;
