@@ -18,8 +18,8 @@ public class GlobalExceptionMiddleware(ILogger<GlobalExceptionMiddleware> logger
 				"An exception occurred while processing the request.",
 				500,
 				e.Message ?? e.InnerException?.Message);
-			logger.LogWarning($"GlobalExceptionMiddleware => An exception occurred while processing the request.\n\t{e.Message}");
-			logger.LogInformation(e.InnerException?.Message);
+			logger.LogWarning(e, "GlobalExceptionMiddleware => An exception occurred while processing the request. {message}", e.Message);
+			logger.LogInformation(e, "{msg}",e.InnerException?.Message);
             await context.Response.WriteAsJsonAsync(Result<object>.Failure(error));
 		}
     }
