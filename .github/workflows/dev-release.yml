@@ -1,0 +1,42 @@
+name: Deploy to Dev
+
+on:
+  push:
+    branches: 
+      [ develop ]
+
+  # Allow manual trigger 
+  workflow_dispatch:      
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout to the branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Login to Azure
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # Using the project version to tag build image
+      - name: Read and assign version from csproj
+        run: |
+            VERSION=$(grep -oPm1 "(?<=<Version>)[^<]+" NexMed360.API.csproj)
+            echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Build and push container image to registry
+        uses: azure/container-apps-deploy-action@v2
+        with:
+          appSourcePath: ${{ github.workspace }}
+          registryUrl: ${{ secrets.ACR_URL }}
+          containerAppName: dev-nexmed360-api
+          resourceGroup: nexmed360-api
+          imageToBuild: dev/nexmed360-api:${{ env.VERSION }}
+
+
