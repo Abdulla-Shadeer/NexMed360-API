@@ -1,4 +1,5 @@
 using Asp.Versioning.ApiExplorer;
+using Azure.Identity;
 using FinalProjectApi.Common;
 using FinalProjectApi.Common.Exceptions;
 using FinalProjectApi.Data;
@@ -20,6 +21,30 @@ namespace FinalProjectApi
         public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+
+            // Retrieve the app config endpoint
+            string endpoint = builder.Configuration["Endpoints:AppConfiguration"]
+                ?? throw new InvalidOperationException("The setting `Endpoints:AppConfiguration` was not found.");
+
+            // Load configuration from Azure App Configuration 
+            builder.Configuration.AddAzureAppConfiguration(options =>
+            {
+                options
+                .Select("*", builder.Environment.EnvironmentName)
+                .Select("Auth*")
+                .ConfigureRefresh(cfg =>
+                {
+                    // Max 1000 requests per day in free tier
+                    // 1440 minutes in a day / 10 minutes interval = 144 requests per day by one instance
+                    // There is enough room for other instances to refresh as well
+                    cfg.SetRefreshInterval(TimeSpan.FromMinutes(10))
+                    .RegisterAll();
+                })
+                .Connect(new Uri(endpoint), new DefaultAzureCredential());
+            });
+
+            builder.Services.AddAzureAppConfiguration();
+
             IConfiguration _config = builder.Configuration;
 
             // Configure microsoft extension logging
@@ -106,9 +131,9 @@ namespace FinalProjectApi
             });
 
             var app = builder.Build();
-
+            app.UseAzureAppConfiguration();
             // Configure the HTTP request pipeline.
-            if (app.Environment.IsDevelopment())
+            if (app.Environment.IsDevelopment() || app.Environment.IsStaging())
             {
                 app.UseSwagger();
                 app.UseSwaggerUI(options =>
