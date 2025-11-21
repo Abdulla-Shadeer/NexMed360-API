@@ -47,6 +47,6 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         shell: powershell
         run: |
-          ${{ runner.temp }}\scanner\dotnet-sonarscanner begin /k:"Abdulla-Shadeer_NexMed360-API" /o:"shadeer-abdulla" /d:sonar.token="${{ env:SONAR_TOKEN }}"
+          ${{ runner.temp }}\scanner\dotnet-sonarscanner begin /k:"Abdulla-Shadeer_NexMed360-API" /o:"shadeer-abdulla" /d:sonar.token="$env:SONAR_TOKEN"
           dotnet build NexMed360.sln --configuration Release
-          ${{ runner.temp }}\scanner\dotnet-sonarscanner end /d:sonar.token="${{ env:SONAR_TOKEN }}"
+          ${{ runner.temp }}\scanner\dotnet-sonarscanner end /d:sonar.token="$env:SONAR_TOKEN"
