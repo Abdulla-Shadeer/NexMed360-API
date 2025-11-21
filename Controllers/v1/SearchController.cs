@@ -1,14 +1,16 @@
-﻿using FinalProjectApi.Common;
+﻿using Asp.Versioning;
+using FinalProjectApi.Common;
 using FinalProjectApi.Dtos.Doctor;
 using FinalProjectApi.Dtos.Search;
 using FinalProjectApi.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace FinalProjectApi.Controllers;
+namespace FinalProjectApi.Controllers.v1;
 
-[Route("api/v1/[controller]")]
 [ApiController]
+[ApiVersion(1.0)]
+[Route("api/v{version:apiVersion}/[controller]")]
 public class SearchController : ControllerBase
 {
 

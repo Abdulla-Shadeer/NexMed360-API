@@ -20,7 +20,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             .Property(vh => vh.VisitDate)
             .ValueGeneratedOnAdd()
             .Metadata.SetAfterSaveBehavior(PropertySaveBehavior.Save);
-        ;
 
         var occurrenceConverter = new ValueConverter<List<SessionOccurrence>, string>(
             v => JsonSerializer.Serialize(v, (JsonSerializerOptions)null),

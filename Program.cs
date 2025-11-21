@@ -1,4 +1,5 @@
-using System.Text;
+using Asp.Versioning.ApiExplorer;
+using Azure.Identity;
 using FinalProjectApi.Common;
 using FinalProjectApi.Common.Exceptions;
 using FinalProjectApi.Data;
@@ -11,6 +12,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Configuration;
 using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 namespace FinalProjectApi
 {
@@ -19,6 +21,30 @@ namespace FinalProjectApi
         public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+
+            // Retrieve the app config endpoint
+            string endpoint = builder.Configuration["Endpoints:AppConfiguration"]
+                ?? throw new InvalidOperationException("The setting `Endpoints:AppConfiguration` was not found.");
+
+            // Load configuration from Azure App Configuration 
+            builder.Configuration.AddAzureAppConfiguration(options =>
+            {
+                options
+                .Select("*", builder.Environment.EnvironmentName)
+                .Select("Auth*")
+                .ConfigureRefresh(cfg =>
+                {
+                    // Max 1000 requests per day in free tier
+                    // 1440 minutes in a day / 10 minutes interval = 144 requests per day by one instance
+                    // There is enough room for other instances to refresh as well
+                    cfg.SetRefreshInterval(TimeSpan.FromMinutes(10))
+                    .RegisterAll();
+                })
+                .Connect(new Uri(endpoint), new DefaultAzureCredential());
+            });
+
+            builder.Services.AddAzureAppConfiguration();
+
             IConfiguration _config = builder.Configuration;
 
             // Configure microsoft extension logging
@@ -78,17 +104,49 @@ namespace FinalProjectApi
             builder.Services.AddControllers()
                 .ConfigureApiBehaviorOptions(opt => 
                 opt.InvalidModelStateResponseFactory = InvalidModelStateResponseFactory.Function );
+            builder.Services.AddApiVersioning(opt => {
+                opt.DefaultApiVersion = new Asp.Versioning.ApiVersion(1, 0);
+                opt.AssumeDefaultVersionWhenUnspecified = true;
+                opt.ReportApiVersions = true;
+            }).AddApiExplorer(opt => {
+                opt.GroupNameFormat = "'v'VVV";
+                opt.SubstituteApiVersionInUrl = true;
+            });
+
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen();
+            builder.Services.AddSwaggerGen(opt => {
+                var provider = builder.Services.BuildServiceProvider()
+                .GetRequiredService<IApiVersionDescriptionProvider>();
+
+                foreach (var description in provider.ApiVersionDescriptions)
+                {
+                    opt.SwaggerDoc(description.GroupName, new Microsoft.OpenApi.Models.OpenApiInfo
+                    {
+                        Title = $"NexMed 360 API {description.ApiVersion}",
+                        Version = description.ApiVersion.ToString(),
+                        Description = description.IsDeprecated ? "This API version has been deprecated." : ""
+                    });
+                }
+            });
 
             var app = builder.Build();
-
+            app.UseAzureAppConfiguration();
             // Configure the HTTP request pipeline.
-            if (app.Environment.IsDevelopment())
+            if (app.Environment.IsDevelopment() || app.Environment.IsStaging())
             {
                 app.UseSwagger();
-                app.UseSwaggerUI();
+                app.UseSwaggerUI(options =>
+                {
+                    var provider = app.Services.GetRequiredService<IApiVersionDescriptionProvider>();
+
+                    foreach (var description in provider.ApiVersionDescriptions)
+                    {
+                        options.SwaggerEndpoint($"/swagger/{description.GroupName}/swagger.json",
+                            $"API {description.ApiVersion}");
+                    }
+                });
+
                 app.UseCors(opt => opt.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
             }
 
