@@ -23,8 +23,8 @@ namespace FinalProjectApi
             var builder = WebApplication.CreateBuilder(args);
 
             // Retrieve the app config endpoint
-            string endpoint = builder.Configuration["Endpoints:AppConfiguration"]
-                ?? throw new InvalidOperationException("The setting `Endpoints:AppConfiguration` was not found.");
+            string endpoint = builder.Configuration["APP_CONFIG_ENDPOINT"]
+                ?? throw new InvalidOperationException("The setting `APP_CONFIG_ENDPOINT` was not found.");
 
             // Load configuration from Azure App Configuration 
             builder.Configuration.AddAzureAppConfiguration(options =>
