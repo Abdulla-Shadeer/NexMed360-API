@@ -38,6 +38,6 @@ jobs:
           containerAppName: dev-nexmed360-api
           resourceGroup: nexmed360-api
           imageToBuild: ${{ secrets.ACR_NAME }}.azurecr.io/dev/nexmed360-api:${{ env.VERSION }}
-          environmentVariables: ASPNETCORE_ENVIRONMENT=Staging APP_CONFIG_ENDPOINT=${{ secrets.APP_CONFIG_ENDPOINT }}
+          environmentVariables: ASPNETCORE_ENVIRONMENT=Staging APP_CONFIG_ENDPOINT=${{ secrets.APP_CONFIG_ENDPOINT }} ASPNETCORE_HTTPS_PORTS=8081 ASPNETCORE_HTTP_PORTS=8080
 
 
