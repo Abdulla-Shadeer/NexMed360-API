@@ -1,7 +1,7 @@
-﻿using FinalProjectApi.Entities;
+﻿using NexMed360Api.Entities;
 using System.ComponentModel.DataAnnotations;
 
-namespace FinalProjectApi.Dtos.doctorSession;
+namespace NexMed360Api.Dtos.doctorSession;
 
 public class CreateDoctorSessionDto
 {

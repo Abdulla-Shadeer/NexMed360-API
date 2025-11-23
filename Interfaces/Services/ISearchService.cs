@@ -1,9 +1,9 @@
-﻿using FinalProjectApi.Common;
-using FinalProjectApi.Dtos.Doctor;
-using FinalProjectApi.Dtos.Search;
+﻿using NexMed360Api.Common;
+using NexMed360Api.Dtos.Doctor;
+using NexMed360Api.Dtos.Search;
 using System.Security.Claims;
 
-namespace FinalProjectApi.Interfaces.Services;
+namespace NexMed360Api.Interfaces.Services;
 
 public interface ISearchService
 {

@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace FinalProjectApi.Migrations
+namespace NexMed360Api.Migrations
 {
     /// <inheritdoc />
     public partial class AddAppointments : Migration

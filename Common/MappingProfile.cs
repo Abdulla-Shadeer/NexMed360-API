@@ -1,17 +1,17 @@
 ﻿using AutoMapper;
-using FinalProjectApi.Dtos.Appointment;
-using FinalProjectApi.Dtos.ClinicRecord;
-using FinalProjectApi.Dtos.Doctor;
-using FinalProjectApi.Dtos.doctorSession;
-using FinalProjectApi.Dtos.Hospital;
-using FinalProjectApi.Dtos.HospitalAdmin;
-using FinalProjectApi.Dtos.Patient;
-using FinalProjectApi.Dtos.Receptionist;
-using FinalProjectApi.Dtos.User;
-using FinalProjectApi.Entities;
-using FinalProjectApi.Entities.Enums;
+using NexMed360Api.Dtos.Appointment;
+using NexMed360Api.Dtos.ClinicRecord;
+using NexMed360Api.Dtos.Doctor;
+using NexMed360Api.Dtos.doctorSession;
+using NexMed360Api.Dtos.Hospital;
+using NexMed360Api.Dtos.HospitalAdmin;
+using NexMed360Api.Dtos.Patient;
+using NexMed360Api.Dtos.Receptionist;
+using NexMed360Api.Dtos.User;
+using NexMed360Api.Entities;
+using NexMed360Api.Entities.Enums;
 
-namespace FinalProjectApi.Common;
+namespace NexMed360Api.Common;
 
 public class MappingProfile: Profile
 {

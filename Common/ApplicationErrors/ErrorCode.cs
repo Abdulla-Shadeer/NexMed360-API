@@ -1,7 +1,7 @@
 ﻿using System.Runtime.Serialization;
 using System.Text.Json.Serialization;
 
-namespace FinalProjectApi.Common.ApplicationErrors;
+namespace NexMed360Api.Common.ApplicationErrors;
 
 [JsonConverter(typeof(EnumMemberValueConverter<ErrorCode>))]
 public enum ErrorCode

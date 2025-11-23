@@ -1,4 +1,4 @@
-﻿namespace FinalProjectApi.Common.ApplicationErrors;
+﻿namespace NexMed360Api.Common.ApplicationErrors;
 
 public class ApiError(ErrorCode code, string title, int httpStatus, string? description = null)
 {

@@ -1,6 +1,6 @@
-﻿using FinalProjectApi.Dtos.User;
+﻿using NexMed360Api.Dtos.User;
 
-namespace FinalProjectApi.Dtos.Receptionist;
+namespace NexMed360Api.Dtos.Receptionist;
 
 public class ViewReceptionistDto
 {

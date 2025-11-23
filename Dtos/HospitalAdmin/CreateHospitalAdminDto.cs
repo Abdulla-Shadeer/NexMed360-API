@@ -1,7 +1,7 @@
-﻿using FinalProjectApi.Dtos.User;
+﻿using NexMed360Api.Dtos.User;
 using System.ComponentModel.DataAnnotations;
 
-namespace FinalProjectApi.Dtos.HospitalAdmin
+namespace NexMed360Api.Dtos.HospitalAdmin
 {
     public class CreateHospitalAdminDto
     {

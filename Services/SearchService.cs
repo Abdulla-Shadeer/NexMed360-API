@@ -1,20 +1,20 @@
 ﻿using AutoMapper;
-using FinalProjectApi.Common;
-using FinalProjectApi.Common.ApplicationErrors;
-using FinalProjectApi.Common.Auth;
-using FinalProjectApi.Data;
-using FinalProjectApi.Dtos.Doctor;
-using FinalProjectApi.Dtos.Hospital;
-using FinalProjectApi.Dtos.Patient;
-using FinalProjectApi.Dtos.Search;
-using FinalProjectApi.Dtos.User;
-using FinalProjectApi.Interfaces.Services;
+using NexMed360Api.Common;
+using NexMed360Api.Common.ApplicationErrors;
+using NexMed360Api.Common.Auth;
+using NexMed360Api.Data;
+using NexMed360Api.Dtos.Doctor;
+using NexMed360Api.Dtos.Hospital;
+using NexMed360Api.Dtos.Patient;
+using NexMed360Api.Dtos.Search;
+using NexMed360Api.Dtos.User;
+using NexMed360Api.Interfaces.Services;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.Security.Claims;
 
-namespace FinalProjectApi.Services;
+namespace NexMed360Api.Services;
 
 public class SearchService : ISearchService
 {

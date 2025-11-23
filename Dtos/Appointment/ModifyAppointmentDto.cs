@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace FinalProjectApi.Dtos.Appointment;
+namespace NexMed360Api.Dtos.Appointment;
 
 public class ModifyAppointmentDto
 {

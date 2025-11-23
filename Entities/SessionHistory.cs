@@ -1,6 +1,6 @@
-﻿using FinalProjectApi.Entities.Enums;
+﻿using NexMed360Api.Entities.Enums;
 
-namespace FinalProjectApi.Entities;
+namespace NexMed360Api.Entities;
 
 public class SessionHistory: Entity
 {

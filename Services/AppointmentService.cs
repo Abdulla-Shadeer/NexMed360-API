@@ -1,14 +1,14 @@
 ﻿using AutoMapper;
-using FinalProjectApi.Common;
-using FinalProjectApi.Common.ApplicationErrors;
-using FinalProjectApi.Data;
-using FinalProjectApi.Dtos.Appointment;
-using FinalProjectApi.Entities;
-using FinalProjectApi.Entities.Enums;
-using FinalProjectApi.Interfaces.Services;
+using NexMed360Api.Common;
+using NexMed360Api.Common.ApplicationErrors;
+using NexMed360Api.Data;
+using NexMed360Api.Dtos.Appointment;
+using NexMed360Api.Entities;
+using NexMed360Api.Entities.Enums;
+using NexMed360Api.Interfaces.Services;
 using Microsoft.EntityFrameworkCore;
 
-namespace FinalProjectApi.Services;
+namespace NexMed360Api.Services;
 
 public class AppointmentService : IAppointmentService
 {

@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace FinalProjectApi.Dtos.User
+namespace NexMed360Api.Dtos.User
 {
     public class RegisterUserDto
     {

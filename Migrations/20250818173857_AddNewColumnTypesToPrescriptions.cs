@@ -2,7 +2,7 @@
 
 #nullable disable
 
-namespace FinalProjectApi.Migrations
+namespace NexMed360Api.Migrations
 {
     /// <inheritdoc />
     public partial class AddNewColumnTypesToPrescriptions : Migration

@@ -1,4 +1,4 @@
-﻿namespace FinalProjectApi.Entities.Enums
+﻿namespace NexMed360Api.Entities.Enums
 {
     public enum VisitReason
     {

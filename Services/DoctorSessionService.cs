@@ -1,16 +1,16 @@
 ﻿using AutoMapper;
-using FinalProjectApi.Common;
-using FinalProjectApi.Common.ApplicationErrors;
-using FinalProjectApi.Data;
-using FinalProjectApi.Dtos.doctorSession;
-using FinalProjectApi.Entities;
-using FinalProjectApi.Entities.Enums;
-using FinalProjectApi.Interfaces.Services;
+using NexMed360Api.Common;
+using NexMed360Api.Common.ApplicationErrors;
+using NexMed360Api.Data;
+using NexMed360Api.Dtos.doctorSession;
+using NexMed360Api.Entities;
+using NexMed360Api.Entities.Enums;
+using NexMed360Api.Interfaces.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text.Json;
 
-namespace FinalProjectApi.Services;
+namespace NexMed360Api.Services;
 
 public class DoctorSessionService : IDoctorSessionService
 {

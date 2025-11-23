@@ -1,4 +1,4 @@
-﻿namespace FinalProjectApi.Dtos.Search;
+﻿namespace NexMed360Api.Dtos.Search;
 
 public class SearchDoctorDto
 {

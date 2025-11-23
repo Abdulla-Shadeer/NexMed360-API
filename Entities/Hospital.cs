@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace FinalProjectApi.Entities
+namespace NexMed360Api.Entities
 {
     public class Hospital: Entity
     {

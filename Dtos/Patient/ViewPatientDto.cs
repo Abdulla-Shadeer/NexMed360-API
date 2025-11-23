@@ -1,6 +1,6 @@
-﻿using FinalProjectApi.Dtos.User;
+﻿using NexMed360Api.Dtos.User;
 
-namespace FinalProjectApi.Dtos.Patient;
+namespace NexMed360Api.Dtos.Patient;
 
 public class ViewPatientDto
 {

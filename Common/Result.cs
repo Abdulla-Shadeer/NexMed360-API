@@ -1,6 +1,6 @@
-﻿using FinalProjectApi.Common.ApplicationErrors;
+﻿using NexMed360Api.Common.ApplicationErrors;
 
-namespace FinalProjectApi.Common;
+namespace NexMed360Api.Common;
 
 public class Result<T>
 {

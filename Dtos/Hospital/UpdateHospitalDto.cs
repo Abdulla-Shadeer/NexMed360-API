@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace FinalProjectApi.Dtos.Hospital;
+namespace NexMed360Api.Dtos.Hospital;
 
 public class UpdateHospitalDto
 {

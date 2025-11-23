@@ -1,14 +1,14 @@
 ﻿using Asp.Versioning;
-using FinalProjectApi.Common;
-using FinalProjectApi.Common.Auth;
-using FinalProjectApi.Dtos.ClinicRecord;
-using FinalProjectApi.Dtos.Patient;
-using FinalProjectApi.Interfaces.Services;
+using NexMed360Api.Common;
+using NexMed360Api.Common.Auth;
+using NexMed360Api.Dtos.ClinicRecord;
+using NexMed360Api.Dtos.Patient;
+using NexMed360Api.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
-namespace FinalProjectApi.Controllers.v1;
+namespace NexMed360Api.Controllers.v1;
 
 [ApiController]
 [ApiVersion(1.0)]

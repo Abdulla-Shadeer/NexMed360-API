@@ -1,4 +1,4 @@
-﻿namespace FinalProjectApi.Common.Auth
+﻿namespace NexMed360Api.Common.Auth
 {
     public static class UserRoles
     {

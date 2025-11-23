@@ -1,17 +1,17 @@
 ﻿using Asp.Versioning;
-using FinalProjectApi.Common;
-using FinalProjectApi.Common.Auth;
-using FinalProjectApi.Dtos.Doctor;
-using FinalProjectApi.Dtos.Hospital;
-using FinalProjectApi.Dtos.HospitalAdmin;
-using FinalProjectApi.Dtos.Receptionist;
-using FinalProjectApi.Dtos.User;
-using FinalProjectApi.Interfaces.Services;
+using NexMed360Api.Common;
+using NexMed360Api.Common.Auth;
+using NexMed360Api.Dtos.Doctor;
+using NexMed360Api.Dtos.Hospital;
+using NexMed360Api.Dtos.HospitalAdmin;
+using NexMed360Api.Dtos.Receptionist;
+using NexMed360Api.Dtos.User;
+using NexMed360Api.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
-namespace FinalProjectApi.Controllers.v1;
+namespace NexMed360Api.Controllers.v1;
 
 [ApiController]
 [ApiVersion(1.0)]

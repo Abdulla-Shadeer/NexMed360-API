@@ -1,11 +1,11 @@
-﻿using FinalProjectApi.Common;
-using FinalProjectApi.Dtos.Doctor;
-using FinalProjectApi.Dtos.Hospital;
-using FinalProjectApi.Dtos.HospitalAdmin;
-using FinalProjectApi.Dtos.Receptionist;
-using FinalProjectApi.Dtos.User;
+﻿using NexMed360Api.Common;
+using NexMed360Api.Dtos.Doctor;
+using NexMed360Api.Dtos.Hospital;
+using NexMed360Api.Dtos.HospitalAdmin;
+using NexMed360Api.Dtos.Receptionist;
+using NexMed360Api.Dtos.User;
 
-namespace FinalProjectApi.Interfaces.Services;
+namespace NexMed360Api.Interfaces.Services;
 
 public interface IHospitalService
 {

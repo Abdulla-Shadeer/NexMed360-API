@@ -1,4 +1,4 @@
-﻿namespace FinalProjectApi.Entities
+﻿namespace NexMed360Api.Entities
 {
     public class Patient: Entity
     {

@@ -1,7 +1,7 @@
-﻿using FinalProjectApi.Common;
-using FinalProjectApi.Dtos.doctorSession;
+﻿using NexMed360Api.Common;
+using NexMed360Api.Dtos.doctorSession;
 
-namespace FinalProjectApi.Interfaces.Services;
+namespace NexMed360Api.Interfaces.Services;
 
 public interface IDoctorSessionService
 {

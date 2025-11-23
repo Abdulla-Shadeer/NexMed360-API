@@ -1,16 +1,16 @@
 ﻿using AutoMapper;
-using FinalProjectApi.Common;
-using FinalProjectApi.Common.ApplicationErrors;
-using FinalProjectApi.Common.Auth;
-using FinalProjectApi.Data;
-using FinalProjectApi.Dtos.ClinicRecord;
-using FinalProjectApi.Dtos.Patient;
-using FinalProjectApi.Dtos.User;
-using FinalProjectApi.Entities;
-using FinalProjectApi.Interfaces.Services;
+using NexMed360Api.Common;
+using NexMed360Api.Common.ApplicationErrors;
+using NexMed360Api.Common.Auth;
+using NexMed360Api.Data;
+using NexMed360Api.Dtos.ClinicRecord;
+using NexMed360Api.Dtos.Patient;
+using NexMed360Api.Dtos.User;
+using NexMed360Api.Entities;
+using NexMed360Api.Interfaces.Services;
 using Microsoft.EntityFrameworkCore;
 
-namespace FinalProjectApi.Services;
+namespace NexMed360Api.Services;
 
 public class PatientService : IPatientService
 {

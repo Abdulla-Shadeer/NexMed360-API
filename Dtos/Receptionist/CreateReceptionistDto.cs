@@ -1,7 +1,7 @@
-﻿using FinalProjectApi.Dtos.User;
+﻿using NexMed360Api.Dtos.User;
 using System.ComponentModel.DataAnnotations;
 
-namespace FinalProjectApi.Dtos.Receptionist
+namespace NexMed360Api.Dtos.Receptionist
 {
     public class CreateReceptionistDto
     {

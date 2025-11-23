@@ -1,7 +1,7 @@
-﻿using FinalProjectApi.Entities.Enums;
+﻿using NexMed360Api.Entities.Enums;
 using System.ComponentModel.DataAnnotations;
 
-namespace FinalProjectApi.Dtos.doctorSession;
+namespace NexMed360Api.Dtos.doctorSession;
 
 public class UpdateSessionHistoryDto
 {

@@ -1,4 +1,4 @@
-﻿namespace FinalProjectApi.Dtos.Shared;
+﻿namespace NexMed360Api.Dtos.Shared;
 
 public class CapacityDto
 {

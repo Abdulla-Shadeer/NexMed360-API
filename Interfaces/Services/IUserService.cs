@@ -1,9 +1,9 @@
-﻿using FinalProjectApi.Common;
-using FinalProjectApi.Dtos.Overview;
-using FinalProjectApi.Dtos.User;
+﻿using NexMed360Api.Common;
+using NexMed360Api.Dtos.Overview;
+using NexMed360Api.Dtos.User;
 using System.Security.Claims;
 
-namespace FinalProjectApi.Interfaces.Services;
+namespace NexMed360Api.Interfaces.Services;
 
 public interface IUserService
 {

@@ -4,7 +4,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace FinalProjectApi.Migrations
+namespace NexMed360Api.Migrations
 {
     /// <inheritdoc />
     public partial class InitialMigration : Migration

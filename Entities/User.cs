@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using System.ComponentModel.DataAnnotations;
 
-namespace FinalProjectApi.Entities
+namespace NexMed360Api.Entities
 {
     public class User: IdentityUser
     {

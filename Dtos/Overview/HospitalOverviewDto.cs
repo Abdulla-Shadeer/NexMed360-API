@@ -1,7 +1,7 @@
-﻿using FinalProjectApi.Dtos.Appointment;
-using FinalProjectApi.Dtos.Shared;
+﻿using NexMed360Api.Dtos.Appointment;
+using NexMed360Api.Dtos.Shared;
 
-namespace FinalProjectApi.Dtos.Overview;
+namespace NexMed360Api.Dtos.Overview;
 
 public class HospitalOverviewDto : OverviewDto
 {

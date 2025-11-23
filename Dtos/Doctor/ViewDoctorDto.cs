@@ -1,4 +1,4 @@
-﻿namespace FinalProjectApi.Dtos.Doctor;
+﻿namespace NexMed360Api.Dtos.Doctor;
 
 public class ViewDoctorDto
 {

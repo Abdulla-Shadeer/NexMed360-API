@@ -1,12 +1,12 @@
 ﻿using Asp.Versioning;
-using FinalProjectApi.Common;
-using FinalProjectApi.Dtos.Doctor;
-using FinalProjectApi.Dtos.Search;
-using FinalProjectApi.Interfaces.Services;
+using NexMed360Api.Common;
+using NexMed360Api.Dtos.Doctor;
+using NexMed360Api.Dtos.Search;
+using NexMed360Api.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace FinalProjectApi.Controllers.v1;
+namespace NexMed360Api.Controllers.v1;
 
 [ApiController]
 [ApiVersion(1.0)]

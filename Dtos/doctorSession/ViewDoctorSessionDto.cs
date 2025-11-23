@@ -1,6 +1,6 @@
-﻿using FinalProjectApi.Entities;
+﻿using NexMed360Api.Entities;
 
-namespace FinalProjectApi.Dtos.doctorSession;
+namespace NexMed360Api.Dtos.doctorSession;
 
 public class ViewDoctorSessionDto
 {

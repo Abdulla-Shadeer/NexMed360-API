@@ -1,7 +1,7 @@
-﻿using FinalProjectApi.Entities.Enums;
+﻿using NexMed360Api.Entities.Enums;
 using System.ComponentModel.DataAnnotations;
 
-namespace FinalProjectApi.Dtos.Patient
+namespace NexMed360Api.Dtos.Patient
 {
     public class AddToVisitHistoryDto
     {

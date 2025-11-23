@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Identity;
 
-namespace FinalProjectApi.Extensions
+namespace NexMed360Api.Extensions
 {
     public static class IdentityErrorExtension
     {

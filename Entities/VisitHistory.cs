@@ -1,7 +1,7 @@
-﻿using FinalProjectApi.Entities.Enums;
+﻿using NexMed360Api.Entities.Enums;
 using System.ComponentModel.DataAnnotations;
 
-namespace FinalProjectApi.Entities
+namespace NexMed360Api.Entities
 {
     public class VisitHistory: Entity
     {

@@ -1,8 +1,8 @@
-﻿using FinalProjectApi.Common;
-using FinalProjectApi.Dtos.Appointment;
-using FinalProjectApi.Entities.Enums;
+﻿using NexMed360Api.Common;
+using NexMed360Api.Dtos.Appointment;
+using NexMed360Api.Entities.Enums;
 
-namespace FinalProjectApi.Interfaces.Services;
+namespace NexMed360Api.Interfaces.Services;
 
 public interface IAppointmentService
 {

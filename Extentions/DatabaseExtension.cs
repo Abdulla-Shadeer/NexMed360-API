@@ -1,7 +1,7 @@
-﻿using FinalProjectApi.Data;
+﻿using NexMed360Api.Data;
 using Microsoft.EntityFrameworkCore;
 
-namespace FinalProjectApi.Extensions
+namespace NexMed360Api.Extensions
 {
     public static class DatabaseExtension
     {

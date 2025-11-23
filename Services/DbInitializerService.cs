@@ -1,10 +1,10 @@
-﻿using FinalProjectApi.Common.Auth;
-using FinalProjectApi.Entities;
-using FinalProjectApi.Interfaces.Services;
+﻿using NexMed360Api.Common.Auth;
+using NexMed360Api.Entities;
+using NexMed360Api.Interfaces.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
-namespace FinalProjectApi.Services
+namespace NexMed360Api.Services
 {
     public class DbInitializerService : IDbInitializerService
     {

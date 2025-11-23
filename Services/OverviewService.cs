@@ -1,14 +1,14 @@
-﻿using FinalProjectApi.Dtos.Overview;
-using FinalProjectApi.Interfaces.Services;
-using FinalProjectApi.Data;
-using FinalProjectApi.Entities.Enums;
+﻿using NexMed360Api.Dtos.Overview;
+using NexMed360Api.Interfaces.Services;
+using NexMed360Api.Data;
+using NexMed360Api.Entities.Enums;
 using Microsoft.EntityFrameworkCore;
 using AutoMapper;
-using FinalProjectApi.Dtos.Appointment;
-using FinalProjectApi.Dtos.Shared;
-using FinalProjectApi.Entities;
+using NexMed360Api.Dtos.Appointment;
+using NexMed360Api.Dtos.Shared;
+using NexMed360Api.Entities;
 
-namespace FinalProjectApi.Services;
+namespace NexMed360Api.Services;
 
 public class OverviewService : IOverviewService
 {

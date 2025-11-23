@@ -1,6 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace FinalProjectApi.Dtos.Overview;
+namespace NexMed360Api.Dtos.Overview;
 
 [JsonDerivedType(typeof(DoctorOverviewDto))]
 [JsonDerivedType(typeof(HospitalOverviewDto))]

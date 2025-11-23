@@ -1,4 +1,4 @@
-﻿namespace FinalProjectApi.Dtos.doctorSession;
+﻿namespace NexMed360Api.Dtos.doctorSession;
 
 public class ViewSessionSlotDto
 {

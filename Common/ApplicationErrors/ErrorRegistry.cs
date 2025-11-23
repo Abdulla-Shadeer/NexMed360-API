@@ -1,4 +1,4 @@
-﻿namespace FinalProjectApi.Common.ApplicationErrors;
+﻿namespace NexMed360Api.Common.ApplicationErrors;
 
 public static class ErrorRegistry
 {

@@ -1,6 +1,6 @@
-﻿using FinalProjectApi.Entities.Enums;
+﻿using NexMed360Api.Entities.Enums;
 
-namespace FinalProjectApi.Dtos.Appointment;
+namespace NexMed360Api.Dtos.Appointment;
 
 public class ViewAppointmentsFilterDto
 {

@@ -1,4 +1,4 @@
-﻿namespace FinalProjectApi.Dtos.User
+﻿namespace NexMed360Api.Dtos.User
 {
     public class LoginUserDto
     {

@@ -1,19 +1,19 @@
 ﻿using AutoMapper;
-using FinalProjectApi.Common;
-using FinalProjectApi.Common.ApplicationErrors;
-using FinalProjectApi.Common.Auth;
-using FinalProjectApi.Data;
-using FinalProjectApi.Dtos.Doctor;
-using FinalProjectApi.Dtos.Hospital;
-using FinalProjectApi.Dtos.HospitalAdmin;
-using FinalProjectApi.Dtos.Receptionist;
-using FinalProjectApi.Dtos.User;
-using FinalProjectApi.Entities;
-using FinalProjectApi.Interfaces.Services;
+using NexMed360Api.Common;
+using NexMed360Api.Common.ApplicationErrors;
+using NexMed360Api.Common.Auth;
+using NexMed360Api.Data;
+using NexMed360Api.Dtos.Doctor;
+using NexMed360Api.Dtos.Hospital;
+using NexMed360Api.Dtos.HospitalAdmin;
+using NexMed360Api.Dtos.Receptionist;
+using NexMed360Api.Dtos.User;
+using NexMed360Api.Entities;
+using NexMed360Api.Interfaces.Services;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 
-namespace FinalProjectApi.Services;
+namespace NexMed360Api.Services;
 
 public class HospitalService : IHospitalService
 {

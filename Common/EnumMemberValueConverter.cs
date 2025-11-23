@@ -3,7 +3,7 @@ using System.Runtime.Serialization;
 using System.Text.Json.Serialization;
 using System.Text.Json;
 
-namespace FinalProjectApi.Common;
+namespace NexMed360Api.Common;
 
 public class EnumMemberValueConverter<T> : JsonConverter<T> where T : struct, Enum
 {

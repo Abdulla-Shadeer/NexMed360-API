@@ -1,9 +1,9 @@
-﻿using FinalProjectApi.Dtos.Doctor;
-using FinalProjectApi.Dtos.HospitalAdmin;
-using FinalProjectApi.Dtos.Patient;
-using FinalProjectApi.Dtos.Receptionist;
+﻿using NexMed360Api.Dtos.Doctor;
+using NexMed360Api.Dtos.HospitalAdmin;
+using NexMed360Api.Dtos.Patient;
+using NexMed360Api.Dtos.Receptionist;
 
-namespace FinalProjectApi.Dtos.User;
+namespace NexMed360Api.Dtos.User;
 
 public class ViewUserDto
 {

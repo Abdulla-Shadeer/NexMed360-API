@@ -1,4 +1,4 @@
-﻿namespace FinalProjectApi.Interfaces.Services
+﻿namespace NexMed360Api.Interfaces.Services
 {
     public interface IDbInitializerService
     {

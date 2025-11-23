@@ -1,6 +1,6 @@
 ﻿using System.Text.Json.Serialization;
 
-namespace FinalProjectApi.Dtos.Search;
+namespace NexMed360Api.Dtos.Search;
 
 public enum InputTypes
 {

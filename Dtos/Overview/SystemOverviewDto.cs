@@ -1,4 +1,4 @@
-﻿namespace FinalProjectApi.Dtos.Overview;
+﻿namespace NexMed360Api.Dtos.Overview;
 
 public class SystemOverviewDto : OverviewDto
 {

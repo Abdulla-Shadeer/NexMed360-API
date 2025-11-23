@@ -1,8 +1,8 @@
-﻿using FinalProjectApi.Common.ApplicationErrors;
-using FinalProjectApi.Data;
-using FinalProjectApi.Entities;
+﻿using NexMed360Api.Common.ApplicationErrors;
+using NexMed360Api.Data;
+using NexMed360Api.Entities;
 
-namespace FinalProjectApi.Common;
+namespace NexMed360Api.Common;
 
 public static class AppointmentHelper
 {

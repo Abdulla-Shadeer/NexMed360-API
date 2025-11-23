@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace FinalProjectApi.Dtos.ClinicRecord;
+namespace NexMed360Api.Dtos.ClinicRecord;
 
 public class AddClinicRecordDto
 {

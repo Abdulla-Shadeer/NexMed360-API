@@ -1,7 +1,7 @@
-﻿using FinalProjectApi.Common;
+﻿using NexMed360Api.Common;
 using System.Text.Json.Serialization;
 
-namespace FinalProjectApi.Entities;
+namespace NexMed360Api.Entities;
 
 public class DoctorSession : Entity
 {

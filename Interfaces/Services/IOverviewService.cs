@@ -1,6 +1,6 @@
-﻿using FinalProjectApi.Dtos.Overview;
+﻿using NexMed360Api.Dtos.Overview;
 
-namespace FinalProjectApi.Interfaces.Services;
+namespace NexMed360Api.Interfaces.Services;
 
 public interface IOverviewService
 {

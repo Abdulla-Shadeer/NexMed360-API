@@ -1,7 +1,7 @@
-﻿using FinalProjectApi.Common.ApplicationErrors;
+﻿using NexMed360Api.Common.ApplicationErrors;
 using Microsoft.AspNetCore.Mvc;
 
-namespace FinalProjectApi.Common;
+namespace NexMed360Api.Common;
 
 public static class InvalidModelStateResponseFactory
 {

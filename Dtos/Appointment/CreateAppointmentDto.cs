@@ -1,7 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
-namespace FinalProjectApi.Dtos.Appointment;
+namespace NexMed360Api.Dtos.Appointment;
 
 public class CreateAppointmentDto
 {

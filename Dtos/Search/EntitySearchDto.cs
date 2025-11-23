@@ -1,7 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
-namespace FinalProjectApi.Dtos.Search;
+namespace NexMed360Api.Dtos.Search;
 
 public class EntitySearchDto
 {

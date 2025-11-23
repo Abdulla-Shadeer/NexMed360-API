@@ -1,7 +1,7 @@
 ﻿
-using FinalProjectApi.Common.ApplicationErrors;
+using NexMed360Api.Common.ApplicationErrors;
 
-namespace FinalProjectApi.Common.Exceptions;
+namespace NexMed360Api.Common.Exceptions;
 
 public class GlobalExceptionMiddleware(ILogger<GlobalExceptionMiddleware> logger) : IMiddleware
 {
