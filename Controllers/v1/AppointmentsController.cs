@@ -50,15 +50,6 @@ public class AppointmentsController : ControllerBase
         return HandleResult(await _appointmentsService.GetHospitalAppointments(filter, userId));
     }
 
-    [HttpPost]
-    [Route("Edit")]
-    [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
-    public async Task<ActionResult<Result<ViewAppointmentDto>>> ModifyAppointment(ModifyAppointmentDto modifyAppointmentDto)
-    {
-        var requesterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        return HandleResult(await _appointmentsService.Modify(modifyAppointmentDto, requesterId!));
-    }
-
     [HttpGet]
     [Route("View/{appointmentId}")]
     [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
