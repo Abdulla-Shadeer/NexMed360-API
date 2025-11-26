@@ -14,4 +14,5 @@ public class ViewDoctorSessionDto
     public int SlotDurationMinutes { get; set; }
     public int TotalSlots { get; set; }
     public List<SessionOccurrence> Occurrences { get; set; }
+    public bool IsActive { get; set; }
 }
