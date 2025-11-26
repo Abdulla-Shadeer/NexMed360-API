@@ -16,4 +16,5 @@ public interface IDoctorSessionService
     public Result<bool> HasAnySessionToday(FilterSessionsForCurrentDayDto filter);
     public Task<Result<List<ViewSessionHistoryDto>>> GetOngoing(string receptionistUserId);
     public Task<Result<ViewDoctorSessionDto>> Update(string sessionId, UpdateDoctorSessionDto dto);
+    public Task<Result<string>> Delete(string sessionId);
 }

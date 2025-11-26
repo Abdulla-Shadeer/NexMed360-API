@@ -365,6 +365,27 @@ public class DoctorSessionService : IDoctorSessionService
         return Result<ViewDoctorSessionDto>.Success(updatedSession);
     }
 
+    public async Task<Result<string>> Delete(string sessionId) 
+    {
+        if (!Guid.TryParse(sessionId, out var id))
+            return Result<string>.Failure(ErrorCode.SYS_InvalidGuid, "Invalid session ID.");
+
+        var sessionToDelete = await _context.DoctorSessions.FirstOrDefaultAsync(ds => ds.Id == id);
+        if (sessionToDelete == null)
+            return Result<string>.Failure(ErrorCode.DRSSN_NotFound, "Session not found with given ID.");
+
+        // Determine no bookings made for the session and safe to delete
+        if (!await _context.SessionSlots.AnyAsync(ss => ss.SessionId == id) || await _context.SessionSlots.AllAsync(ss => ss.SessionId == id && ss.IsAvailable))
+        {
+            _context.DoctorSessions.Remove(sessionToDelete);
+            await _context.SaveChangesAsync();
+            return Result<string>.Success($"Doctor session with ID '{sessionId}' was successfully deleted.");
+        }
+
+        return Result<string>.Failure(ErrorCode.SYS_BadRequest, 
+            "Existing appointments are linked to this session. If you need to discontinue it, please mark the session as inactive to prevent future appointment bookings.");
+    }
+
     private static Result<T> ValidateOverlaps<T>(
         List<DoctorSession> sourceSessions,
         List<SessionOccurrence> targetOccurrences,

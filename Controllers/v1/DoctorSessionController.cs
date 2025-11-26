@@ -44,6 +44,14 @@ public class DoctorSessionController: ControllerBase
         return HandleResult(await _sessionService.Update(sessionId, updateSessionDto));
     }
 
+    [HttpDelete]
+    [Route("Delete/{sessionId}")]
+    [Authorize(Roles = $"{UserRoles.HOSPITAL_ADMIN}, {UserRoles.DOCTOR}")]
+    public async Task<ActionResult<Result<string>>> Delete(string sessionId)
+    {
+        return HandleResult(await _sessionService.Delete(sessionId));
+    }
+
     [HttpGet]
     [Route("GetSlots")]
     [Authorize(Roles = $"{UserRoles.HOSPITAL_ADMIN}, {UserRoles.DOCTOR}, {UserRoles.PATIENT}")]
