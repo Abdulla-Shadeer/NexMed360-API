@@ -1,8 +1,7 @@
-﻿using NexMed360Api.Common;
-using System.Text.Json.Serialization;
+﻿using NexMed360.API.Entities.Enums;
+using NexMed360Api.Common;
 
 namespace NexMed360Api.Entities;
-
 public class DoctorSession : Entity
 {
     public TimeOnly StartTime { get; set; }
@@ -15,10 +14,11 @@ public class DoctorSession : Entity
     public List<SessionSlot> SessionSlots { get; set; } = [];
     public List<SessionOccurrence> Occurrences { get; set; } = [];
     public List<SessionHistory> History { get; set; } = [];
+    public bool IsActive { get; set; } = true;
 }
 
 public class SessionSlot : Entity
-{ 
+{
     public DateOnly Date { get; set; }
     public Guid SessionId { get; set; }
     public DoctorSession Session { get; set; }
@@ -27,19 +27,4 @@ public class SessionSlot : Entity
     public bool IsAvailable { get; set; }
     public bool BookingAllowed { get; set; } = true;
     public int SlotNumber { get; set; }
-}
-
-[JsonConverter(typeof(JsonStringEnumConverter))]
-public enum SessionOccurrence
-{
-    Weekdays,
-    Weekend,
-    AllDays,
-    Monday,
-    Tuesday,
-    Wednesday,
-    Thursday,
-    Friday,
-    Saturday,
-    Sunday,
 }

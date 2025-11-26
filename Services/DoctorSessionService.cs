@@ -1,4 +1,8 @@
 ﻿using AutoMapper;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using NexMed360.API.Dtos.doctorSession;
+using NexMed360.API.Entities.Enums;
 using NexMed360Api.Common;
 using NexMed360Api.Common.ApplicationErrors;
 using NexMed360Api.Data;
@@ -6,9 +10,6 @@ using NexMed360Api.Dtos.doctorSession;
 using NexMed360Api.Entities;
 using NexMed360Api.Entities.Enums;
 using NexMed360Api.Interfaces.Services;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
-using System.Text.Json;
 
 namespace NexMed360Api.Services;
 
@@ -40,20 +41,14 @@ public class DoctorSessionService : IDoctorSessionService
         if (dto.StartTime > dto.EndTime)
             return Result<ViewDoctorSessionDto>.Failure(ErrorCode.SYS_BadRequest, "Start time cannot be after End time!");
 
-        var doctorSessions = _context.DoctorSessions.AsEnumerable();
+        // All sessions at the given hospital for the doctor
+        var doctorSessions = await _context.DoctorSessions
+            .Where(ds => ds.DoctorId == doctorId && ds.HospitalId == hospitalId)
+            .ToListAsync();
 
-        // Todo: Also consider time overlapping
-        // (ex, session A 6.00-10.00 and session B 8.00-11.00 will cause conflict appointment bookings for same doctor at same hospital and same date time)
-        if (doctorSessions.Any(
-            ds => ds.DoctorId == doctorId
-            && ds.HospitalId == hospitalId
-            && ds.StartTime == dto.StartTime
-            && ds.EndTime == dto.EndTime
-            && ds.Occurrences.OrderBy(x => x).SequenceEqual(dto.Occurrences.OrderBy(x => x))
-            ))
-        {
-            return Result<ViewDoctorSessionDto>.Failure(ErrorCode.SYS_DuplicateEntry, "Session already exist!");
-        }
+        var overlapValidation = ValidateOverlaps<ViewDoctorSessionDto>(doctorSessions, dto.Occurrences, dto.StartTime, dto.EndTime);
+        if (!overlapValidation.IsSuccess)
+            return overlapValidation;
 
         var addedEntityId = (await _context.DoctorSessions.AddAsync(_mapper.Map<DoctorSession>(dto))).Entity.Id;
         await _context.SaveChangesAsync();
@@ -209,7 +204,8 @@ public class DoctorSessionService : IDoctorSessionService
                     history.LastKnownAppointmentId = lastKnownApptId;
                 }
             }
-            else {
+            else
+            {
                 return Result<ViewSessionHistoryDto>.Failure(ErrorCode.SYS_InvalidGuid, "Invalid Appointment ID Format");
             }
         }
@@ -278,7 +274,7 @@ public class DoctorSessionService : IDoctorSessionService
 
         var cancelledOrEndedSessionIds = await _context.DoctorSessions
             .Include(ds => ds.History)
-            .Where(ds => ds.History.Any(h => h.Date == date && 
+            .Where(ds => ds.History.Any(h => h.Date == date &&
                 (h.SessionStatus == SessionStatus.Canceled || h.SessionStatus == SessionStatus.Ended)))
             .Select(ds => ds.Id)
             .ToListAsync();
@@ -328,5 +324,99 @@ public class DoctorSessionService : IDoctorSessionService
             .ToListAsync();
 
         return Result<List<ViewSessionHistoryDto>>.Success(sessionHistories);
+    }
+
+    public async Task<Result<ViewDoctorSessionDto>> Update(string sessionId, UpdateDoctorSessionDto dto)
+    {
+        if (!Guid.TryParse(sessionId, out var id))
+            return Result<ViewDoctorSessionDto>.Failure(ErrorCode.SYS_InvalidGuid, "Invalid Session ID");
+        if (dto.StartTime > dto.EndTime)
+            return Result<ViewDoctorSessionDto>.Failure(ErrorCode.SYS_BadRequest, "Start time cannot be after End time!");
+
+        var session = await _context.DoctorSessions.FirstOrDefaultAsync(ds => ds.Id == id);
+        if (session == null)
+            return Result<ViewDoctorSessionDto>.Failure(ErrorCode.DRSSN_NotFound);
+
+
+        // aLL sessions at the same hospital for the same doctor (except the current one)
+        var existingSessions = await _context.DoctorSessions
+            .Where(ds => ds.HospitalId == session.HospitalId &&
+                        ds.DoctorId == session.DoctorId &&
+                        ds.Id != id)
+            .ToListAsync();
+
+        var overlapValidation = ValidateOverlaps<ViewDoctorSessionDto>(existingSessions, dto.Occurrences, dto.StartTime, dto.EndTime);
+        if (!overlapValidation.IsSuccess)
+            return overlapValidation;
+
+
+        session.StartTime = dto.StartTime;
+        session.EndTime = dto.EndTime;
+        session.SlotDurationMinutes = dto.SlotDurationMinutes;
+        session.Occurrences = dto.Occurrences;
+        session.IsActive = dto.IsActive;
+        await _context.SaveChangesAsync();
+
+        var updatedSession = await _context.DoctorSessions
+            .Where(ds => ds.Id == id)
+            .Include(ds => ds.Hospital)
+            .Select(ds => _mapper.Map<ViewDoctorSessionDto>(ds))
+            .FirstOrDefaultAsync();
+        return Result<ViewDoctorSessionDto>.Success(updatedSession);
+    }
+
+    private static Result<T> ValidateOverlaps<T>(
+        List<DoctorSession> sourceSessions,
+        List<SessionOccurrence> targetOccurrences,
+        TimeOnly targetStart,
+        TimeOnly targetEnd)
+    {
+        // exact duplicates (same occurrences + same times)
+        var exactDuplicate = sourceSessions
+            .Where(ds => ds.Occurrences.OrderBy(x => x).SequenceEqual(targetOccurrences.OrderBy(x => x)))
+            .Any(ds => ds.StartTime == targetStart && ds.EndTime == targetEnd);
+
+        if (exactDuplicate)
+            return Result<T>.Failure(ErrorCode.SYS_DuplicateEntry,
+                "Another session already exists with the same schedule and occurrences.");
+
+        // sessions with overlapping occurrence days and overlapping times
+        var conflictingSessions = sourceSessions
+            .Where(
+                ds => ds.Occurrences.Contains(SessionOccurrence.AllDays) ||
+                (ds.Occurrences.Contains(SessionOccurrence.Weekdays) && ExpandedWeekDays().Intersect(targetOccurrences).Any()) ||
+                (ds.Occurrences.Contains(SessionOccurrence.Weekend) && ExpandedWeekendDays().Intersect(targetOccurrences).Any()) ||
+                ds.Occurrences.Intersect(targetOccurrences).Any())
+            .Where(ds => IsOverlapping(ds.StartTime, ds.EndTime, targetStart, targetEnd));
+
+        if (conflictingSessions.Any())
+            return Result<T>.Failure(ErrorCode.SYS_BadRequest,
+                "The requested time slot conflicts with an existing session on overlapping days.");
+
+        return Result<T>.Success(default);
+    }
+
+    private static bool IsOverlapping(TimeOnly start1, TimeOnly end1, TimeOnly start2, TimeOnly end2)
+    {
+        return start1 < end2 && start2 < end1;
+    }
+
+    private static List<SessionOccurrence> ExpandedWeekDays()
+    {
+        return [ 
+            SessionOccurrence.Monday,
+            SessionOccurrence.Tuesday,
+            SessionOccurrence.Wednesday,
+            SessionOccurrence.Thursday,
+            SessionOccurrence.Friday,
+        ];
+    }
+
+    private static List<SessionOccurrence> ExpandedWeekendDays()
+    {
+        return [
+            SessionOccurrence.Saturday,
+            SessionOccurrence.Sunday,
+        ];
     }
 }

@@ -1,4 +1,5 @@
-﻿using NexMed360Api.Common;
+﻿using NexMed360.API.Dtos.doctorSession;
+using NexMed360Api.Common;
 using NexMed360Api.Dtos.doctorSession;
 
 namespace NexMed360Api.Interfaces.Services;
@@ -14,4 +15,5 @@ public interface IDoctorSessionService
     public Task<Result<ViewCurrentOrNextSessionDto>> GetCurrentOrUpcoming(FilterSessionsForCurrentDayDto filter);
     public Result<bool> HasAnySessionToday(FilterSessionsForCurrentDayDto filter);
     public Task<Result<List<ViewSessionHistoryDto>>> GetOngoing(string receptionistUserId);
+    public Task<Result<ViewDoctorSessionDto>> Update(string sessionId, UpdateDoctorSessionDto dto);
 }

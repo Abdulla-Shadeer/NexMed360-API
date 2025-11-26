@@ -1,4 +1,4 @@
-﻿using NexMed360Api.Entities;
+﻿using NexMed360.API.Entities.Enums;
 
 namespace NexMed360Api.Dtos.doctorSession;
 

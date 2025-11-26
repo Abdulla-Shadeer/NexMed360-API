@@ -1,4 +1,5 @@
-﻿using NexMed360Api.Common.ApplicationErrors;
+﻿using NexMed360.API.Entities.Enums;
+using NexMed360Api.Common.ApplicationErrors;
 using NexMed360Api.Data;
 using NexMed360Api.Entities;
 
