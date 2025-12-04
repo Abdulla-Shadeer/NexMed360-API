@@ -6,6 +6,7 @@ using NexMed360Api.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using NexMed360.API.Dtos.doctorSession;
 
 namespace NexMed360Api.Controllers.v1;
 
@@ -33,6 +34,22 @@ public class DoctorSessionController: ControllerBase
     public async Task<ActionResult<Result<List<ViewDoctorSessionDto>>>> Get([FromQuery] FilterDoctorSessionDto filter)
     {
         return HandleResult(await _sessionService.Get(filter));
+    }
+
+    [HttpPut]
+    [Route("Update/{sessionId}")]
+    [Authorize(Roles = $"{UserRoles.HOSPITAL_ADMIN}, {UserRoles.DOCTOR}")]
+    public async Task<ActionResult<Result<ViewDoctorSessionDto>>> Update(string sessionId, UpdateDoctorSessionDto updateSessionDto)
+    {
+        return HandleResult(await _sessionService.Update(sessionId, updateSessionDto));
+    }
+
+    [HttpDelete]
+    [Route("Delete/{sessionId}")]
+    [Authorize(Roles = $"{UserRoles.HOSPITAL_ADMIN}, {UserRoles.DOCTOR}")]
+    public async Task<ActionResult<Result<string>>> Delete(string sessionId)
+    {
+        return HandleResult(await _sessionService.Delete(sessionId));
     }
 
     [HttpGet]
