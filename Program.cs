@@ -50,7 +50,9 @@ public class Program
         // Configure microsoft extension logging
         builder.Logging.AddConfiguration();
         builder.Logging.SetMinimumLevel(LogLevel.Debug);
-        builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.Warning);
+        builder.Logging
+            .AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.Warning)
+            .AddFilter("Microsoft.AspNetCore.Watch*", LogLevel.Error);
 
         // Add DB context
         builder.Services.AddApplicationDbContext(_config);
@@ -86,7 +88,7 @@ public class Program
         builder.Services.AddAuthorization();
 
         // Add services to the container.
-        builder.Services.AddAutoMapper(typeof(MappingProfile));
+        builder.Services.AddAutoMapper(cfg => cfg.LicenseKey = _config["AutoMapper:LicenceKey"], typeof(MappingProfile));
         builder.Services.AddScoped<IDbInitializerService, DbInitializerService>();
         builder.Services.AddScoped<IOverviewService, OverviewService>();
         builder.Services.AddScoped<IUserService, UserService>();
@@ -121,7 +123,7 @@ public class Program
 
             foreach (var description in provider.ApiVersionDescriptions)
             {
-                opt.SwaggerDoc(description.GroupName, new Microsoft.OpenApi.Models.OpenApiInfo
+                opt.SwaggerDoc(description.GroupName, new Microsoft.OpenApi.OpenApiInfo
                 {
                     Title = $"NexMed 360 API {description.ApiVersion}",
                     Version = description.ApiVersion.ToString(),

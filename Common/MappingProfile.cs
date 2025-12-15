@@ -132,8 +132,8 @@ public class MappingProfile: Profile
         CreateMap<AddClinicRecordDto, ClinicRecord>()
             .ForMember(dest => dest.VisitDate, opt => opt.MapFrom(_ => DateTime.UtcNow));
         CreateMap<ClinicRecord, ViewClinicRecordDto>()
-            .ForMember(dest => dest.PatientName, opt => opt.MapFrom(src => string.Join(" ", src.Patient.User.FirstName, src.Patient.User.LastName)))
-            .ForMember(dest => dest.DoctorName, opt => opt.MapFrom(src => string.Join(" ", src.Doctor.User.FirstName, src.Doctor.User.LastName)));
+            .ForMember(dest => dest.PatientName, opt => opt.MapFrom(src => string.Concat(src.Patient.User.FirstName, " ", src.Patient.User.LastName)))
+            .ForMember(dest => dest.DoctorName, opt => opt.MapFrom(src => string.Concat(src.Doctor.User.FirstName, " ", src.Doctor.User.LastName)));
         CreateMap<AddPrescriptionDto, Prescription>();
         CreateMap<Prescription, ViewPrescriptionDto>()
             .ForMember(dest => dest.IssuedByDoctor, opt => opt.MapFrom(src => $"{src.ClinicRecord.Doctor.User.FirstName} {src.ClinicRecord.Doctor.User.LastName}"))

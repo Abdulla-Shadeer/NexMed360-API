@@ -99,7 +99,7 @@ public class DoctorSessionService : IDoctorSessionService
             .Select(ss => _mapper.Map<ViewSessionSlotDto>(ss))
             .ToListAsync();
 
-        if (existingSlots != null && !existingSlots.IsNullOrEmpty())
+        if (existingSlots != null && existingSlots.Count > 0)
         {
             return Result<List<ViewSessionSlotDto>>.Success(existingSlots);
         }

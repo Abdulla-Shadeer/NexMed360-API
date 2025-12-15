@@ -5,13 +5,10 @@ using NexMed360Api.Common.Auth;
 using NexMed360Api.Data;
 using NexMed360Api.Dtos.Doctor;
 using NexMed360Api.Dtos.Hospital;
-using NexMed360Api.Dtos.Patient;
 using NexMed360Api.Dtos.Search;
 using NexMed360Api.Dtos.User;
 using NexMed360Api.Interfaces.Services;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
-using System.Collections.Generic;
 using System.Security.Claims;
 
 namespace NexMed360Api.Services;
@@ -64,7 +61,7 @@ public class SearchService : ISearchService
         var foundUserIds = await _context.Patients
             .Where(p => type == InputTypes.Email ?
                 EF.Functions.ILike(p.User.Email!, $"%{input}%") :
-                EF.Functions.ILike(string.Join(" ", p.User.FirstName, p.User.LastName), $"%{input}%")
+                EF.Functions.ILike(string.Concat(p.User.FirstName, " ", p.User.LastName), $"%{input}%")
                 )
             .Select(p => p.UserId)
             .ToListAsync();
@@ -87,7 +84,7 @@ public class SearchService : ISearchService
         var foundUserIds = await _context.Doctors
             .Where(d => type == InputTypes.Email ?
                 EF.Functions.ILike(d.User.Email!, $"%{input}%") :
-                EF.Functions.ILike(string.Join(" ", d.User.FirstName, d.User.LastName), $"%{input}%")
+                EF.Functions.ILike(string.Concat(d.User.FirstName, " ", d.User.LastName), $"%{input}%")
                 )
             .Select(d => d.UserId)
             .ToListAsync();
@@ -123,7 +120,7 @@ public class SearchService : ISearchService
             .Include(dr => dr.User)
             .Include(dr => dr.Hospital)
             .Where(dr =>
-                (String.IsNullOrEmpty(dto.Name) || EF.Functions.ILike(string.Join(" ", dr.User.FirstName, dr.User.LastName), $"%{dto.Name}%")) &&
+                (String.IsNullOrEmpty(dto.Name) || EF.Functions.ILike(string.Concat(dr.User.FirstName, " ", dr.User.LastName), $"%{dto.Name}%")) &&
                 (String.IsNullOrEmpty(dto.Email) || EF.Functions.ILike(dr.User.Email!, $"%{dto.Email}%")) &&
                 (String.IsNullOrEmpty(dto.Speciality) || EF.Functions.ILike(dr.Speciality, $"%{dto.Speciality}%")))
             .Select(dr => _mapper.Map<ViewDoctorDto>(dr))
