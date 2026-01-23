@@ -1,24 +1,44 @@
-This is free and unencumbered software released into the public domain.
+Proprietary License — All Rights Reserved
 
-Anyone is free to copy, modify, publish, use, compile, sell, or
-distribute this software, either in source code form or as a compiled
-binary, for any purpose, commercial or non-commercial, and by any
-means.
+Copyright (c) 2026 Shadeer Abdullah
+All rights reserved.
 
-In jurisdictions that recognize copyright laws, the author or authors
-of this software dedicate any and all copyright interest in the
-software to the public domain. We make this dedication for the benefit
-of the public at large and to the detriment of our heirs and
-successors. We intend this dedication to be an overt act of
-relinquishment in perpetuity of all present and future rights to this
-software under copyright law.
+1. License Grant
+   No license, express or implied, is granted to any person or entity to use, copy, modify,
+   distribute, sublicense, publicly display, perform, or create derivative works of this
+   software, documentation, or any part thereof (collectively, the "Software") in any form or
+   by any means without the prior express written permission of the Copyright Holder.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
-OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
-ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
-OTHER DEALINGS IN THE SOFTWARE.
+2. Prohibited Actions
+   Without prior written permission from the Copyright Holder, you may not:
+   a) reproduce, publish, distribute, or sell the Software or any portion thereof;
+   b) modify, adapt, translate, reverse engineer, decompile, disassemble, or create
+      derivative works based upon the Software;
+   c) use the Software in any commercial, public, or private projects;
+   d) remove or alter any copyright, trademark, or other proprietary notices contained in the
+      Software.
 
-For more information, please refer to <https://unlicense.org>
+3. Requests for Permission
+   Requests for permission to use the Software must be made in writing to the Copyright Holder.
+   Provide a description of the intended use, the timeframe, and the legal entity or individual
+   who will use the Software. Contact: sdrmabdullah@gmail.com
+
+4. Termination
+   Any unauthorized use of the Software automatically terminates any rights you may otherwise
+   claim. The Copyright Holder reserves all rights not expressly granted herein.
+
+5. No Warranty
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+   INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+   PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY
+   CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+   ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+   SOFTWARE.
+
+6. Governing Law
+   This License is governed by and construed in accordance with the laws of the jurisdiction of
+   the Copyright Holder’s residence (to be determined by the Copyright Holder). Any dispute
+   arising under this License shall be subject to the exclusive jurisdiction of the courts in
+   that jurisdiction.
+
+Effective Date: January 23, 2026
