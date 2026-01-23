@@ -27,7 +27,7 @@ public class Program
         string endpoint = builder.Configuration["APP_CONFIG_ENDPOINT"]
             ?? throw new InvalidOperationException("The setting `APP_CONFIG_ENDPOINT` was not found.");
 
-        // Load configuration from Azure App Configuration 
+        // Load configuration from Azure App Configuration
         builder.Configuration.AddAzureAppConfiguration(options =>
         {
             options

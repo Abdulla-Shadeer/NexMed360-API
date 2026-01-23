@@ -82,6 +82,9 @@ The architecture is implemented using four physical projects. Dependencies must 
     </tr>
 </table>
 
+## 2.1. Application Architecture Diagram
+![Application Architecture](assets/Application_Architecture.png "Application Architecture")
+
 </br>
 
 # 3. Domain-Driven Design (DDD) Patterns
@@ -241,6 +244,33 @@ public class Result<T>
 - **API Middleware:** The `NexMed360.API` project must implement global Exception Handling Middleware to intercept all custom exceptions and translate them into appropriate HTTP status codes with a standardized `Result<T>` JSON payload.
 
 </br>
+
+# 6. Deployment Architecture
+The system is designed as a cloud native application to be hosted on Microsoft Azure.
+
+!["Deployment Architecture"](assets/Deployment_Architecture.png "Deployment Architecture")
+
+As illustrated in the Deployment architecture diagram above, the deployment pipeline
+and runtime environment consist of:
+- **CI/CD Pipeline:** Developers push code to GitHub, triggering GitHub Actions.
+This pipeline runs unit tests, performs code analysis via SonarCloud, builds
+Docker container images, and pushes them to the Azure Container Registry
+(ACR).
+
+- **Runtime Environment:** The application runs on Azure Container Apps (ACA)
+within a managed Virtual Network. This environment hosts both the API
+container and the Auth Service container behind an Ingress Controller with
+traffic routing rules.
+
+- **Data Persistence:** A PostgreSQL Flexible Server is deployed in a private
+subnet, ensuring that the database is not exposed directly to the public
+internet. Connection between the API and Database is secured via private
+endpoints.
+
+- **Security & Monitoring:** Azure Key Vault manages secrets and configuration
+strings, while Log Analytics workspaces aggregate logs from all containers for
+monitoring.
+
 
 # Additional Notes
 
