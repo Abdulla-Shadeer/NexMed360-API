@@ -1,9 +1,17 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.8.34316.72
+# Visual Studio Version 18
+VisualStudioVersion = 18.1.11312.151
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexMed360.API", "NexMed360.API.csproj", "{FC659F3B-61F1-46DC-B028-0859F00BE16C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexMed360.API.Old", "NexMed360.API.Old\NexMed360.API.Old.csproj", "{FC75707F-E63E-DC73-720F-6143DDED30F1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexMed360.Domain", "NexMed360.Domain\NexMed360.Domain.csproj", "{D2420078-EC06-4560-AA0C-CD8ED919496C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexMed360.Application", "NexMed360.Application\NexMed360.Application.csproj", "{34757DFD-8418-43F9-A82D-7205EB89FAA1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexMed360.Api", "NexMed360.Api\NexMed360.Api.csproj", "{5362CD71-8132-4005-B82D-D4491CD65572}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexMed360.Infrastructure", "NexMed360.Infrastructure\NexMed360.Infrastructure.csproj", "{E895D1EB-0836-4D63-9ADE-4C3F48987D80}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -11,10 +19,26 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{FC659F3B-61F1-46DC-B028-0859F00BE16C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{FC659F3B-61F1-46DC-B028-0859F00BE16C}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{FC659F3B-61F1-46DC-B028-0859F00BE16C}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{FC659F3B-61F1-46DC-B028-0859F00BE16C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FC75707F-E63E-DC73-720F-6143DDED30F1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FC75707F-E63E-DC73-720F-6143DDED30F1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FC75707F-E63E-DC73-720F-6143DDED30F1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FC75707F-E63E-DC73-720F-6143DDED30F1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D2420078-EC06-4560-AA0C-CD8ED919496C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D2420078-EC06-4560-AA0C-CD8ED919496C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D2420078-EC06-4560-AA0C-CD8ED919496C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D2420078-EC06-4560-AA0C-CD8ED919496C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{34757DFD-8418-43F9-A82D-7205EB89FAA1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{34757DFD-8418-43F9-A82D-7205EB89FAA1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{34757DFD-8418-43F9-A82D-7205EB89FAA1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{34757DFD-8418-43F9-A82D-7205EB89FAA1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5362CD71-8132-4005-B82D-D4491CD65572}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5362CD71-8132-4005-B82D-D4491CD65572}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5362CD71-8132-4005-B82D-D4491CD65572}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5362CD71-8132-4005-B82D-D4491CD65572}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E895D1EB-0836-4D63-9ADE-4C3F48987D80}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E895D1EB-0836-4D63-9ADE-4C3F48987D80}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E895D1EB-0836-4D63-9ADE-4C3F48987D80}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E895D1EB-0836-4D63-9ADE-4C3F48987D80}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

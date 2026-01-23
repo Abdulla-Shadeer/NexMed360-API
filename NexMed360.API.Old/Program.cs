@@ -1,5 +1,11 @@
 using Asp.Versioning.ApiExplorer;
 using Azure.Identity;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Configuration;
+using Microsoft.IdentityModel.Tokens;
 using NexMed360Api.Common;
 using NexMed360Api.Common.Exceptions;
 using NexMed360Api.Data;
@@ -7,11 +13,6 @@ using NexMed360Api.Entities;
 using NexMed360Api.Extensions;
 using NexMed360Api.Interfaces.Services;
 using NexMed360Api.Services;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Configuration;
-using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
 namespace NexMed360Api;
