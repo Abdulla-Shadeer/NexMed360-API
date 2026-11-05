@@ -68,7 +68,8 @@ public class UsersController : ControllerBase
     [Authorize]
     public async Task<ActionResult<Result<ViewUserDto>>> UpdateUser(UpdateUserDto updateUserDto)
     {
-        var updatedUser = await _userService.UpdateUser(updateUserDto);
+        var requesterUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var updatedUser = await _userService.UpdateUser(updateUserDto, requesterUserId);
         if (updatedUser.IsSuccess)
         {
             return Ok(updatedUser);

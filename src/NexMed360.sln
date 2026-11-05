@@ -13,12 +13,18 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexMed360.Api", "NexMed360.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexMed360.Infrastructure", "NexMed360.Infrastructure\NexMed360.Infrastructure.csproj", "{E895D1EB-0836-4D63-9ADE-4C3F48987D80}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NexMed360.API.Old.Tests", "..\tests\NexMed360.API.Old.Tests\NexMed360.API.Old.Tests.csproj", "{6F52ED01-EA54-4B28-AB3A-B101D43462C8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{6F52ED01-EA54-4B28-AB3A-B101D43462C8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6F52ED01-EA54-4B28-AB3A-B101D43462C8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6F52ED01-EA54-4B28-AB3A-B101D43462C8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6F52ED01-EA54-4B28-AB3A-B101D43462C8}.Release|Any CPU.Build.0 = Release|Any CPU
 		{FC75707F-E63E-DC73-720F-6143DDED30F1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{FC75707F-E63E-DC73-720F-6143DDED30F1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FC75707F-E63E-DC73-720F-6143DDED30F1}.Release|Any CPU.ActiveCfg = Release|Any CPU

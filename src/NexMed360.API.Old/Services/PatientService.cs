@@ -94,12 +94,17 @@ public class PatientService : IPatientService
         return Result<ViewClinicRecordDto>.Success(_mapper.Map<ViewClinicRecordDto>(addedClinicRecord));
     }
 
-    public async Task<Result<ViewClinicRecordDto>> ViewClinicRecord(string id)
+    public async Task<Result<ViewClinicRecordDto>> ViewClinicRecord(string id, string? requesterUserId, bool isDoctor)
     {
+        if (string.IsNullOrWhiteSpace(requesterUserId))
+            return Result<ViewClinicRecordDto>.Failure(ErrorCode.SYS_Unauthorized);
+
         if (!Guid.TryParse(id, out var clinicRecordId))
             return Result<ViewClinicRecordDto>.Failure(ErrorCode.SYS_InvalidGuid, "Invalid clinic record ID format.");
 
+        // isDoctor is supplied from the authenticated principal by the controller.
         var clinicRecord = await _dbContext.ClinicRecords
+            .Where(cr => isDoctor || cr.Patient.UserId == requesterUserId)
             .Include(cr => cr.Doctor)
             .ThenInclude(dr => dr.User)
             .Include(cr => cr.Doctor)
@@ -115,16 +120,20 @@ public class PatientService : IPatientService
         return Result<ViewClinicRecordDto>.Success(_mapper.Map<ViewClinicRecordDto>(clinicRecord));
     }
 
-    public async Task<Result<List<ViewClinicRecordDto>>> ViewAllClinicRecords(string patientId)
+    public async Task<Result<List<ViewClinicRecordDto>>> ViewAllClinicRecords(string patientId, string? requesterUserId, bool isDoctor)
     {
+        if (string.IsNullOrWhiteSpace(requesterUserId))
+            return Result<List<ViewClinicRecordDto>>.Failure(ErrorCode.SYS_Unauthorized);
+
         if (!Guid.TryParse(patientId, out var id))
             return Result<List<ViewClinicRecordDto>>.Failure(ErrorCode.SYS_InvalidGuid, "Invalid patient ID format.");
 
-        if (!await _dbContext.Patients.AnyAsync(p => p.Id == id))
+        if (!await _dbContext.Patients.AnyAsync(p =>
+            p.Id == id && (isDoctor || p.UserId == requesterUserId)))
             return Result<List<ViewClinicRecordDto>>.Failure(ErrorCode.USR_NotFound, $"Patient with ID '{patientId}' not found.");
 
         var clinicRecords = await _dbContext.ClinicRecords
-            .Where(cr => cr.PatientId == id)
+            .Where(cr => cr.PatientId == id && (isDoctor || cr.Patient.UserId == requesterUserId))
             .Include(cr => cr.Doctor)
             .ThenInclude(dr => dr.User)
             .Include(cr => cr.Doctor)

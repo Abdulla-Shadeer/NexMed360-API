@@ -179,7 +179,14 @@ public class UserService : IUserService
         }
     }
 
-    public async Task<Result<ViewUserDto>> UpdateUser(UpdateUserDto updateDto) {
+    public async Task<Result<ViewUserDto>> UpdateUser(UpdateUserDto updateDto, string? requesterUserId) {
+        if (string.IsNullOrWhiteSpace(requesterUserId))
+            return Result<ViewUserDto>.Failure(ErrorCode.SYS_Unauthorized);
+
+        if (!string.Equals(updateDto.Id, requesterUserId, StringComparison.Ordinal))
+            return Result<ViewUserDto>.Failure(ErrorCode.SYS_Unauthorized,
+                "You can update only your own account.", 403);
+
         if (updateDto.Email != null && 
             await _context.Users.AnyAsync(u => u.Email == updateDto.Email)) {
             return Result<ViewUserDto>.Failure(ErrorCode.SYS_DuplicateEntry, $"This email '{updateDto.Email}' is already used by someone.");
@@ -193,7 +200,7 @@ public class UserService : IUserService
             .ThenInclude(rc => rc.Hospital)
             .Include(u => u.HospitalAdmin)
             .ThenInclude(hs => hs.Hospital)
-            .FirstOrDefaultAsync(u => u.Id == updateDto.Id);
+            .FirstOrDefaultAsync(u => u.Id == requesterUserId);
         if (usr == null)
             return Result<ViewUserDto>.Failure(ErrorCode.USR_NotFound);
         usr.FirstName = updateDto.FirstName ?? usr.FirstName;

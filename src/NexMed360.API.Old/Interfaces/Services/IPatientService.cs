@@ -10,7 +10,7 @@ namespace NexMed360Api.Interfaces.Services
         public Task<Result<ViewPatientDto>> CreatePatient(CreatePatientDto dto);
         public Task<Result<ViewPatientDto>> GetPatient(string id);
         public Task<Result<ViewClinicRecordDto>> AddToClinicRecords(AddClinicRecordDto dto, string doctorUserId);
-        public Task<Result<ViewClinicRecordDto>> ViewClinicRecord(string id);
-        public Task<Result<List<ViewClinicRecordDto>>> ViewAllClinicRecords(string patientId);
+        public Task<Result<ViewClinicRecordDto>> ViewClinicRecord(string id, string? requesterUserId, bool isDoctor);
+        public Task<Result<List<ViewClinicRecordDto>>> ViewAllClinicRecords(string patientId, string? requesterUserId, bool isDoctor);
     }
 }

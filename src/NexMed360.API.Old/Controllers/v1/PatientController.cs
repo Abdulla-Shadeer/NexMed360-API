@@ -55,7 +55,9 @@ public class PatientController : ControllerBase
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<Result<ViewClinicRecordDto>>> GetClinicRecord(string recordId)
     {
-        return HandleResult(await _patientService.ViewClinicRecord(recordId));
+        var requesterUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return HandleResult(await _patientService.ViewClinicRecord(
+            recordId, requesterUserId, User.IsInRole(UserRoles.DOCTOR)));
     }
 
     [HttpGet]
@@ -66,7 +68,9 @@ public class PatientController : ControllerBase
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<Result<List<ViewClinicRecordDto>>>> GetClinicRecords(string patientId)
     {
-        return HandleResult(await _patientService.ViewAllClinicRecords(patientId));
+        var requesterUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return HandleResult(await _patientService.ViewAllClinicRecords(
+            patientId, requesterUserId, User.IsInRole(UserRoles.DOCTOR)));
     }
 
     private ActionResult<Result<T>> HandleResult<T>(Result<T> result, bool isCreatedResult = false)

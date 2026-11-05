@@ -7,6 +7,7 @@ using NexMed360Api.Entities;
 using NexMed360Api.Entities.Enums;
 using NexMed360Api.Interfaces.Services;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace NexMed360Api.Services;
 
@@ -37,6 +38,14 @@ public class AppointmentService : IAppointmentService
             return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_BadRequest, "No session found for given slot ID!");
         }
 
+        if (!session.IsActive)
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_DoctorUnavailable,
+                "The doctor session is inactive and cannot accept bookings.");
+
+        if (!slotToBook.IsAvailable || !slotToBook.BookingAllowed)
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_DoctorUnavailable,
+                "The selected slot is not available for booking.");
+
         var appointment = new Appointment() 
         { 
             PatientId = createAppointment.PatientId,
@@ -51,7 +60,23 @@ public class AppointmentService : IAppointmentService
 
         var newAppointmentId = (await _context.Appointments.AddAsync(appointment)).Entity.Id;
         slotToBook.IsAvailable = false;
-        await _context.SaveChangesAsync();
+        try
+        {
+            // EF saves the appointment and slot together in its database transaction.
+            await _context.SaveChangesAsync();
+        }
+        catch (DbUpdateException exception) when (exception.InnerException is PostgresException
+            {
+                SqlState: PostgresErrorCodes.UniqueViolation,
+                ConstraintName: ApplicationDbContext.NonCancelledSlotIndexName
+            })
+        {
+            // The failed save was rolled back. Do not retain a pending failed insert.
+            _context.Entry(appointment).State = EntityState.Detached;
+            await _context.Entry(slotToBook).ReloadAsync();
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_DoctorUnavailable,
+                "The selected slot has already been booked. Please choose another slot.");
+        }
 
         var createdAppointment = await LoadFullAppointmentData(newAppointmentId);
         return Result<ViewAppointmentDto>.Success(_mapper.Map<ViewAppointmentDto>(createdAppointment));

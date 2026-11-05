@@ -23,30 +23,56 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
-        // Retrieve the app config endpoint
-        string endpoint = builder.Configuration["APP_CONFIG_ENDPOINT"]
-            ?? throw new InvalidOperationException("The setting `APP_CONFIG_ENDPOINT` was not found.");
+        // Local development can explicitly bypass Azure without changing deployed settings.
+        bool useAzureAppConfiguration = builder.Configuration
+            .GetValue("AzureAppConfiguration:Enabled", true);
 
-        // Load configuration from Azure App Configuration
-        builder.Configuration.AddAzureAppConfiguration(options =>
+        if (useAzureAppConfiguration)
         {
-            options
-            .Select("*", builder.Environment.EnvironmentName)
-            .Select("Auth*")
-            .ConfigureRefresh(cfg =>
-            {
-                // Max 1000 requests per day in free tier
-                // 1440 minutes in a day / 10 minutes interval = 144 requests per day by one instance
-                // There is enough room for other instances to refresh as well
-                cfg.SetRefreshInterval(TimeSpan.FromMinutes(10))
-                .RegisterAll();
-            })
-            .Connect(new Uri(endpoint), new DefaultAzureCredential());
-        });
+            string endpoint = builder.Configuration["APP_CONFIG_ENDPOINT"]
+                ?? throw new InvalidOperationException("The setting `APP_CONFIG_ENDPOINT` was not found. "
+                    + "For local configuration, set `AzureAppConfiguration:Enabled` to false.");
 
-        builder.Services.AddAzureAppConfiguration();
+            builder.Configuration.AddAzureAppConfiguration(options =>
+            {
+                options
+                    .Select("*", builder.Environment.EnvironmentName)
+                    .Select("Auth*")
+                    .ConfigureRefresh(cfg =>
+                    {
+                        cfg.SetRefreshInterval(TimeSpan.FromMinutes(10)).RegisterAll();
+                    })
+                    .Connect(new Uri(endpoint), new DefaultAzureCredential());
+            });
+
+            // Explicit environment and command-line values take precedence over Azure.
+            builder.Configuration.AddEnvironmentVariables().AddCommandLine(args);
+            builder.Services.AddAzureAppConfiguration();
+        }
 
         IConfiguration _config = builder.Configuration;
+        bool migrateOnStartup = _config.GetValue("DatabaseInitialization:MigrateOnStartup", false);
+        bool seedOnStartup = _config.GetValue("DatabaseInitialization:SeedOnStartup", false);
+
+        // Report missing settings before constructing services or accessing the database.
+        string[] requiredSettings = [
+            "ConnectionStrings:DefaultConnection",
+            "Auth:Jwt:Issuer",
+            "Auth:Jwt:Audience",
+            "Auth:Jwt:Signing-Key",
+            "Auth:Jwt:Validity"
+        ];
+        var missingSettings = requiredSettings
+            .Where(key => string.IsNullOrWhiteSpace(_config[key])).ToList();
+        if (seedOnStartup && string.IsNullOrWhiteSpace(_config["Auth:SuperUserPassword"]))
+        {
+            missingSettings.Add("Auth:SuperUserPassword");
+        }
+        if (missingSettings.Count > 0)
+        {
+            throw new InvalidOperationException("Required configuration is missing: "
+                + string.Join(", ", missingSettings));
+        }
 
         // Configure microsoft extension logging
         builder.Logging.AddConfiguration();
@@ -101,9 +127,6 @@ public class Program
         builder.Services.AddScoped<IDoctorSessionService, DoctorSessionService>();
         builder.Services.AddScoped<GlobalExceptionMiddleware>();
 
-        // Migrate and seed database
-        await MigrateAndSeedDatabaseAsync(builder.Services.BuildServiceProvider());
-
         builder.Services.AddControllers()
             .ConfigureApiBehaviorOptions(opt => 
             opt.InvalidModelStateResponseFactory = InvalidModelStateResponseFactory.Function );
@@ -134,7 +157,19 @@ public class Program
         });
 
         var app = builder.Build();
-        app.UseAzureAppConfiguration();
+        if (migrateOnStartup || seedOnStartup)
+        {
+            await InitializeDatabaseAsync(app.Services);
+        }
+        else
+        {
+            app.Logger.LogInformation("Startup database migration and seeding are disabled.");
+        }
+
+        if (useAzureAppConfiguration)
+        {
+            app.UseAzureAppConfiguration();
+        }
         // Configure the HTTP request pipeline.
         if (app.Environment.IsDevelopment() || app.Environment.IsStaging())
         {
@@ -161,21 +196,27 @@ public class Program
 
         app.Run();
 
-        async Task MigrateAndSeedDatabaseAsync(IServiceProvider serviceProvider)
+        async Task InitializeDatabaseAsync(IServiceProvider serviceProvider)
         {
             using var scope = serviceProvider.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var dbInitializerService =
-                scope.ServiceProvider.GetRequiredService<IDbInitializerService>();
             var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
-            if (dbContext.Database.IsNpgsql())
+            if (migrateOnStartup)
             {
-                await dbContext.Database.MigrateAsync();
+                var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                if (dbContext.Database.IsNpgsql())
+                {
+                    logger.LogInformation("Applying database migrations...");
+                    await dbContext.Database.MigrateAsync();
+                }
             }
 
-            logger.LogInformation("Seeding data...");
-            await dbInitializerService.SeedData();
+            if (seedOnStartup)
+            {
+                logger.LogInformation("Seeding data...");
+                var dbInitializerService = scope.ServiceProvider.GetRequiredService<IDbInitializerService>();
+                await dbInitializerService.SeedData();
+            }
         }
     }
 }

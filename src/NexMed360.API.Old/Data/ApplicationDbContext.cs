@@ -6,15 +6,25 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using System.Text.Json;
 using NexMed360.API.Entities.Enums;
+using NexMed360Api.Entities.Enums;
 
 namespace NexMed360Api.Data;
 
 public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
     : IdentityDbContext<User>(options)
 {
+    public const string NonCancelledSlotIndexName = "UX_Appointments_NonCancelledSlot";
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+
+        // Keep the existing FK index and add a separate filtered uniqueness rule.
+        builder.Entity<Appointment>().HasIndex(appointment => appointment.SessionSlotId);
+        builder.Entity<Appointment>()
+            .HasIndex(appointment => appointment.SessionSlotId, NonCancelledSlotIndexName)
+            .IsUnique()
+            .HasFilter($"\"Status\" <> {(int)AppointmentStatus.Cancelled}");
 
         builder
             .Entity<VisitHistory>()
