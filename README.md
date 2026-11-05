@@ -15,7 +15,8 @@ performance and deployment verification remains pending.
 The sibling `NexMed-360-UI` application uses Next.js and has a committed npm
 lockfile for dependency installation. `tests/NexMed360.API.Old.Tests` contains
 focused regression tests for patient-record ownership, account-update
-authorization, booking eligibility and concurrent booking, described below.
+authorization, booking eligibility, concurrent booking, appointment reads and
+status-change and cancellation authorization, described below.
 
 ## Startup controls
 
@@ -60,8 +61,11 @@ npm run build
 
 The user reported the patient-record and account-update builds and automated
 tests passing on 5 November 2026, followed by confirmation of the
-booking-eligibility build/tests. The added concurrency checks are Not run.
-Manual security/booking checks remain unverified. The UI's
+booking-eligibility build/tests. Concurrency verification subsequently passed
+as recorded below. Appointment-read build/tests were also reported passing.
+Status-change build/tests were subsequently reported passing. The new
+cancellation checks and requester-ID migration are Not run. Manual
+security/booking checks remain unverified. The UI's
 existing `lint` script uses `next lint`; review that separately rather than
 treating a build as a standalone lint or coverage result. Docker/deployment are outside this baseline item: the
 old host's Dockerfile still names `NexMed360.API.csproj` and
@@ -275,9 +279,13 @@ same EF `SaveChangesAsync` transaction, so a failed insert rolls back that save.
 See [EF transaction behavior](https://learn.microsoft.com/en-us/ef/core/saving/transactions)
 and [PostgreSQL partial indexes](https://www.postgresql.org/docs/current/indexes-partial.html).
 
-Build/tests, snapshot/model comparison, applying the new migration and HTTP
-checks for this change: **Not run**. Existing duplicates would block the
-migration; no records are automatically removed or rewritten.
+Verification before the appointment-read change, reported by the user on
+5 November 2026: build passed; default suite 51 passed, 0 failed, 8 skipped;
+separate PostgreSQL run 8 passed, 0 failed, 0 skipped. The user also reported
+the application migration applied successfully. HTTP checks remain **Not run**.
+Re-run the current build/suite after the appointment-read changes below.
+Existing duplicates would block migration; no records are automatically removed
+or rewritten.
 
 ### Build and database-independent checks
 
@@ -316,8 +324,9 @@ before saving, so both have already read the available slot. Expected: one
 success, one 409, exactly one saved appointment and an unavailable slot. Other
 cases cover all six non-cancelled statuses blocking another booking, rollback
 of the attempted slot mutation, and retained cancelled history allowing a new
-booking. PostgreSQL results: **Not run**. Record passed/failed/skipped counts
-separately; skipped cases do not establish concurrency safety.
+booking. PostgreSQL results: **8 passed, 0 failed, 0 skipped**, reported by
+the user on 5 November 2026. Record passed/failed/skipped counts separately
+on subsequent runs; skipped cases do not establish concurrency safety.
 
 ### Apply to the configured local application target
 
@@ -344,6 +353,165 @@ flags disabled. The invariant is **not installed** on an application database
 until this migration succeeds. Confirm normal booking, two competing requests
 for the same slot (201/409 with one appointment), and cancellation/rebooking
 through the existing portal. Manual HTTP results: **Not run**.
+
+
+## Appointment-by-ID read authorization
+
+`GET /api/v1/Appointments/View/{appointmentId}` now applies the existing list
+scopes to individual reads. The controller passes the authenticated user ID and
+supported token roles separately from the requested appointment ID. The service
+filters the query before loading or mapping the appointment:
+
+| Caller role | Permitted relationship |
+| --- | --- |
+| Patient | Appointment's patient profile belongs to the caller |
+| Doctor | Appointment's assigned doctor profile belongs to the caller |
+| Receptionist | Caller's receptionist profile belongs to the appointment's hospital |
+
+Both a token role and the matching stored relationship are required. Multiple
+roles allow their combined scopes. A stored profile without its matching token
+role grants no extra access, and the booking creator alone has no access grant.
+Unrelated/missing targets return the existing appointment-not-found 404 without
+appointment data. Missing caller IDs return 401; malformed appointment IDs keep
+the existing 400. The route, DTO, response shape and string identities remain
+unchanged. No dependencies, schema or migrations change for this item.
+
+The existing test dependencies are reused. Added cases cover own patient and
+assigned-doctor reads, same/other-hospital receptionists, an unassigned doctor
+at the same hospital, an unrelated patient who created the booking, missing
+identity, missing/incorrect token roles, multiple roles, exact string IDs,
+missing/malformed targets and controller forwarding from token claims.
+Appointment-read build and automated results: **Passed, reported by the user
+on 5 November 2026**. Re-run the build/test commands above after the status
+changes below. No PostgreSQL translation or HTTP verification is inferred from
+the in-memory/controller tests.
+
+Manual checks: patient A reads their own appointment (200), then requests B's
+ID (404). The assigned doctor and same-hospital receptionist get 200; another
+doctor or a receptionist from another hospital gets 404. Missing token gets
+401. Verify authorized response data matches the existing portal, including
+appointment detail and the doctor's encounter-resume view. Results: **Not run**.
+
+This item changes individual reads only. Status-change authorization is
+covered below. Cancellation authorization, booking-actor permissions and the
+other previously identified clinical/data-ownership gaps remain subsequent
+bounded work.
+
+
+## Appointment status-change authorization
+
+The existing Confirm, Complete, ConfirmArrival and ConfirmInProgress routes
+now forward the token's user ID and roles to `ChangeStatus`. They retain their
+URLs, HTTP methods, DTO/response shape and action-selected target status.
+
+| Action | Permitted scope |
+| --- | --- |
+| Confirm, Complete, ConfirmArrival | Assigned doctor or receptionist at the appointment's hospital |
+| ConfirmInProgress | Assigned doctor only |
+
+Both the applicable token role and the stored relationship are required.
+Patient read access never grants status-change permission. A receptionist
+scope cannot grant encounter-start permission even when the same token also
+contains a Doctor role. Missing caller ID returns 401; an unsupported role
+returns 403; an unrelated or missing appointment returns the existing 404.
+Authorized access to a cancelled appointment retains the existing 410.
+
+When resetting `CancelRequested` to another status, removal of an existing
+cancellation request and the appointment update are submitted in one
+`SaveChangesAsync` call. A missing cancellation row is handled without a null
+removal. Other current transition behavior remains; this item does not add a
+complete transition state machine or resolve concurrent status/cancel races.
+
+Added tests cover the allowed actions, cross-hospital/unassigned staff denial,
+patient and mixed-role boundaries, missing identity, cancelled/missing/invalid
+targets, caller forwarding on all four routes, unchanged data on rejection,
+one-save cleanup and a simulated failure that must not persist cleanup alone.
+The existing approved test dependencies are reused. The save-boundary tests
+use InMemory and do not establish PostgreSQL-specific rollback behavior.
+Status-change build and automated tests: **Passed, reported by the user on
+5 November 2026**. Re-run after subsequent changes:
+
+```powershell
+dotnet build .\src\NexMed360.sln
+dotnet test .\tests\NexMed360.API.Old.Tests\NexMed360.API.Old.Tests.csproj
+```
+
+Manual checks on synthetic appointments: assigned doctor/front-office actions
+succeed in their permitted scope; another doctor or other-hospital receptionist
+gets 404 with no status/request changes. Patient tokens get 403 on these staff
+routes. Only the assigned doctor can start an encounter. Confirm an appointment
+with an existing cancellation request and check that the successful reset
+removes the request while keeping the slot booked. Results: **Not run**.
+
+No schema, migration or dependency changes are included. Cancellation endpoint
+authorization and booking-actor permissions remain subsequent bounded items.
+
+
+## Cancellation authorization and requester-ID correction
+
+`POST /api/v1/Appointments/Cancel` now requires the token role and the existing
+appointment relationship: its patient, assigned doctor, or a receptionist from
+its hospital. The controller forwards the token identity/roles independently
+of the request DTO. Unrelated/missing targets return the existing 404 before
+any mutation; missing caller IDs return 401. Existing malformed/cancelled target
+and duplicate-request responses remain 400/410/409 respectively.
+
+The existing cancellation flow is retained:
+
+- An authorized creator cancels immediately and releases the slot.
+- An authorized non-creator creates a cancellation request without releasing it.
+- The authorized creator can confirm that request, retaining its original
+  requester and reason. A missing request row is recreated for that action.
+- A repeated non-creator request returns the existing conflict response.
+
+The request, appointment state and any slot release are saved together. The
+route, DTO and response shape are unchanged. Cancellation/status races and a
+complete lifecycle state machine remain outside this bounded fix.
+
+`CancellationRequest.RequestedById` is now a required string, matching the
+application's string user IDs. The service stores the exact authenticated ID
+without `Guid.Parse`. Migration `20261105000200_StoreCancellationRequesterAsString`
+changes the existing column from UUID to text using its existing UUID text
+representation. It does not change user/account IDs, delete history or add a
+foreign key or dependency. The earlier appointment uniqueness index remains.
+See [PostgreSQL column-type conversion](https://www.postgresql.org/docs/current/sql-altertable.html).
+The reverse migration rejects non-UUID string IDs; it does not delete or replace
+them to force a rollback.
+
+Build, unit tests, PostgreSQL tests, the new migration and HTTP checks for this
+change: **Not run**. The model-comparison test now also checks the required text
+requester property and the updated migration snapshot. Unit cases cover actor
+scope, existing cancellation outcomes, non-GUID IDs, caller forwarding, unchanged
+state on rejection, one-save mutation and simulated save failure.
+
+Run the build/default suite from the API repository:
+
+```powershell
+dotnet build .\src\NexMed360.sln
+dotnet test .\tests\NexMed360.API.Old.Tests\NexMed360.API.Old.Tests.csproj
+```
+
+Without PostgreSQL configuration, the expected integration skip count is now
+**10**. Reuse the separate `nexmed360_booking_tests` target from the PostgreSQL
+instructions above and rerun `--filter 'Category=PostgreSQL'` after rebuilding.
+The eight earlier cases remain. Two new cases exercise string requester IDs
+through a receptionist request, patient-creator confirmation and rebooking,
+and the actual migration's conversion SQL on a session-local temporary table
+with an existing UUID reference. The conversion test also checks that an
+attempted UUID rollback refuses an opaque string without discarding the two
+probe rows. No public application table is downgraded for that probe.
+
+After build/test review, apply the new migration to the confirmed disposable
+application target using the explicit migrate-on-startup command above with
+seeding disabled, then restart normally. The new cancellation code requires
+this column migration before use. Migration application: **Not run**.
+
+Manual checks: unrelated patient/doctor/other-hospital receptionist gets 404
+with no request, appointment or slot changes. Authorized non-creator request
+keeps the slot occupied; creator confirmation cancels and releases it; a new
+booking then succeeds. Check existing requester references and the portal's
+response behavior. HTTP results: **Not run**. Booking-actor permissions and the
+other previously identified clinical/data-ownership gaps remain separate work.
 
 ---
 

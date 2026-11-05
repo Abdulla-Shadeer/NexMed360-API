@@ -1,6 +1,7 @@
 ﻿using AutoMapper;
 using NexMed360Api.Common;
 using NexMed360Api.Common.ApplicationErrors;
+using NexMed360Api.Common.Auth;
 using NexMed360Api.Data;
 using NexMed360Api.Dtos.Appointment;
 using NexMed360Api.Entities;
@@ -215,79 +216,93 @@ public class AppointmentService : IAppointmentService
             : _context.Patients.Any(p => p.Id == id);
     }
 
-    public async Task<Result<ViewAppointmentDto>> Get(string appointmentId)
+    public async Task<Result<ViewAppointmentDto>> Get(
+        string appointmentId, string? requesterId, IReadOnlyCollection<string> requesterRoles)
     {
+        if (string.IsNullOrWhiteSpace(requesterId))
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_Unauthorized);
+
         if (!Guid.TryParse(appointmentId, out var id))
             return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_InvalidGuid);
 
-        var appointment = await LoadFullAppointmentData(id);
-
+        var appointment = await LoadFullAppointmentData(ReadableAppointments(requesterId, requesterRoles), id);
         if (appointment == null)
             return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_NotFound);
 
         return Result<ViewAppointmentDto>.Success(_mapper.Map<ViewAppointmentDto>(appointment));
     }
 
-    public async Task<Result<ViewAppointmentDto>> Cancel(CancellationRequestDto cancellationRequestDto, string requesterId)
+    public async Task<Result<ViewAppointmentDto>> Cancel(
+        CancellationRequestDto cancellationRequestDto, string? requesterId, IReadOnlyCollection<string> requesterRoles)
     {
+        if (string.IsNullOrWhiteSpace(requesterId))
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_Unauthorized);
+
         if (!Guid.TryParse(cancellationRequestDto.AppointmentId, out var appointmentId))
             return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_InvalidGuid, "AppointmentId has invalid GUID format!");
 
-        var appointment = await LoadFullAppointmentData(appointmentId);
-
+        var appointment = await LoadFullAppointmentData(ReadableAppointments(requesterId, requesterRoles), appointmentId);
         if (appointment == null)
             return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_NotFound);
 
         if (appointment.Status == AppointmentStatus.Cancelled)
             return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_Cancelled);
 
-        var bookedSlot = await _context.SessionSlots.FirstOrDefaultAsync(ss => ss.Id == appointment.SessionSlotId);
-
-        if (appointment.Status == AppointmentStatus.CancelRequested && appointment.CreatedByUserId == requesterId)
-        {
-            appointment.Status = AppointmentStatus.Cancelled;
-            var existingRequest = await _context.CancellationRequests.FirstOrDefaultAsync(cr => cr.AppointmentId == appointmentId);
-            existingRequest!.Status = AppointmentStatus.Cancelled;
-
-            bookedSlot!.IsAvailable = true;
-
-            await _context.SaveChangesAsync();
-            return Result<ViewAppointmentDto>.Success(_mapper.Map<ViewAppointmentDto>(appointment));
-        }
-
-        if (appointment.Status == AppointmentStatus.CancelRequested && appointment.CreatedByUserId != requesterId)
-        {
+        var isCreator = appointment.CreatedByUserId == requesterId;
+        if (appointment.Status == AppointmentStatus.CancelRequested && !isCreator)
             return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_CancellationAlreadyRequested);
+
+        var cancellationRequest = appointment.Status == AppointmentStatus.CancelRequested
+            ? await _context.CancellationRequests.FirstOrDefaultAsync(cr => cr.AppointmentId == appointmentId)
+            : null;
+        if (cancellationRequest == null)
+        {
+            cancellationRequest = new CancellationRequest
+            {
+                AppointmentId = appointmentId,
+                RequestedById = requesterId,
+                Reason = cancellationRequestDto.Reason,
+                CreatedDate = DateTime.UtcNow,
+            };
+            await _context.CancellationRequests.AddAsync(cancellationRequest);
         }
 
-        // Now new cancellation request can be created
-        var cancellationRequest = new CancellationRequest
-        {
-            AppointmentId = appointmentId,
-            RequestedById = Guid.Parse(requesterId),
-            Reason = cancellationRequestDto.Reason,
-            CreatedDate = DateTime.UtcNow,
-        };
-
-        if (appointment.CreatedByUserId == requesterId)
+        if (isCreator)
         {
             appointment.Status = AppointmentStatus.Cancelled;
             cancellationRequest.Status = AppointmentStatus.Cancelled;
-            bookedSlot!.IsAvailable = true;
+            appointment.SessionSlot.IsAvailable = true;
         }
         else
         {
             appointment.Status = AppointmentStatus.CancelRequested;
             cancellationRequest.Status = AppointmentStatus.CancelRequested;
         }
-        await _context.CancellationRequests.AddAsync(cancellationRequest);
+
+        // Persist the request, status and any slot release together.
         await _context.SaveChangesAsync();
         return Result<ViewAppointmentDto>.Success(_mapper.Map<ViewAppointmentDto>(appointment));
     }
 
-    private async Task<Appointment?> LoadFullAppointmentData(Guid appointmentId)
+    private IQueryable<Appointment> ReadableAppointments(string requesterId, IReadOnlyCollection<string> requesterRoles)
     {
-        return await _context.Appointments
+        // Roles come from the authenticated principal, separately from the requested ID.
+        var isPatient = requesterRoles.Contains(UserRoles.PATIENT);
+        var isDoctor = requesterRoles.Contains(UserRoles.DOCTOR);
+        var isReceptionist = requesterRoles.Contains(UserRoles.RECEPTIONIST);
+        return _context.Appointments.Where(appointment =>
+            (isPatient && appointment.Patient.UserId == requesterId)
+            || (isDoctor && appointment.Doctor.UserId == requesterId)
+            || (isReceptionist && _context.Receptionists.Any(receptionist =>
+                receptionist.UserId == requesterId && receptionist.HospitalId == appointment.HospitalId)));
+    }
+
+    private Task<Appointment?> LoadFullAppointmentData(Guid appointmentId)
+        => LoadFullAppointmentData(_context.Appointments, appointmentId);
+
+    private async Task<Appointment?> LoadFullAppointmentData(IQueryable<Appointment> appointments, Guid appointmentId)
+    {
+        return await appointments
                 .Where(appt => appt.Id == appointmentId)
                 .Include(appt => appt.Patient)
                 .ThenInclude(pat => pat.User)
@@ -299,12 +314,23 @@ public class AppointmentService : IAppointmentService
                 .FirstOrDefaultAsync();
     }
 
-    public async Task<Result<ViewAppointmentDto>> ChangeStatus(string appointmentId, AppointmentStatus status)
+    public async Task<Result<ViewAppointmentDto>> ChangeStatus(
+        string appointmentId, AppointmentStatus status, string? requesterId, IReadOnlyCollection<string> requesterRoles)
     {
+        if (string.IsNullOrWhiteSpace(requesterId))
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_Unauthorized);
+
         if (!Guid.TryParse(appointmentId, out var id))
             return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_InvalidGuid);
 
-        var appointment = await LoadFullAppointmentData(id);
+        // Patients cannot change status. Only the assigned doctor can start an encounter.
+        var staffRoles = requesterRoles.Where(role => role == UserRoles.DOCTOR
+            || (role == UserRoles.RECEPTIONIST && status != AppointmentStatus.InProgress)).ToArray();
+        if (staffRoles.Length == 0)
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_Unauthorized,
+                "Your role cannot perform this appointment status change.", 403);
+
+        var appointment = await LoadFullAppointmentData(ReadableAppointments(requesterId, staffRoles), id);
         if (appointment == null)
             return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_NotFound);
 
@@ -315,8 +341,8 @@ public class AppointmentService : IAppointmentService
         if (appointment.Status == AppointmentStatus.CancelRequested && status != AppointmentStatus.CancelRequested)
         {
             var cancellationRequest = await _context.CancellationRequests.FirstOrDefaultAsync(cr => cr.AppointmentId == id);
-            _context.CancellationRequests.Remove(cancellationRequest!);
-            await _context.SaveChangesAsync();
+            if (cancellationRequest != null)
+                _context.CancellationRequests.Remove(cancellationRequest);
         }
 
         appointment.Status = status;

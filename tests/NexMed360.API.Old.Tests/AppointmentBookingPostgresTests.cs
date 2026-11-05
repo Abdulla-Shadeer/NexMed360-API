@@ -1,11 +1,16 @@
 using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging.Abstractions;
 using NexMed360Api.Common;
 using NexMed360Api.Data;
 using NexMed360Api.Entities;
 using NexMed360Api.Entities.Enums;
+using NexMed360Api.Dtos.Appointment;
+using NexMed360Api.Common.Auth;
+using NexMed360Api.Migrations;
 using NexMed360Api.Services;
 using Npgsql;
 
@@ -98,6 +103,92 @@ public class AppointmentBookingPostgresTests
         var active = Assert.Single(history.Where(appointment => appointment.Status != AppointmentStatus.Cancelled));
         Assert.Equal(result.Data!.BookingReference, active.Id.ToString());
         Assert.False((await fixture.Context.SessionSlots.SingleAsync(slot => slot.Id == fixture.SlotId)).IsAvailable);
+    }
+
+    [Fact(Skip = SkipReason, SkipUnless = nameof(HasPostgresConfiguration))]
+    public async Task StringRequesterCanRequestCancellationCreatorCanConfirmAndSlotCanBeRebooked()
+    {
+        var options = await PrepareDatabase();
+        using var fixture = new AppointmentBookingEligibilityTests.Fixture(options);
+        var owner = (await fixture.Context.Patients.SingleAsync(patient => patient.Id == fixture.PatientId)).UserId;
+        var booked = await fixture.Service.Create(fixture.Request(), owner);
+        Assert.True(booked.IsSuccess);
+        var appointmentId = Guid.Parse(booked.Data!.BookingReference);
+        var slot = await fixture.Context.SessionSlots.Include(value => value.Session)
+            .SingleAsync(value => value.Id == fixture.SlotId);
+        var requesterId = "front-office-" + Guid.NewGuid().ToString("N");
+        fixture.Context.Receptionists.Add(new Receptionist
+        {
+            Id = Guid.NewGuid(), UserId = requesterId,
+            User = new User { Id = requesterId, FirstName = "Synthetic", LastName = "Receptionist" },
+            HospitalId = slot.Session.HospitalId, Department = "Front office", Location = "Test desk"
+        });
+        await fixture.Context.SaveChangesAsync();
+        fixture.Context.ChangeTracker.Clear();
+        var dto = new CancellationRequestDto { AppointmentId = appointmentId.ToString(), Reason = "Synthetic reason" };
+
+        var requested = await fixture.Service.Cancel(dto, requesterId, [UserRoles.RECEPTIONIST]);
+        Assert.True(requested.IsSuccess);
+        Assert.Equal(AppointmentStatus.CancelRequested, requested.Data!.Status);
+        fixture.Context.ChangeTracker.Clear();
+        Assert.False((await fixture.Context.SessionSlots.SingleAsync(value => value.Id == fixture.SlotId)).IsAvailable);
+
+        var confirmed = await fixture.Service.Cancel(dto, owner, [UserRoles.PATIENT]);
+        Assert.True(confirmed.IsSuccess);
+        Assert.Equal(AppointmentStatus.Cancelled, confirmed.Data!.Status);
+        fixture.Context.ChangeTracker.Clear();
+        var request = await fixture.Context.CancellationRequests.SingleAsync(value => value.AppointmentId == appointmentId);
+        Assert.Equal(requesterId, request.RequestedById);
+        Assert.Equal(AppointmentStatus.Cancelled, request.Status);
+        Assert.True((await fixture.Context.SessionSlots.SingleAsync(value => value.Id == fixture.SlotId)).IsAvailable);
+
+        var rebooked = await fixture.Service.Create(fixture.Request(), owner);
+        Assert.True(rebooked.IsSuccess);
+        fixture.Context.ChangeTracker.Clear();
+        var history = await fixture.Context.Appointments.Where(value => value.SessionSlotId == fixture.SlotId).ToListAsync();
+        Assert.Equal(2, history.Count);
+        Assert.Single(history.Where(value => value.Status == AppointmentStatus.Cancelled));
+        Assert.Single(history.Where(value => value.Status == AppointmentStatus.Pending));
+    }
+
+    [Fact(Skip = SkipReason, SkipUnless = nameof(HasPostgresConfiguration))]
+    public async Task RequesterMigrationPreservesUuidReferencesAndDoesNotDiscardOpaqueIdsOnRollback()
+    {
+        var options = await PrepareDatabase();
+        await using var context = new ApplicationDbContext(options);
+        await context.Database.OpenConnectionAsync();
+        await using var transaction = await context.Database.BeginTransactionAsync();
+        await context.Database.ExecuteSqlRawAsync("""
+            CREATE TEMP TABLE "CancellationRequesterMigrationProbe"
+            ("RequestedById" uuid NOT NULL) ON COMMIT DROP;
+            """);
+        var legacyId = Guid.NewGuid();
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO pg_temp.\"CancellationRequesterMigrationProbe\" (\"RequestedById\") VALUES ({legacyId})");
+        var migration = new StoreCancellationRequesterAsString();
+        // Exercise the actual migration conversion on a session-local table only.
+        var up = Assert.IsType<SqlOperation>(Assert.Single(migration.UpOperations)).Sql
+            .Replace("\"CancellationRequests\"", "pg_temp.\"CancellationRequesterMigrationProbe\"", StringComparison.Ordinal);
+        await context.Database.ExecuteSqlRawAsync(up);
+        await using var query = context.Database.GetDbConnection().CreateCommand();
+        query.Transaction = transaction.GetDbTransaction();
+        query.CommandText = "SELECT \"RequestedById\" FROM pg_temp.\"CancellationRequesterMigrationProbe\"";
+        Assert.Equal(legacyId.ToString(), await query.ExecuteScalarAsync());
+        const string opaqueId = "opaque-user-id";
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO pg_temp.\"CancellationRequesterMigrationProbe\" (\"RequestedById\") VALUES ({opaqueId})");
+
+        await transaction.CreateSavepointAsync("before_uuid_rollback");
+        var down = Assert.IsType<SqlOperation>(Assert.Single(migration.DownOperations)).Sql
+            .Replace("\"CancellationRequests\"", "pg_temp.\"CancellationRequesterMigrationProbe\"", StringComparison.Ordinal);
+        var failure = await Assert.ThrowsAsync<PostgresException>(() => context.Database.ExecuteSqlRawAsync(down));
+        Assert.Equal(PostgresErrorCodes.InvalidTextRepresentation, failure.SqlState);
+        await transaction.RollbackToSavepointAsync("before_uuid_rollback");
+        query.CommandText = "SELECT COUNT(*) FROM pg_temp.\"CancellationRequesterMigrationProbe\"";
+        Assert.Equal(2L, Convert.ToInt64(await query.ExecuteScalarAsync()));
+        query.CommandText = "SELECT pg_typeof(\"RequestedById\")::text FROM pg_temp.\"CancellationRequesterMigrationProbe\" LIMIT 1";
+        Assert.Equal("text", await query.ExecuteScalarAsync());
+        await transaction.RollbackAsync();
     }
 
     private static async Task<DbContextOptions<ApplicationDbContext>> PrepareDatabase()

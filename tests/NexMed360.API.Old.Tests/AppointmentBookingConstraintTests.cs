@@ -31,6 +31,10 @@ public class AppointmentBookingConstraintTests
         Assert.Equal(nameof(Appointment.SessionSlotId), Assert.Single(unique.Properties).Name);
         Assert.Contains(indexes, index => index.GetDatabaseName() == "IX_Appointments_SessionSlotId"
             && !index.IsUnique && index.GetFilter() == null);
+        var requester = model.FindEntityType(typeof(CancellationRequest))!.FindProperty(nameof(CancellationRequest.RequestedById))!;
+        Assert.Equal(typeof(string), requester.ClrType);
+        Assert.Equal("text", requester.GetColumnType());
+        Assert.False(requester.IsNullable);
         Assert.False(context.Database.HasPendingModelChanges());
     }
 

@@ -232,8 +232,9 @@ namespace NexMed360Api.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<Guid>("RequestedById")
-                        .HasColumnType("uuid");
+                    b.Property<string>("RequestedById")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
