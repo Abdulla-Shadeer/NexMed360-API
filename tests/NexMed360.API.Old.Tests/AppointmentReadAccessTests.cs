@@ -61,10 +61,12 @@ public class AppointmentReadAccessTests
         var id = await Book(fixture);
         var hospital = await fixture.Context.Hospitals.SingleAsync();
         var user = new User { Id = "other-doctor", FirstName = "Other", LastName = "Doctor" };
+        fixture.Context.Users.Add(user);
+        if (fixture.Context.Entry(hospital).State == EntityState.Detached) fixture.Context.Hospitals.Add(hospital);
         fixture.Context.Doctors.Add(new Doctor
         {
-            Id = Guid.NewGuid(), UserId = user.Id, User = user,
-            HospitalId = hospital.Id, Hospital = hospital, Speciality = "Test speciality"
+            Id = Guid.NewGuid(), UserId = user.Id,
+            HospitalId = hospital.Id,  Speciality = "Test speciality"
         });
         await fixture.Context.SaveChangesAsync();
         fixture.Context.ChangeTracker.Clear();
@@ -167,7 +169,7 @@ public class AppointmentReadAccessTests
     public async Task MissingIdentityIsRejectedBeforeStorageAccess(string? caller)
     {
         using var context = new ApplicationDbContext(new DbContextOptions<ApplicationDbContext>());
-        var service = new AppointmentService(context, null!);
+        var service = new AppointmentService(new AppointmentRepository(context), TestViews.For(context));
 
         var result = await service.Get(Guid.NewGuid().ToString(), caller, [UserRoles.DOCTOR]);
 
@@ -180,7 +182,7 @@ public class AppointmentReadAccessTests
     public async Task MalformedIdKeepsTheExistingBadRequestResponseBeforeStorageAccess()
     {
         using var context = new ApplicationDbContext(new DbContextOptions<ApplicationDbContext>());
-        var service = new AppointmentService(context, null!);
+        var service = new AppointmentService(new AppointmentRepository(context), TestViews.For(context));
 
         var result = await service.Get("invalid", "signed-in-user", [UserRoles.PATIENT]);
 
@@ -206,9 +208,11 @@ public class AppointmentReadAccessTests
             District = "Test district", Phone = "0000000000", Grade = "Test"
         };
         var user = new User { Id = "receptionist-user", FirstName = "Synthetic", LastName = "Receptionist" };
+        fixture.Context.Users.Add(user);
+        if (fixture.Context.Entry(hospital).State == EntityState.Detached) fixture.Context.Hospitals.Add(hospital);
         fixture.Context.Receptionists.Add(new Receptionist
         {
-            Id = Guid.NewGuid(), UserId = user.Id, User = user, HospitalId = hospital.Id, Hospital = hospital,
+            Id = Guid.NewGuid(), UserId = user.Id, HospitalId = hospital.Id,
             Department = "Front office", Location = "Test desk"
         });
         await fixture.Context.SaveChangesAsync();

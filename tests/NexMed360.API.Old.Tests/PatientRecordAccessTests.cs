@@ -1,4 +1,3 @@
-using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NexMed360Api.Common;
@@ -209,8 +208,8 @@ public class PatientRecordAccessTests
             Doctor = new Doctor
             {
                 Id = Guid.NewGuid(), UserId = "doctor-user", Speciality = "Test speciality",
-                User = new User { Id = "doctor-user", FirstName = "Doctor", LastName = "User" },
-                HospitalId = hospital.Id, Hospital = hospital
+
+                HospitalId = hospital.Id,
             };
             OwnRecord = Record(Owner);
             OtherRecord = Record(Other);
@@ -219,29 +218,30 @@ public class PatientRecordAccessTests
                 Id = Guid.NewGuid(), ClinicRecordId = OwnRecord.Id, ClinicRecord = OwnRecord,
                 MedicineName = "Synthetic medicine", Dosage = "Synthetic dosage", TimesPerDay = 1
             });
-            _context.Patients.Add(EmptyPatient);
+            _context.Users.Add(new User { Id = "doctor-user", FirstName = "Doctor", LastName = "User" });
+            _context.Hospitals.Add(hospital);
+            _context.Doctors.Add(Doctor);
+            _context.Patients.AddRange(Owner, Other, EmptyPatient);
             _context.ClinicRecords.AddRange(OwnRecord, Record(Owner), OtherRecord);
             _context.SaveChanges();
             // Force the read methods to load their own related data.
             _context.ChangeTracker.Clear();
 
-            var configuration = new MapperConfiguration(
-                cfg => cfg.AddProfile<MappingProfile>(), NullLoggerFactory.Instance);
             // These read methods never use the account-registration dependency.
-            Service = new PatientService(null!, _context, configuration.CreateMapper());
+            Service = new PatientService(null!, new PatientRepository(_context), null!, TestViews.For(_context), new ClinicRecordRepository(_context));
         }
 
-        private static Patient Patient(string userId, string firstName) => new()
+        private Patient Patient(string userId, string firstName)
         {
-            Id = Guid.NewGuid(), UserId = userId, Gender = "Test",
-            BirthDate = new DateOnly(2000, 1, 1),
-            User = new User { Id = userId, FirstName = firstName, LastName = "Patient" }
-        };
+            var patient = new Patient { Id = Guid.NewGuid(), UserId = userId, Gender = "Test", BirthDate = new DateOnly(2000, 1, 1) };
+            _context.Users.Add(new User { Id = userId, FirstName = firstName, LastName = "Patient", });
+            return patient;
+        }
 
         private ClinicRecord Record(Patient patient) => new()
         {
-            Id = Guid.NewGuid(), PatientId = patient.Id, Patient = patient,
-            DoctorId = Doctor.Id, Doctor = Doctor, VisitDate = DateTime.UtcNow,
+            Id = Guid.NewGuid(), PatientId = patient.Id,
+            DoctorId = Doctor.Id,  VisitDate = DateTime.UtcNow,
             Diagnosis = "Synthetic diagnosis", DoctorNotes = "Synthetic note"
         };
 

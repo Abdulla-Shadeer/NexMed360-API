@@ -1,0 +1,439 @@
+[
+  {
+    "controller": "AppointmentsController",
+    "action": "CancelAppointment",
+    "verb": "POST",
+    "route": "Cancel",
+    "roles": [
+      "Doctor",
+      "Patient",
+      "Receptionist"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "AppointmentsController",
+    "action": "CompleteAppointment",
+    "verb": "GET",
+    "route": "Complete/{appointmentId}",
+    "roles": [
+      "Doctor",
+      "Receptionist"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "AppointmentsController",
+    "action": "ConfirmAppointment",
+    "verb": "GET",
+    "route": "Confirm/{appointmentId}",
+    "roles": [
+      "Doctor",
+      "Receptionist"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "AppointmentsController",
+    "action": "ConfirmArrival",
+    "verb": "GET",
+    "route": "ConfirmArrival/{appointmentId}",
+    "roles": [
+      "Doctor",
+      "Receptionist"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "AppointmentsController",
+    "action": "ConfirmInProgress",
+    "verb": "GET",
+    "route": "ConfirmInProgress/{appointmentId}",
+    "roles": [
+      "Doctor"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "AppointmentsController",
+    "action": "CreateAppointment",
+    "verb": "POST",
+    "route": "Create",
+    "roles": [
+      "Doctor",
+      "Patient",
+      "Receptionist"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "AppointmentsController",
+    "action": "ViewAppointment",
+    "verb": "GET",
+    "route": "View/{appointmentId}",
+    "roles": [
+      "Doctor",
+      "Patient",
+      "Receptionist"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "AppointmentsController",
+    "action": "ViewHospitalAppointments",
+    "verb": "GET",
+    "route": "ViewHospital",
+    "roles": [
+      "Receptionist"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "AppointmentsController",
+    "action": "ViewOwnAppointments",
+    "verb": "GET",
+    "route": "ViewOwn",
+    "roles": [
+      "Doctor",
+      "Patient"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "DoctorSessionController",
+    "action": "Create",
+    "verb": "POST",
+    "route": "Create",
+    "roles": [
+      "Doctor",
+      "HospitalAdmin"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "DoctorSessionController",
+    "action": "Delete",
+    "verb": "DELETE",
+    "route": "Delete/{sessionId}",
+    "roles": [
+      "Doctor",
+      "HospitalAdmin"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "DoctorSessionController",
+    "action": "Get",
+    "verb": "GET",
+    "route": "Get",
+    "roles": [
+      "Doctor",
+      "HospitalAdmin",
+      "Patient"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "DoctorSessionController",
+    "action": "GetCurrentOrUpcoming",
+    "verb": "GET",
+    "route": "GetCurrentOrUpcoming",
+    "roles": [
+      "Doctor"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "DoctorSessionController",
+    "action": "GetHistory",
+    "verb": "GET",
+    "route": "GetHistory",
+    "roles": [
+      "Doctor"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "DoctorSessionController",
+    "action": "GetOngoing",
+    "verb": "GET",
+    "route": "GetOngoing",
+    "roles": [
+      "Receptionist"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "DoctorSessionController",
+    "action": "GetSlots",
+    "verb": "GET",
+    "route": "GetSlots",
+    "roles": [
+      "Doctor",
+      "HospitalAdmin",
+      "Patient"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "DoctorSessionController",
+    "action": "HasAnySessionToday",
+    "verb": "GET",
+    "route": "HasAnySessionToday",
+    "roles": [
+      "Doctor"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "DoctorSessionController",
+    "action": "Start",
+    "verb": "GET",
+    "route": "Start/{sessionId}",
+    "roles": [
+      "Doctor"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "DoctorSessionController",
+    "action": "Update",
+    "verb": "PUT",
+    "route": "Update/{sessionId}",
+    "roles": [
+      "Doctor",
+      "HospitalAdmin"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "DoctorSessionController",
+    "action": "UpdateHistory",
+    "verb": "POST",
+    "route": "UpdateHistory",
+    "roles": [
+      "Doctor"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "HospitalController",
+    "action": "AddAdmin",
+    "verb": "POST",
+    "route": "AssignAdmin",
+    "roles": [
+      "SuperUser"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "HospitalController",
+    "action": "AddDoctor",
+    "verb": "POST",
+    "route": "AddDoctor",
+    "roles": [
+      "HospitalAdmin"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "HospitalController",
+    "action": "AddHospital",
+    "verb": "POST",
+    "route": "Add",
+    "roles": [
+      "SuperUser"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "HospitalController",
+    "action": "AddReceptionist",
+    "verb": "POST",
+    "route": "AddReceptionist",
+    "roles": [
+      "HospitalAdmin"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "HospitalController",
+    "action": "FindById",
+    "verb": "GET",
+    "route": "FindById/{id}",
+    "roles": [],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "HospitalController",
+    "action": "GetAll",
+    "verb": "GET",
+    "route": "GetAll",
+    "roles": [
+      "Patient",
+      "SuperUser"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "HospitalController",
+    "action": "GetMembers",
+    "verb": "GET",
+    "route": "GetMembers/{hospitalId}",
+    "roles": [
+      "HospitalAdmin"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "HospitalController",
+    "action": "UpdateHospital",
+    "verb": "PUT",
+    "route": "Update",
+    "roles": [
+      "HospitalAdmin",
+      "SuperUser"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "PatientController",
+    "action": "AddClinicRecord",
+    "verb": "POST",
+    "route": "AddClinicRecord",
+    "roles": [
+      "Doctor"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "PatientController",
+    "action": "Create",
+    "verb": "POST",
+    "route": "Create",
+    "roles": [
+      "Receptionist"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "PatientController",
+    "action": "GetClinicRecord",
+    "verb": "GET",
+    "route": "GetClinicRecord/{recordId}",
+    "roles": [
+      "Doctor",
+      "Patient"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "PatientController",
+    "action": "GetClinicRecords",
+    "verb": "GET",
+    "route": "GetClinicRecords/{patientId}",
+    "roles": [
+      "Doctor",
+      "Patient"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "PatientController",
+    "action": "GetPatient",
+    "verb": "GET",
+    "route": "Get/{patientId}",
+    "roles": [
+      "Doctor",
+      "Receptionist"
+    ],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "SearchController",
+    "action": "DoctorSearch",
+    "verb": "POST",
+    "route": "Doctor",
+    "roles": [],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "SearchController",
+    "action": "EntitySearch",
+    "verb": "POST",
+    "route": "Entity",
+    "roles": [],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "UsersController",
+    "action": "GetOverview",
+    "verb": "GET",
+    "route": "GetOverview",
+    "roles": [],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "UsersController",
+    "action": "GetUser",
+    "verb": "GET",
+    "route": "GetUser",
+    "roles": [],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "UsersController",
+    "action": "Login",
+    "verb": "POST",
+    "route": "Login",
+    "roles": [],
+    "authorized": false,
+    "anonymous": true
+  },
+  {
+    "controller": "UsersController",
+    "action": "UpdateUser",
+    "verb": "POST",
+    "route": "UpdateUser",
+    "roles": [],
+    "authorized": true,
+    "anonymous": false
+  }
+]

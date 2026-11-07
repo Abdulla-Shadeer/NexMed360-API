@@ -1,3 +1,4 @@
+using NexMed360Api.Common.Auth;
 using System.Reflection;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
@@ -67,8 +68,7 @@ public class UserControllerCallerTests
                 ErrorCode.SYS_Unauthorized, "You can update only your own account.", 403));
         }
 
-        public Task<Result<ViewUserDto>> RegisterUser(RegisterUserDto user, string role) => throw new NotSupportedException();
-        public Task<Result<List<OverviewDto>>> GetOverview(ClaimsPrincipal user) => throw new NotSupportedException();
+        public Task<Result<List<OverviewDto>>> GetOverview(CallerContext user) => throw new NotSupportedException();
         public Task<Result<ViewUserDto>> GetUserAsync(string userId) => throw new NotSupportedException();
     }
 }

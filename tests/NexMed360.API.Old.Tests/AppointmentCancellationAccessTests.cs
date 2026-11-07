@@ -156,7 +156,7 @@ public class AppointmentCancellationAccessTests
     {
         using var context = new ApplicationDbContext(new DbContextOptions<ApplicationDbContext>());
 
-        var result = await new AppointmentService(context, null!).Cancel(
+        var result = await new AppointmentService(new AppointmentRepository(context), TestViews.For(context)).Cancel(
             Request(Guid.NewGuid().ToString()), caller, [UserRoles.PATIENT]);
 
         Assert.False(result.IsSuccess);

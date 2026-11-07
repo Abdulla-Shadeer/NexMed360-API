@@ -1,8 +1,11 @@
-using AutoMapper;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.DependencyInjection;
+using NexMed360.Infrastructure.Data;
+using NexMed360Api.Dtos.Patient;
+using NexMed360Api.Dtos.User;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using Microsoft.EntityFrameworkCore.Migrations.Operations;
-using Microsoft.EntityFrameworkCore.Storage;
+
 using Microsoft.Extensions.Logging.Abstractions;
 using NexMed360Api.Common;
 using NexMed360Api.Data;
@@ -10,7 +13,7 @@ using NexMed360Api.Entities;
 using NexMed360Api.Entities.Enums;
 using NexMed360Api.Dtos.Appointment;
 using NexMed360Api.Common.Auth;
-using NexMed360Api.Migrations;
+
 using NexMed360Api.Services;
 using Npgsql;
 
@@ -19,8 +22,8 @@ namespace NexMed360.API.Old.Tests;
 [Trait("Category", "PostgreSQL")]
 public class AppointmentBookingPostgresTests
 {
-    public const string ConnectionVariable = "NEXMED360_BOOKING_TEST_POSTGRES";
-    private const string SkipReason = "Set NEXMED360_BOOKING_TEST_POSTGRES for the separate nexmed360_booking_tests database.";
+    public const string ConnectionVariable = "NEXMED360_MIGRATED_TEST_POSTGRES";
+    private const string SkipReason = "Set NEXMED360_MIGRATED_TEST_POSTGRES for the separate nexmed360_migrated_tests database.";
     public static bool HasPostgresConfiguration =>
         !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(ConnectionVariable));
 
@@ -41,6 +44,12 @@ public class AppointmentBookingPostgresTests
 
         Assert.Equal(2, barrier.RequestCount);
         var winner = Assert.Single(results.Where(result => result.IsSuccess));
+        Assert.Equal("Synthetic Patient", winner.Data!.PatientName);
+        Assert.Equal("patient@example.test", winner.Data.PatientEmail);
+        Assert.Equal("1111111111", winner.Data.PatientPhone);
+        Assert.Equal("Synthetic Doctor", winner.Data.DoctorName);
+        Assert.Equal("Synthetic Booker", winner.Data.CreatedByUserName);
+        Assert.Equal("Synthetic hospital", winner.Data.HospitalName);
         var loser = Assert.Single(results.Where(result => !result.IsSuccess));
         Assert.Equal(409, loser.Error!.HttpStatus);
         Assert.Null(loser.Data);
@@ -117,10 +126,11 @@ public class AppointmentBookingPostgresTests
         var slot = await fixture.Context.SessionSlots.Include(value => value.Session)
             .SingleAsync(value => value.Id == fixture.SlotId);
         var requesterId = "front-office-" + Guid.NewGuid().ToString("N");
+        fixture.Context.Users.Add(new User { Id = requesterId, FirstName = "Synthetic", LastName = "Receptionist" });
         fixture.Context.Receptionists.Add(new Receptionist
         {
             Id = Guid.NewGuid(), UserId = requesterId,
-            User = new User { Id = requesterId, FirstName = "Synthetic", LastName = "Receptionist" },
+
             HospitalId = slot.Session.HospitalId, Department = "Front office", Location = "Test desk"
         });
         await fixture.Context.SaveChangesAsync();
@@ -152,50 +162,77 @@ public class AppointmentBookingPostgresTests
     }
 
     [Fact(Skip = SkipReason, SkipUnless = nameof(HasPostgresConfiguration))]
-    public async Task RequesterMigrationPreservesUuidReferencesAndDoesNotDiscardOpaqueIdsOnRollback()
+    public async Task InitialMigrationCreatesCorrectedRequesterColumnAndOneMigrationHistory()
     {
         var options = await PrepareDatabase();
         await using var context = new ApplicationDbContext(options);
+        Assert.Single(context.Database.GetMigrations());
+        Assert.Single(await context.Database.GetAppliedMigrationsAsync());
+        Assert.False(context.Database.HasPendingModelChanges());
         await context.Database.OpenConnectionAsync();
-        await using var transaction = await context.Database.BeginTransactionAsync();
-        await context.Database.ExecuteSqlRawAsync("""
-            CREATE TEMP TABLE "CancellationRequesterMigrationProbe"
-            ("RequestedById" uuid NOT NULL) ON COMMIT DROP;
-            """);
-        var legacyId = Guid.NewGuid();
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO pg_temp.\"CancellationRequesterMigrationProbe\" (\"RequestedById\") VALUES ({legacyId})");
-        var migration = new StoreCancellationRequesterAsString();
-        // Exercise the actual migration conversion on a session-local table only.
-        var up = Assert.IsType<SqlOperation>(Assert.Single(migration.UpOperations)).Sql
-            .Replace("\"CancellationRequests\"", "pg_temp.\"CancellationRequesterMigrationProbe\"", StringComparison.Ordinal);
-        await context.Database.ExecuteSqlRawAsync(up);
-        await using var query = context.Database.GetDbConnection().CreateCommand();
-        query.Transaction = transaction.GetDbTransaction();
-        query.CommandText = "SELECT \"RequestedById\" FROM pg_temp.\"CancellationRequesterMigrationProbe\"";
-        Assert.Equal(legacyId.ToString(), await query.ExecuteScalarAsync());
-        const string opaqueId = "opaque-user-id";
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO pg_temp.\"CancellationRequesterMigrationProbe\" (\"RequestedById\") VALUES ({opaqueId})");
+        await using var command = context.Database.GetDbConnection().CreateCommand();
+        command.CommandText = """
+            SELECT data_type || ':' || is_nullable FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'CancellationRequests' AND column_name = 'RequestedById'
+            """;
+        Assert.Equal("text:NO", await command.ExecuteScalarAsync());
+    }
 
-        await transaction.CreateSavepointAsync("before_uuid_rollback");
-        var down = Assert.IsType<SqlOperation>(Assert.Single(migration.DownOperations)).Sql
-            .Replace("\"CancellationRequests\"", "pg_temp.\"CancellationRequesterMigrationProbe\"", StringComparison.Ordinal);
-        var failure = await Assert.ThrowsAsync<PostgresException>(() => context.Database.ExecuteSqlRawAsync(down));
-        Assert.Equal(PostgresErrorCodes.InvalidTextRepresentation, failure.SqlState);
-        await transaction.RollbackToSavepointAsync("before_uuid_rollback");
-        query.CommandText = "SELECT COUNT(*) FROM pg_temp.\"CancellationRequesterMigrationProbe\"";
-        Assert.Equal(2L, Convert.ToInt64(await query.ExecuteScalarAsync()));
-        query.CommandText = "SELECT pg_typeof(\"RequestedById\")::text FROM pg_temp.\"CancellationRequesterMigrationProbe\" LIMIT 1";
-        Assert.Equal("text", await query.ExecuteScalarAsync());
-        await transaction.RollbackAsync();
+    [Fact(Skip = SkipReason, SkipUnless = nameof(HasPostgresConfiguration))]
+    public async Task FailedProfileSaveRollsBackTheIdentityAccountAndRole()
+    {
+        var options = await PrepareDatabase();
+        var connection = new NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable(ConnectionVariable)!).ConnectionString;
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddDbContext<ApplicationDbContext>(builder => builder.UseNpgsql(connection).AddInterceptors(new RejectPatientSave()));
+        services.AddIdentityCore<User>().AddRoles<IdentityRole>().AddEntityFrameworkStores<ApplicationDbContext>();
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+        if (!await roles.RoleExistsAsync(UserRoles.PATIENT))
+            Assert.True((await roles.CreateAsync(new IdentityRole(UserRoles.PATIENT))).Succeeded);
+        var identity = new IdentityGateway(scope.ServiceProvider.GetRequiredService<UserManager<User>>(),
+            roles, NullLogger<IdentityGateway>.Instance, context, null!);
+        var views = TestViews.For(context);
+        var users = new UserService(identity, null!, views);
+        var auth = new AuthService(identity, users, views);
+        var patients = new PatientService(auth, new PatientRepository(context), new RegistrationTransactions(context), TestViews.For(context), new ClinicRecordRepository(context));
+        var email = $"rollback-{Guid.NewGuid():N}@example.test";
+        var request = new CreatePatientDto
+        {
+            PersonalInformation = new RegisterUserDto
+            {
+                FirstName = "Synthetic", LastName = "Rollback", Email = email,
+                PhoneNumber = "0000000000", Password = "SyntheticTest1!"
+            },
+            Gender = "Test", BirthDate = new DateOnly(2000, 1, 1)
+        };
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => patients.CreatePatient(request));
+        Assert.Equal("Synthetic profile save failure", error.Message);
+        await using var verification = new ApplicationDbContext(options);
+        Assert.False(await verification.Users.AnyAsync(user => user.Email == email));
+        Assert.False(await verification.Patients.Join(verification.Users, patient => patient.UserId, user => user.Id, (patient, user) => user).AnyAsync(user => user.Email == email));
+    }
+
+    private sealed class RejectPatientSave : SaveChangesInterceptor
+    {
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            if (eventData.Context!.ChangeTracker.Entries<Patient>().Any(entry => entry.State == EntityState.Added))
+                throw new InvalidOperationException("Synthetic profile save failure");
+            return ValueTask.FromResult(result);
+        }
     }
 
     private static async Task<DbContextOptions<ApplicationDbContext>> PrepareDatabase()
     {
         var connection = new NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable(ConnectionVariable)!);
-        if (!string.Equals(connection.Database, "nexmed360_booking_tests", StringComparison.Ordinal))
-            throw new InvalidOperationException("Booking tests require the separate database named nexmed360_booking_tests.");
+        if (!string.Equals(connection.Database, "nexmed360_migrated_tests", StringComparison.Ordinal))
+            throw new InvalidOperationException("Booking tests require the separate database named nexmed360_migrated_tests.");
 
         // Match the application's existing timestamp behavior; never load appsettings.
         AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
@@ -210,9 +247,7 @@ public class AppointmentBookingPostgresTests
 
     private static AppointmentService Service(ApplicationDbContext context)
     {
-        var mapper = new MapperConfiguration(
-            cfg => cfg.AddProfile<MappingProfile>(), NullLoggerFactory.Instance).CreateMapper();
-        return new AppointmentService(context, mapper);
+        return new AppointmentService(new AppointmentRepository(context), TestViews.For(context));
     }
 
     private static async Task<Appointment> AddHistory(

@@ -12,6 +12,9 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["NexMed360.Api/NexMed360.Api.csproj", "NexMed360.Api/"]
+COPY ["NexMed360.Application/NexMed360.Application.csproj", "NexMed360.Application/"]
+COPY ["NexMed360.Domain/NexMed360.Domain.csproj", "NexMed360.Domain/"]
+COPY ["NexMed360.Infrastructure/NexMed360.Infrastructure.csproj", "NexMed360.Infrastructure/"]
 RUN dotnet restore "./NexMed360.Api/NexMed360.Api.csproj"
 COPY . .
 WORKDIR "/src/NexMed360.Api"

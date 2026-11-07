@@ -1,4 +1,3 @@
-using AutoMapper;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,7 +22,7 @@ public class UserUpdateAccessTests
     {
         // A query or mutation before authorization would fail: there is no provider.
         using var context = new ApplicationDbContext(new DbContextOptions<ApplicationDbContext>());
-        var service = new UserService(null!, null!, null!, null!, null!, context);
+        var service = new UserService(new IdentityGateway(null!, null!, null!, context, null!), null!, TestViews.For(context));
 
         var result = await service.UpdateUser(
             new UpdateUserDto { Id = "target-user", Email = "target@example.test" }, requesterUserId);
@@ -42,7 +41,7 @@ public class UserUpdateAccessTests
     public async Task DifferentTargetIdIsRejectedBeforeAccessingAnyDependencies(string? targetId)
     {
         using var context = new ApplicationDbContext(new DbContextOptions<ApplicationDbContext>());
-        var service = new UserService(null!, null!, null!, null!, null!, context);
+        var service = new UserService(new IdentityGateway(null!, null!, null!, context, null!), null!, TestViews.For(context));
 
         var result = await service.UpdateUser(
             new UpdateUserDto { Id = targetId!, Email = "already-used@example.test" }, "owner-user");
@@ -165,12 +164,10 @@ public class UserUpdateAccessTests
             });
             Context.SaveChanges();
             Context.ChangeTracker.Clear();
-            var mapper = new MapperConfiguration(
-                cfg => cfg.AddProfile<MappingProfile>(), NullLoggerFactory.Instance).CreateMapper();
-            Service = new UserService(
+            Service = new UserService(new IdentityGateway(
                 _scope.ServiceProvider.GetRequiredService<UserManager<User>>(),
                 _scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>(),
-                NullLogger<UserService>.Instance, mapper, null!, Context);
+                NullLogger<IdentityGateway>.Instance, Context, null!), null!, TestViews.For(Context));
         }
 
         private static User User(string id, string firstName, string email) => new()

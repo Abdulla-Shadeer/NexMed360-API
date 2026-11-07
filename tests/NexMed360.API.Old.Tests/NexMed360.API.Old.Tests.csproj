@@ -19,7 +19,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/NexMed360.API.Old/NexMed360.API.Old.csproj" />
+    <ProjectReference Include="../../src/NexMed360.Api/NexMed360.Api.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
+    <Content Include="Compatibility/*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

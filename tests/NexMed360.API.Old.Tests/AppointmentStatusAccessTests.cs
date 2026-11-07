@@ -73,10 +73,12 @@ public class AppointmentStatusAccessTests
         var id = await AppointmentReadAccessTests.Book(fixture);
         var hospital = await fixture.Context.Hospitals.SingleAsync();
         var user = new User { Id = "other-doctor", FirstName = "Other", LastName = "Doctor" };
+        fixture.Context.Users.Add(user);
+        if (fixture.Context.Entry(hospital).State == EntityState.Detached) fixture.Context.Hospitals.Add(hospital);
         fixture.Context.Doctors.Add(new Doctor
         {
-            Id = Guid.NewGuid(), UserId = user.Id, User = user,
-            HospitalId = hospital.Id, Hospital = hospital, Speciality = "Test speciality"
+            Id = Guid.NewGuid(), UserId = user.Id,
+            HospitalId = hospital.Id,  Speciality = "Test speciality"
         });
         await fixture.Context.SaveChangesAsync();
         fixture.Context.ChangeTracker.Clear();
@@ -129,7 +131,7 @@ public class AppointmentStatusAccessTests
     {
         using var context = new ApplicationDbContext(new DbContextOptions<ApplicationDbContext>());
 
-        var result = await new AppointmentService(context, null!).ChangeStatus(
+        var result = await new AppointmentService(new AppointmentRepository(context), TestViews.For(context)).ChangeStatus(
             Guid.NewGuid().ToString(), status, "signed-in-user", [role]);
 
         Assert.False(result.IsSuccess);
@@ -145,7 +147,7 @@ public class AppointmentStatusAccessTests
     {
         using var context = new ApplicationDbContext(new DbContextOptions<ApplicationDbContext>());
 
-        var result = await new AppointmentService(context, null!).ChangeStatus(
+        var result = await new AppointmentService(new AppointmentRepository(context), TestViews.For(context)).ChangeStatus(
             Guid.NewGuid().ToString(), AppointmentStatus.Confirmed, caller, [UserRoles.DOCTOR]);
 
         Assert.False(result.IsSuccess);

@@ -1,0 +1,15 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using NexMed360Api.Entities;
+
+namespace NexMed360.Infrastructure.Data.Configurations;
+
+internal sealed class HospitalAdminConfiguration : IEntityTypeConfiguration<HospitalAdmin>
+{
+    public void Configure(EntityTypeBuilder<HospitalAdmin> builder)
+    {
+        EntityConfiguration.Configure(builder, "HospitalAdmins");
+        builder.HasOne<Hospital>().WithMany().HasForeignKey(row => row.HospitalId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<User>().WithOne().HasForeignKey<HospitalAdmin>(admin => admin.UserId);
+    }
+}

@@ -1,4 +1,3 @@
-using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NexMed360.API.Entities.Enums;
@@ -131,7 +130,7 @@ public class AppointmentBookingEligibilityTests
             };
             var patient = new Patient
             {
-                Id = PatientId, UserId = patientUser.Id, User = patientUser,
+                Id = PatientId, UserId = patientUser.Id,
                 Gender = "Test", BirthDate = new DateOnly(2000, 1, 1)
             };
             var hospital = new Hospital
@@ -142,13 +141,13 @@ public class AppointmentBookingEligibilityTests
             var doctorUser = new User { Id = "doctor-" + _userSuffix, FirstName = "Synthetic", LastName = "Doctor" };
             var doctor = new Doctor
             {
-                Id = Guid.NewGuid(), UserId = doctorUser.Id, User = doctorUser,
-                HospitalId = hospital.Id, Hospital = hospital, Speciality = "Test speciality"
+                Id = Guid.NewGuid(), UserId = doctorUser.Id,
+                HospitalId = hospital.Id,  Speciality = "Test speciality"
             };
             var session = new DoctorSession
             {
-                Id = Guid.NewGuid(), DoctorId = doctor.Id, Doctor = doctor,
-                HospitalId = hospital.Id, Hospital = hospital,
+                Id = Guid.NewGuid(), DoctorId = doctor.Id,
+                HospitalId = hospital.Id,
                 StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(10, 0),
                 Occurrences = [SessionOccurrence.AllDays], IsActive = sessionIsActive
             };
@@ -160,13 +159,14 @@ public class AppointmentBookingEligibilityTests
                 IsAvailable = slotIsAvailable, BookingAllowed = bookingAllowed
             };
             Context.Users.Add(new User { Id = RequesterId, FirstName = "Synthetic", LastName = "Booker" });
+            Context.Users.AddRange(patientUser, doctorUser);
+            Context.Hospitals.Add(hospital);
+            Context.Doctors.Add(doctor);
             Context.Patients.Add(patient);
             Context.SessionSlots.Add(slot);
             Context.SaveChanges();
             Context.ChangeTracker.Clear();
-            var mapper = new MapperConfiguration(
-                cfg => cfg.AddProfile<MappingProfile>(), NullLoggerFactory.Instance).CreateMapper();
-            Service = new AppointmentService(Context, mapper);
+            Service = new AppointmentService(new AppointmentRepository(Context), TestViews.For(Context));
         }
 
         public CreateAppointmentDto Request() => new()
