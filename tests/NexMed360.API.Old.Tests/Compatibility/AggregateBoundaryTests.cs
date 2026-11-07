@@ -12,11 +12,11 @@ public class AggregateBoundaryTests
         var owners = new Dictionary<Type, Type>
         {
             [typeof(Appointment)] = typeof(Appointment), [typeof(CancellationRequest)] = typeof(Appointment),
-            [typeof(ClinicRecord)] = typeof(ClinicRecord), [typeof(Prescription)] = typeof(ClinicRecord),
-            [typeof(DoctorSession)] = typeof(DoctorSession), [typeof(SessionSlot)] = typeof(DoctorSession), [typeof(SessionHistory)] = typeof(DoctorSession),
+            [typeof(ClinicalRecord)] = typeof(ClinicalRecord), [typeof(Prescription)] = typeof(ClinicalRecord),
+            [typeof(PractitionerSchedule)] = typeof(PractitionerSchedule), [typeof(SessionSlot)] = typeof(PractitionerSchedule), [typeof(SessionHistory)] = typeof(PractitionerSchedule),
             [typeof(Patient)] = typeof(Patient), [typeof(VisitHistory)] = typeof(Patient),
-            [typeof(Doctor)] = typeof(Doctor), [typeof(Hospital)] = typeof(Hospital),
-            [typeof(HospitalAdmin)] = typeof(HospitalAdmin), [typeof(Receptionist)] = typeof(Receptionist)
+            [typeof(PractitionerRole)] = typeof(PractitionerRole), [typeof(Organization)] = typeof(Organization),
+            [typeof(OrganizationMembership)] = typeof(OrganizationMembership)
         };
         foreach (var (model, owner) in owners)
             foreach (var property in model.GetProperties())
@@ -24,15 +24,15 @@ public class AggregateBoundaryTests
                 var related = property.PropertyType.IsGenericType ? property.PropertyType.GetGenericArguments().SingleOrDefault() : property.PropertyType;
                 if (related != null && owners.TryGetValue(related, out var relatedOwner)) Assert.Equal(owner, relatedOwner);
             }
-        Assert.Null(typeof(Hospital).GetProperty("Doctors"));
-        Assert.Null(typeof(Doctor).GetProperty("Hospital"));
-        Assert.Equal(typeof(Guid), typeof(Doctor).GetProperty("HospitalId")!.PropertyType);
+        Assert.Null(typeof(Organization).GetProperty("PractitionerRoles"));
+        Assert.Null(typeof(PractitionerRole).GetProperty("Organization"));
+        Assert.Equal(typeof(Guid), typeof(PractitionerRole).GetProperty("OrganizationId")!.PropertyType);
     }
 
     [Fact]
     public void RepositoryContractsContainNoTransportDtosOrPersistenceTypes()
     {
-        foreach (var repository in new[] { typeof(IAppointmentRepository), typeof(IPatientRepository), typeof(IHospitalRepository), typeof(IDoctorSessionRepository), typeof(IDoctorRepository), typeof(IHospitalAdminRepository), typeof(IReceptionistRepository), typeof(IClinicRecordRepository) })
+        foreach (var repository in new[] { typeof(IAppointmentRepository), typeof(IPatientRepository), typeof(IOrganizationRepository), typeof(IPractitionerScheduleRepository), typeof(IPractitionerRoleRepository), typeof(IOrganizationMembershipRepository), typeof(IOrganizationMembershipRepository), typeof(IClinicalRecordRepository) })
             foreach (var method in repository.GetMethods())
             {
                 Check(method.ReturnType);

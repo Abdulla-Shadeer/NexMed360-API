@@ -25,7 +25,7 @@ public enum ErrorCode
     APPT_NotFound,
 
     [EnumMember(Value = "APPT_002")]
-    APPT_DoctorUnavailable,
+    APPT_PractitionerRoleUnavailable,
 
     [EnumMember(Value = "APPT_003")]
     APPT_PatientUnavailable,
@@ -37,7 +37,7 @@ public enum ErrorCode
     APPT_FromDateAfterToDate,
 
     [EnumMember(Value = "APPT_006")]
-    APPT_DoctorNotFound,
+    APPT_PractitionerRoleNotFound,
 
     [EnumMember(Value = "APPT_007")]
     APPT_PatientNotFound,

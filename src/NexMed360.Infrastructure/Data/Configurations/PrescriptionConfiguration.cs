@@ -8,7 +8,8 @@ internal sealed class PrescriptionConfiguration : IEntityTypeConfiguration<Presc
 {
     public void Configure(EntityTypeBuilder<Prescription> builder)
     {
-        EntityConfiguration.Configure(builder, "Prescriptions");
-
+        EntityConfiguration.Organization(builder, "Prescriptions");
+        builder.HasOne(row => row.ClinicalRecord).WithMany(row => row.Prescriptions).HasForeignKey(row => new { row.ClinicalRecordId, row.OrganizationId })
+            .HasPrincipalKey(row => new { row.Id, row.OrganizationId }).OnDelete(DeleteBehavior.Cascade);
     }
 }

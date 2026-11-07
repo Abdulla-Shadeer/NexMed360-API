@@ -19,7 +19,7 @@ namespace NexMed360Api.Services;
 
 public class IdentityGateway : IIdentityGateway
 {
-    private readonly UserManager<User> _userManager;
+    private readonly UserManager<ApplicationUser> _userManager;
     private readonly RoleManager<IdentityRole> _roleManager;
     private readonly ILogger<IdentityGateway> _logger;
 
@@ -27,7 +27,7 @@ public class IdentityGateway : IIdentityGateway
     private readonly IConfiguration _config;
 
     public IdentityGateway(
-        UserManager<User> userManager,
+        UserManager<ApplicationUser> userManager,
         RoleManager<IdentityRole> roleManager,
         ILogger<IdentityGateway> logger,
         ApplicationDbContext context,
@@ -46,35 +46,37 @@ public class IdentityGateway : IIdentityGateway
         if (identityRole == null)
             return Result<AccountSummary>.Failure(ErrorCode.USR_RoleNotFound, $"The {role} role does not exist.");
 
-        // create user if no user already exists with the email
-        // add only to new role if a user profile already exists
+        // Reuse the account when adding another profile or organization assignment.
         var existingUser = await _userManager.FindByEmailAsync(user.Email);
         if (existingUser != null)
         {
             if (!await _userManager.IsInRoleAsync(existingUser, role))
             {
-                await _userManager.AddToRoleAsync(existingUser, role);
+                var assigned = await _userManager.AddToRoleAsync(existingUser, role);
+                if (!assigned.Succeeded) return Result<AccountSummary>.Failure(ErrorCode.USR_RegistrationFailed, "Could not grant account access.");
                 var updatedRoles = await _userManager.GetRolesAsync(existingUser);
                 var viewUserDto = Summary(existingUser, updatedRoles.ToList(), includeProfiles: false);
-                _logger.LogInformation($"User already exists, assigned to new role: '{role}'");
+                _logger.LogInformation("Added account role {Role}.", role);
                 return Result<AccountSummary>.Success(viewUserDto);
             }
 
-            var error = $"User already exists and already has the '{role}' role.";
-            _logger.LogError(error);
-            return Result<AccountSummary>.Failure(ErrorCode.USR_RegistrationFailed, error, 400);
+            var roles = await _userManager.GetRolesAsync(existingUser);
+            return Result<AccountSummary>.Success(Summary(existingUser, roles.ToList(), includeProfiles: false));
         }
 
-        var newUser = new User
+        var newUser = new ApplicationUser
         {
             FirstName = user.FirstName,
             LastName = user.LastName,
             Email = user.Email,
             UserName = user.Email,
             PhoneNumber = user.PhoneNumber,
-            CreatedDate = DateTime.Now,
-            UpdatedDate = DateTime.Now
+            CreatedDate = DateTime.UtcNow,
+            UpdatedDate = DateTime.UtcNow
         };
+
+        newUser.Person.Email = user.Email;
+        newUser.Person.PhoneNumber = user.PhoneNumber;
 
         var passwordValidationErrors = new List<IdentityError>();
         foreach (var validator in _userManager.PasswordValidators)
@@ -96,10 +98,11 @@ public class IdentityGateway : IIdentityGateway
         {
             var errDetail = IdentityErrorExtension.IdentityError(identityResult);
             _logger.LogError(errDetail);
-            Result<AccountSummary>.Failure(ErrorCode.USR_RegistrationFailed, errDetail);
+            return Result<AccountSummary>.Failure(ErrorCode.USR_RegistrationFailed, errDetail);
         }
 
-        await _userManager.AddToRoleAsync(newUser, role);
+        var roleResult = await _userManager.AddToRoleAsync(newUser, role);
+        if (!roleResult.Succeeded) return Result<AccountSummary>.Failure(ErrorCode.USR_RegistrationFailed, "Could not grant account access.");
         var userId = await _userManager.GetUserIdAsync(newUser);
         return await GetUserAsync(userId);
     }
@@ -107,11 +110,11 @@ public class IdentityGateway : IIdentityGateway
     public async Task<Result<AccountSummary>> GetUserAsync(string userId)
     {
         var user = await _userManager.FindByIdAsync(userId);
-        if (user == null) return Result<AccountSummary>.Failure(ErrorCode.SYS_Unauthorized, $"User with id {userId} not found.");
+        if (user == null) return Result<AccountSummary>.Failure(ErrorCode.SYS_Unauthorized, $"Account with ID {userId} not found.");
         return Result<AccountSummary>.Success(Summary(user, (await _userManager.GetRolesAsync(user)).ToList()));
     }
-    private static AccountSummary Summary(User user, List<string> roles, bool includeProfiles = true)
-        => new(user.Id, user.FirstName, user.LastName, user.Email, user.PhoneNumber) { Roles = roles, IncludeProfiles = includeProfiles };
+    private static AccountSummary Summary(ApplicationUser user, List<string> roles, bool includeProfiles = true)
+        => new(user.Id, user.FirstName, user.LastName, user.Email, user.PhoneNumber) { PersonId = user.PersonId, Roles = roles, IncludeProfiles = includeProfiles };
 
     public async Task<Result<AccountSummary>> UpdateUser(AccountChanges updateDto, string? requesterUserId)
     {
@@ -137,6 +140,8 @@ public class IdentityGateway : IIdentityGateway
         usr.LastName = updateDto.LastName ?? usr.LastName;
         usr.Email = updateDto.Email ?? usr.Email;
         usr.PhoneNumber = updateDto.PhoneNumber ?? usr.PhoneNumber;
+        usr.Person.Email = usr.Email;
+        usr.Person.PhoneNumber = usr.PhoneNumber;
 
         await _context.SaveChangesAsync();
         return await GetUserAsync(usr.Id);
@@ -149,7 +154,7 @@ public class IdentityGateway : IIdentityGateway
         return Result<AuthenticatedAccount>.Success(new AuthenticatedAccount(user.Id, await GenerateToken(user)));
     }
 
-    private async Task<string> GenerateToken(User user)
+    private async Task<string> GenerateToken(ApplicationUser user)
     {
         var tokenHandler = new JwtSecurityTokenHandler();
         var signingKey = Encoding.UTF8.GetBytes(_config["Auth:Jwt:Signing-Key"]!);

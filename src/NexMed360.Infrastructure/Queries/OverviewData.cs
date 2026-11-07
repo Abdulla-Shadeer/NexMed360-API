@@ -1,4 +1,5 @@
-﻿using NexMed360.Application.Overview;
+﻿using NexMed360.Infrastructure.Data;
+using NexMed360.Application.Overview;
 using NexMed360Api.Common;
 using NexMed360Api.Interfaces.Services;
 using NexMed360Api.Data;
@@ -19,26 +20,25 @@ public class OverviewData : IOverviewData
         _logger = logger;
     }
 
-    public async Task<DoctorOverviewRead> GetDoctorOverview(string userId)
+    public async Task<PractitionerRoleOverviewRead> GetPractitionerRoleOverview(string userId)
     {
-        var doctorId = await _context.Doctors
-            .Where(doc => doc.UserId == userId)
+        var practitionerRoleId = await _context.PractitionerRolesFor(userId)
             .Select(doc => doc.Id)
             .FirstOrDefaultAsync();
 
-        var doctorAppointments = _context.Appointments
-            .Where(appt => appt.DoctorId == doctorId)
+        var practitionerRoleAppointments = _context.Appointments
+            .Where(appt => appt.PractitionerRoleId == practitionerRoleId)
             .AsQueryable();
 
-        if (!await doctorAppointments.AnyAsync()) {
-            return new DoctorOverviewRead();
+        if (!await practitionerRoleAppointments.AnyAsync()) {
+            return new PractitionerRoleOverviewRead();
         }
 
         var filterDates = GetFilterDates();
 
-        var overviewDto = await doctorAppointments
+        var overviewDto = await practitionerRoleAppointments
             .GroupBy(appt => 1)
-            .Select(group => new DoctorOverviewRead {
+            .Select(group => new PractitionerRoleOverviewRead {
                 TotalPatientsTreated = new PeriodCount {
                     Today = group.Count(appt => appt.Status == AppointmentStatus.Completed &&
                     appt.AppointmentDateTime >= filterDates.TodayStart && appt.AppointmentDateTime <= filterDates.TomorrowStart),
@@ -54,34 +54,34 @@ public class OverviewData : IOverviewData
                 appt.AppointmentDateTime >= filterDates.Now)
             })
             .OrderBy(dto => 1)
-            .FirstOrDefaultAsync() ?? new DoctorOverviewRead();
+            .FirstOrDefaultAsync() ?? new PractitionerRoleOverviewRead();
 
-        overviewDto.RecentAppointments = await GetRecentAppointments(doctorAppointments, filterDates.Now);
+        overviewDto.RecentAppointments = await GetRecentAppointments(practitionerRoleAppointments, filterDates.Now);
 
         return overviewDto;
     }
 
-    public async Task<HospitalOverviewRead> GetHospitalOverview(string userId, bool isAdmin)
+    public async Task<OrganizationOverviewRead> GetOrganizationOverview(string userId, bool isAdmin)
     {
-        var hospitalId = isAdmin ?
-            await _context.HospitalAdmins
+        var organizationId = isAdmin ?
+            await _context.OrganizationMemberships
             .Where(admn => admn.UserId == userId)
-            .Select(admn => admn.HospitalId)
+            .Select(admn => admn.OrganizationId)
             .FirstOrDefaultAsync() :
-            await _context.Receptionists
+            await _context.OrganizationMemberships
             .Where(rcpst => rcpst.UserId == userId)
-            .Select(rcpst => rcpst.HospitalId)
+            .Select(rcpst => rcpst.OrganizationId)
             .FirstOrDefaultAsync();
 
-        // total patients (based on appointments registered at the hospital)
+        // total patients (based on appointments registered at the organization)
         var filterDates = GetFilterDates();
-        var hospitalAppointments = _context.Appointments
-            .Where(appt => appt.HospitalId == hospitalId)
+        var organizationAppointments = _context.Appointments
+            .Where(appt => appt.OrganizationId == organizationId)
             .AsQueryable();
 
-        var overview = await hospitalAppointments
+        var overview = await organizationAppointments
             .GroupBy(appt => 1)
-            .Select(group => new HospitalOverviewRead()
+            .Select(group => new OrganizationOverviewRead()
             {
                 TotalPatients = new PeriodCount()
                 {
@@ -101,11 +101,11 @@ public class OverviewData : IOverviewData
                 PendingAppointments = isAdmin ? null : group.Count(appt => appt.Status == AppointmentStatus.Pending)
             })
             .OrderBy(dto => 1)
-            .FirstOrDefaultAsync() ?? new HospitalOverviewRead();
+            .FirstOrDefaultAsync() ?? new OrganizationOverviewRead();
 
         if (!isAdmin)
         {
-            overview.RecentAppointments = await GetRecentAppointments(hospitalAppointments, filterDates.Now);
+            overview.RecentAppointments = await GetRecentAppointments(organizationAppointments, filterDates.Now);
         }
 
         if (isAdmin)
@@ -132,14 +132,13 @@ public class OverviewData : IOverviewData
 
     public async Task<PatientOverviewRead> GetPatientOverview(string userId)
     {
-        var patientId = await _context.Patients
-            .Where(p => p.UserId == userId)
+        var patientId = await _context.PatientsFor(userId)
             .Select(p => p.Id)
             .FirstOrDefaultAsync();
 
         var filterDates = GetFilterDates();
 
-        var ehrStats = await _context.ClinicRecords
+        var ehrStats = await _context.ClinicalRecords
             .Where(cr => cr.PatientId == patientId)
             .Include(cr => cr.Prescriptions)
             .GroupBy(cr => 1)
@@ -179,9 +178,9 @@ public class OverviewData : IOverviewData
     {
         return new SystemOverviewRead()
         {
-            TotalEHRs = await _context.ClinicRecords.CountAsync(),
-            TotalHospitals = await _context.Hospitals.CountAsync(),
-            TotalMedicalStaff = (await _context.Doctors.CountAsync()) + (await _context.HospitalAdmins.CountAsync()) + (await _context.Receptionists.CountAsync()),
+            TotalEHRs = await _context.ClinicalRecords.CountAsync(),
+            TotalOrganizations = await _context.Organizations.CountAsync(),
+            TotalMedicalStaff = await _context.OrganizationMemberships.CountAsync(),
             TotalPatients = await _context.Patients.CountAsync(),
             TotalUsers = await _context.Users.CountAsync(),
         };

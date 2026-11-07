@@ -69,7 +69,7 @@ public class AuthServiceTests
     }
 
     [Fact]
-    public async Task AddingARoleKeepsTheExistingIdentityAndDemographicsAndRejectsDuplicateRole()
+    public async Task AddingAnotherOrganizationAssignmentCanReuseTheExistingAccountRole()
     {
         using var fixture = new Fixture();
         var auth = fixture.Services.GetRequiredService<IAuthService>();
@@ -77,18 +77,18 @@ public class AuthServiceTests
         Assert.True(original.IsSuccess);
         var changed = Request();
         changed.FirstName = "Ignored";
-        var added = await auth.RegisterUser(changed, UserRoles.DOCTOR);
+        var added = await auth.RegisterUser(changed, UserRoles.PRACTITIONER);
         Assert.True(added.IsSuccess);
         Assert.Equal(original.Data!.Id, added.Data!.Id);
         Assert.Equal("Synthetic", added.Data.FirstName);
-        Assert.Equal(new[] { UserRoles.DOCTOR, UserRoles.PATIENT }.Order(), added.Data.Roles.Order());
+        Assert.Equal(new[] { UserRoles.PRACTITIONER, UserRoles.PATIENT }.Order(), added.Data.Roles.Order());
         Assert.Null(added.Data.PatientProfile);
-        Assert.Null(added.Data.DoctorProfile);
+        Assert.Null(added.Data.PractitionerRoleProfile);
         Assert.Equal(1, await fixture.Services.GetRequiredService<ApplicationDbContext>().Users.CountAsync(TestContext.Current.CancellationToken));
-        var duplicate = await auth.RegisterUser(Request(), UserRoles.DOCTOR);
-        Assert.False(duplicate.IsSuccess);
-        Assert.Equal(400, duplicate.Error!.HttpStatus);
-        Assert.Equal($"User already exists and already has the '{UserRoles.DOCTOR}' role.", duplicate.Error.Description);
+        var duplicate = await auth.RegisterUser(Request(), UserRoles.PRACTITIONER);
+        Assert.True(duplicate.IsSuccess);
+        Assert.Equal(original.Data.Id, duplicate.Data!.Id);
+        Assert.Equal(added.Data.PersonId, duplicate.Data.PersonId);
     }
 
     [Fact]
@@ -131,7 +131,7 @@ public class AuthServiceTests
             provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
             scope = provider.CreateScope();
             var roles = Services.GetRequiredService<RoleManager<IdentityRole>>();
-            foreach (var role in new[] { UserRoles.PATIENT, UserRoles.DOCTOR })
+            foreach (var role in new[] { UserRoles.PATIENT, UserRoles.PRACTITIONER })
                 Assert.True(roles.CreateAsync(new IdentityRole(role)).GetAwaiter().GetResult().Succeeded);
         }
         public void Dispose() { scope.Dispose(); provider.Dispose(); }

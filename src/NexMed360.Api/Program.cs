@@ -55,9 +55,9 @@ public class Program
         ];
         var missingSettings = requiredSettings
             .Where(key => string.IsNullOrWhiteSpace(_config[key])).ToList();
-        if (seedOnStartup && string.IsNullOrWhiteSpace(_config["Auth:SuperUserPassword"]))
+        if (seedOnStartup && string.IsNullOrWhiteSpace(_config["Auth:PlatformAdminPassword"]))
         {
-            missingSettings.Add("Auth:SuperUserPassword");
+            missingSettings.Add("Auth:PlatformAdminPassword");
         }
         if (missingSettings.Count > 0)
         {

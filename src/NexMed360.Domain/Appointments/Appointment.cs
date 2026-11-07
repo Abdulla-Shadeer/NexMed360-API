@@ -2,13 +2,13 @@
 
 namespace NexMed360Api.Entities;
 
-public class Appointment: Entity
+public class Appointment: Entity, IOrganizationOwned
 {
     public Guid PatientId { get; set; }
 
-    public Guid DoctorId { get; set; }
+    public Guid PractitionerRoleId { get; set; }
 
-    public Guid HospitalId { get; set; }
+    public Guid OrganizationId { get; set; }
 
     public string CreatedByUserId { get; set; }
 
@@ -25,7 +25,7 @@ public class Appointment: Entity
 
     public static Appointment Book(Guid patientId, SessionSlot slot, string callerId, string? remarks) => new()
     {
-        PatientId = patientId, DoctorId = slot.Session.DoctorId, HospitalId = slot.Session.HospitalId,
+        PatientId = patientId, PractitionerRoleId = slot.Session.PractitionerRoleId, OrganizationId = slot.Session.OrganizationId,
         CreatedByUserId = callerId, SessionSlotId = slot.Id,
         AppointmentDateTime = slot.Date.ToDateTime(slot.StartTime), Number = slot.SlotNumber, Remarks = remarks
     };

@@ -30,12 +30,12 @@ public class AppointmentBookingEligibilityTests
 
         Assert.False(result.IsSuccess);
         Assert.Null(result.Data);
-        Assert.Equal(ErrorCode.APPT_DoctorUnavailable, result.Error!.Code);
+        Assert.Equal(ErrorCode.APPT_PractitionerRoleUnavailable, result.Error!.Code);
         Assert.Equal(409, result.Error.HttpStatus);
         fixture.Context.ChangeTracker.Clear();
         Assert.Empty(await fixture.Context.Appointments.ToListAsync());
         var slot = await fixture.Context.SessionSlots.SingleAsync();
-        var session = await fixture.Context.DoctorSessions.SingleAsync();
+        var session = await fixture.Context.PractitionerSchedules.SingleAsync();
         Assert.Equal(slotIsAvailable, slot.IsAvailable);
         Assert.Equal(bookingAllowed, slot.BookingAllowed);
         Assert.Equal(sessionIsActive, session.IsActive);
@@ -53,8 +53,8 @@ public class AppointmentBookingEligibilityTests
         Assert.Equal(fixture.PatientId.ToString(), result.Data.PatientId);
         Assert.Equal(fixture.RequesterId, result.Data.CreatedByUserId);
         Assert.Equal("Synthetic Patient", result.Data.PatientName);
-        Assert.Equal("Synthetic Doctor", result.Data.DoctorName);
-        Assert.Equal("Synthetic hospital", result.Data.HospitalName);
+        Assert.Equal("Synthetic PractitionerRole", result.Data.PractitionerName);
+        Assert.Equal("Synthetic organization", result.Data.OrganizationName);
         Assert.Equal(AppointmentStatus.Pending, result.Data.Status);
         Assert.Equal("Synthetic booking", result.Data.Remarks);
         fixture.Context.ChangeTracker.Clear();
@@ -123,31 +123,31 @@ public class AppointmentBookingEligibilityTests
             bool sessionIsActive = true, bool slotIsAvailable = true, bool bookingAllowed = true)
         {
             Context = new ApplicationDbContext(options);
-            var patientUser = new User
+            var patientUser = new ApplicationUser
             {
                 Id = "patient-" + _userSuffix, FirstName = "Synthetic", LastName = "Patient",
                 Email = "patient@example.test", PhoneNumber = "1111111111"
             };
             var patient = new Patient
             {
-                Id = PatientId, UserId = patientUser.Id,
+                Id = PatientId, PersonId = TestProfiles.PersonId(patientUser.Id),
                 Gender = "Test", BirthDate = new DateOnly(2000, 1, 1)
             };
-            var hospital = new Hospital
+            var organization = new Organization
             {
-                Id = Guid.NewGuid(), Name = "Synthetic hospital", Street = "Test street",
+                Id = Guid.NewGuid(), Name = "Synthetic organization", Street = "Test street",
                 City = "Test city", District = "Test district", Phone = "0000000000", Grade = "Test"
             };
-            var doctorUser = new User { Id = "doctor-" + _userSuffix, FirstName = "Synthetic", LastName = "Doctor" };
-            var doctor = new Doctor
+            var practitionerRoleUser = new ApplicationUser { Id = "practitionerRole-" + _userSuffix, FirstName = "Synthetic", LastName = "PractitionerRole" };
+            var practitionerRole = new PractitionerRole
             {
-                Id = Guid.NewGuid(), UserId = doctorUser.Id,
-                HospitalId = hospital.Id,  Speciality = "Test speciality"
+                Id = Guid.NewGuid(), PractitionerId = TestProfiles.PractitionerId(practitionerRoleUser.Id),
+                OrganizationId = organization.Id,  Specialty = "Test specialty"
             };
-            var session = new DoctorSession
+            var session = new PractitionerSchedule
             {
-                Id = Guid.NewGuid(), DoctorId = doctor.Id,
-                HospitalId = hospital.Id,
+                Id = Guid.NewGuid(), PractitionerRoleId = practitionerRole.Id,
+                OrganizationId = organization.Id,
                 StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(10, 0),
                 Occurrences = [SessionOccurrence.AllDays], IsActive = sessionIsActive
             };
@@ -158,13 +158,13 @@ public class AppointmentBookingEligibilityTests
                 StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(9, 30), SlotNumber = 1,
                 IsAvailable = slotIsAvailable, BookingAllowed = bookingAllowed
             };
-            Context.Users.Add(new User { Id = RequesterId, FirstName = "Synthetic", LastName = "Booker" });
-            Context.Users.AddRange(patientUser, doctorUser);
-            Context.Hospitals.Add(hospital);
-            Context.Doctors.Add(doctor);
+            Context.Users.Add(new ApplicationUser { Id = RequesterId, FirstName = "Synthetic", LastName = "Booker" });
+            Context.Users.AddRange(patientUser, practitionerRoleUser);
+            Context.Organizations.Add(organization);
+            Context.PractitionerRoles.Add(practitionerRole);
             Context.Patients.Add(patient);
             Context.SessionSlots.Add(slot);
-            Context.SaveChanges();
+            TestProfiles.Save(Context);
             Context.ChangeTracker.Clear();
             Service = new AppointmentService(new AppointmentRepository(Context), TestViews.For(Context));
         }

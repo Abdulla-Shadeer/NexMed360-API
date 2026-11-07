@@ -1,3 +1,4 @@
+using NexMed360.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using NexMed360Api.Common.Auth;
@@ -12,17 +13,17 @@ public class AppointmentRepository(ApplicationDbContext context) : IAppointmentR
     public async Task<SessionSlot?> FindSlot(Guid id)
     {
         var slot = await context.SessionSlots.FirstOrDefaultAsync(row => row.Id == id);
-        if (slot != null) slot.Session = (await context.DoctorSessions.FirstOrDefaultAsync(row => row.Id == slot.SessionId))!;
+        if (slot != null) slot.Session = (await context.PractitionerSchedules.FirstOrDefaultAsync(row => row.Id == slot.SessionId))!;
         return slot;
     }
     public Task<Appointment?> Find(Guid id) => context.Appointments.FirstOrDefaultAsync(row => row.Id == id);
     public Task<Appointment?> FindReadable(Guid id, string callerId, IReadOnlyCollection<string> roles)
     {
-        var patient = roles.Contains(UserRoles.PATIENT); var doctor = roles.Contains(UserRoles.DOCTOR); var receptionist = roles.Contains(UserRoles.RECEPTIONIST);
+        var patient = roles.Contains(UserRoles.PATIENT); var practitionerRole = roles.Contains(UserRoles.PRACTITIONER); var organizationMember = roles.Contains(UserRoles.ORGANIZATION_MEMBER);
         return context.Appointments.FirstOrDefaultAsync(row => row.Id == id &&
-            ((patient && context.Patients.Any(profile => profile.Id == row.PatientId && profile.UserId == callerId))
-            || (doctor && context.Doctors.Any(profile => profile.Id == row.DoctorId && profile.UserId == callerId))
-            || (receptionist && context.Receptionists.Any(profile => profile.HospitalId == row.HospitalId && profile.UserId == callerId))));
+            ((patient && context.Patients.Any(profile => profile.Id == row.PatientId && context.Users.Any(user => user.Id == callerId && user.PersonId == profile.PersonId)))
+            || (practitionerRole && context.PractitionerRolesFor(callerId).Any(profile => profile.Id == row.PractitionerRoleId))
+            || (organizationMember && context.OrganizationMemberships.Any(profile => profile.OrganizationId == row.OrganizationId && profile.UserId == callerId))));
     }
     public async Task<bool> TryBook(Appointment appointment, SessionSlot slot)
     {
@@ -40,26 +41,26 @@ public class AppointmentRepository(ApplicationDbContext context) : IAppointmentR
     public void RemoveCancellationRequest(CancellationRequest row) => context.CancellationRequests.Remove(row);
     public async Task SaveChanges() => await context.SaveChangesAsync();
     public Task<bool> PatientExists(Guid id) => context.Patients.AnyAsync(row => row.Id == id);
-    public Task<bool> DoctorExists(Guid id) => context.Doctors.AnyAsync(row => row.Id == id);
-    public Task<bool> HospitalExists(Guid id) => context.Hospitals.AnyAsync(row => row.Id == id);
+    public Task<bool> PractitionerRoleExists(Guid id) => context.PractitionerRoles.AnyAsync(row => row.Id == id);
+    public Task<bool> OrganizationExists(Guid id) => context.Organizations.AnyAsync(row => row.Id == id);
     public async Task<List<Appointment>> GetOwn(AppointmentFilter filter, string userId)
     {
-        var patientId = await context.Patients.Where(row => row.UserId == userId).Select(row => row.Id).FirstOrDefaultAsync();
-        var doctorId = await context.Doctors.Where(row => row.UserId == userId).Select(row => row.Id).FirstOrDefaultAsync();
-        return await Filter(context.Appointments.Where(row => row.PatientId == patientId || row.DoctorId == doctorId), filter).ToListAsync();
+        var patientId = await context.PatientsFor(userId).Select(row => row.Id).FirstOrDefaultAsync();
+        var practitionerRoleId = await context.PractitionerRolesFor(userId).Select(row => row.Id).FirstOrDefaultAsync();
+        return await Filter(context.Appointments.Where(row => row.PatientId == patientId || row.PractitionerRoleId == practitionerRoleId), filter).ToListAsync();
     }
-    public async Task<List<Appointment>> GetHospitalAppointments(AppointmentFilter filter, string userId)
+    public async Task<List<Appointment>> GetOrganizationAppointments(AppointmentFilter filter, string userId)
     {
-        var hospitalId = await context.Receptionists.Where(row => row.UserId == userId).Select(row => row.HospitalId).FirstOrDefaultAsync();
-        return await Filter(context.Appointments.Where(row => row.HospitalId == hospitalId), filter).ToListAsync();
+        var organizationId = await context.OrganizationMemberships.Where(row => row.UserId == userId).Select(row => row.OrganizationId).FirstOrDefaultAsync();
+        return await Filter(context.Appointments.Where(row => row.OrganizationId == organizationId), filter).ToListAsync();
     }
     private static IQueryable<Appointment> Filter(IQueryable<Appointment> query, AppointmentFilter filter)
     {
         if (filter.FromDate.HasValue) query = query.Where(row => row.AppointmentDateTime.Date >= filter.FromDate.Value);
         if (filter.ToDate.HasValue) query = query.Where(row => row.AppointmentDateTime.Date <= filter.ToDate.Value);
         if (filter.PatientId.HasValue) query = query.Where(row => row.PatientId == filter.PatientId);
-        if (filter.DoctorId.HasValue) query = query.Where(row => row.DoctorId == filter.DoctorId);
-        if (filter.HospitalId.HasValue) query = query.Where(row => row.HospitalId == filter.HospitalId);
+        if (filter.PractitionerRoleId.HasValue) query = query.Where(row => row.PractitionerRoleId == filter.PractitionerRoleId);
+        if (filter.OrganizationId.HasValue) query = query.Where(row => row.OrganizationId == filter.OrganizationId);
         if (filter.Status.HasValue) query = query.Where(row => row.Status == filter.Status);
         return query;
     }

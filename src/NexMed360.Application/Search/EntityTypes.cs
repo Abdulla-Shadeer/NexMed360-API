@@ -6,8 +6,8 @@ public enum EntityTypes
 {
     [JsonPropertyName("patient")]
     Patient,
-    [JsonPropertyName("doctor")]
-    Doctor,
-    [JsonPropertyName("hospital")]
-    Hospital,
+    [JsonPropertyName("practitionerRole")]
+    PractitionerRole,
+    [JsonPropertyName("organization")]
+    Organization,
 }

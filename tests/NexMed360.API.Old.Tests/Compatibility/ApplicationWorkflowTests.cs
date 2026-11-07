@@ -7,7 +7,7 @@ using NexMed360.Infrastructure;
 using NexMed360Api.Common;
 using NexMed360Api.Common.ApplicationErrors;
 using NexMed360Api.Common.Auth;
-using NexMed360Api.Dtos.ClinicRecord;
+using NexMed360Api.Dtos.ClinicalRecord;
 using NexMed360Api.Dtos.Overview;
 using NexMed360Api.Dtos.Patient;
 using NexMed360Api.Dtos.User;
@@ -35,8 +35,8 @@ public class ApplicationWorkflowTests
         services.AddNexMed360Infrastructure(config);
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
         using var scope = provider.CreateScope();
-        foreach (var type in new[] { typeof(IAuthService), typeof(IUserService), typeof(IPatientService), typeof(IHospitalService),
-                     typeof(IAppointmentService), typeof(IDoctorSessionService), typeof(ISearchService), typeof(IOverviewService),
+        foreach (var type in new[] { typeof(IAuthService), typeof(IUserService), typeof(IPatientService), typeof(IOrganizationService),
+                     typeof(IAppointmentService), typeof(IPractitionerScheduleService), typeof(ISearchService), typeof(IOverviewService),
                      typeof(IDbInitializerService), typeof(IRegistrationTransactions), typeof(IIdentityGateway) })
             Assert.NotNull(scope.ServiceProvider.GetRequiredService(type));
     }
@@ -48,8 +48,8 @@ public class ApplicationWorkflowTests
         var result = await new AuthService(new Identity(), users, TestViews.Empty()).LoginAsync(new LoginUserDto());
         Assert.True(result.IsSuccess);
         Assert.Equal("synthetic-token", result.Data!.AccessToken);
-        Assert.Same(users.User, result.Data.User);
-        Assert.Equal(users.User.Id, users.RequestedUserId);
+        Assert.Same(users.ApplicationUser, result.Data.User);
+        Assert.Equal(users.ApplicationUser.Id, users.RequestedUserId);
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public class ApplicationWorkflowTests
         var result = await new PatientService(auth, data, transactions, TestViews.Empty(), null!).CreatePatient(new CreatePatientDto());
         Assert.True(result.IsSuccess);
         Assert.Equal(UserRoles.PATIENT, auth.RegisteredRole);
-        Assert.Equal(auth.User.Id, data.RegisteredUserId);
+        Assert.Equal(auth.ApplicationUser.Id, data.RegisteredUserId);
         Assert.Equal(1, transactions.Begun);
         Assert.True(transactions.Committed);
         Assert.True(transactions.Disposed);
@@ -124,21 +124,21 @@ public class ApplicationWorkflowTests
     }
     private sealed class Registration : IAuthService
     {
-        public ViewUserDto User { get; } = new() { Id = "existing-user-id" };
+        public ViewUserDto ApplicationUser { get; } = new() { Id = "existing-user-id", PersonId = TestProfiles.PersonId("existing-user-id").ToString() };
         public bool RejectRegistration { get; init; }
         public string? RegisteredRole { get; private set; }
         public Task<Result<ViewUserDto>> RegisterUser(RegisterUserDto dto, string role)
         {
             RegisteredRole = role;
-            return Task.FromResult(RejectRegistration ? Result<ViewUserDto>.Failure(ErrorCode.SYS_BadRequest) : Result<ViewUserDto>.Success(User));
+            return Task.FromResult(RejectRegistration ? Result<ViewUserDto>.Failure(ErrorCode.SYS_BadRequest) : Result<ViewUserDto>.Success(ApplicationUser));
         }
         public Task<Result<LoginResponseDto>> LoginAsync(LoginUserDto dto) => throw new NotSupportedException();
     }
     private sealed class Users : IUserService
     {
-        public ViewUserDto User { get; } = new() { Id = "existing-user-id" };
+        public ViewUserDto ApplicationUser { get; } = new() { Id = "existing-user-id", PersonId = TestProfiles.PersonId("existing-user-id").ToString() };
         public string? RequestedUserId { get; private set; }
-        public Task<Result<ViewUserDto>> GetUserAsync(string id) { RequestedUserId = id; return Task.FromResult(Result<ViewUserDto>.Success(User)); }
+        public Task<Result<ViewUserDto>> GetUserAsync(string id) { RequestedUserId = id; return Task.FromResult(Result<ViewUserDto>.Success(ApplicationUser)); }
         public Task<Result<List<OverviewDto>>> GetOverview(CallerContext caller) => throw new NotSupportedException();
         public Task<Result<ViewUserDto>> UpdateUser(UpdateUserDto dto, string? caller) => throw new NotSupportedException();
     }
@@ -148,17 +148,17 @@ public class ApplicationWorkflowTests
         public string? RegisteredUserId { get; private set; }
         public Task<Patient> Add(Patient patient)
         {
-            RegisteredUserId = patient.UserId;
+            RegisteredUserId = TestProfiles.UserId(patient);
             if (Throw) throw new InvalidOperationException("Synthetic profile failure");
             return Task.FromResult(patient);
         }
         public Task<Patient?> Find(Guid id) => throw new NotSupportedException();
-        public Task<Guid> FindDoctorId(string userId) => throw new NotSupportedException();
+        public Task<PractitionerRole?> FindPractitionerRole(Guid roleId, string userId) => throw new NotSupportedException();
         public Task<bool> PatientExists(Guid id) => throw new NotSupportedException();
-        public Task<ClinicRecord> AddRecord(ClinicRecord record) => throw new NotSupportedException();
-        public Task<ClinicRecord?> FindReadableRecord(Guid id, string caller, bool doctor) => throw new NotSupportedException();
-        public Task<bool> CanReadPatient(Guid id, string caller, bool doctor) => throw new NotSupportedException();
-        public Task<List<ClinicRecord>> GetRecords(Guid id, string caller, bool doctor) => throw new NotSupportedException();
+        public Task<ClinicalRecord> AddRecord(ClinicalRecord record) => throw new NotSupportedException();
+        public Task<ClinicalRecord?> FindReadableRecord(Guid id, string caller, bool practitionerRole) => throw new NotSupportedException();
+        public Task<bool> CanReadPatient(Guid id, string caller, bool practitionerRole) => throw new NotSupportedException();
+        public Task<List<ClinicalRecord>> GetRecords(Guid id, string caller, bool practitionerRole) => throw new NotSupportedException();
     }
     private sealed class Transactions : IRegistrationTransactions, IRegistrationTransaction
     {

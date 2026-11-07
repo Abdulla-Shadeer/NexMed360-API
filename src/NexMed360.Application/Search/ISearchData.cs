@@ -5,7 +5,7 @@ namespace NexMed360.Application.Search;
 public interface ISearchData
 {
     Task<List<string>> PatientUserIds(InputTypes type, string input);
-    Task<List<string>> DoctorUserIds(InputTypes type, string input);
-    Task<List<Hospital>> Hospitals(string input);
-    Task<List<Doctor>> Doctors(string? name, string? email, string? speciality);
+    Task<List<string>> PractitionerRoleUserIds(InputTypes type, string input);
+    Task<List<Organization>> Organizations(string input);
+    Task<List<PractitionerRole>> PractitionerRoles(string? name, string? email, string? specialty);
 }

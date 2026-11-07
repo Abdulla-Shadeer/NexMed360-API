@@ -4,7 +4,8 @@ namespace NexMed360Api.Dtos.Patient;
 
 public class ViewPatientDto
 {
-    public string Id { get; set; }
+    public string PersonId { get; set; } = "";
+        public string Id { get; set; }
     public string UserId { get; set; }
     public string FirstName { get; set; }
     public string LastName { get; set; }

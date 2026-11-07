@@ -22,7 +22,7 @@ namespace NexMed360.API.Old.Tests.Compatibility;
 public class MigrationCompatibilityTests
 {
     [Fact]
-    public void AllExistingEndpointsKeepTheirRoutesVerbsAndAuthorization()
+    public void RenamedEndpointsHaveExpectedRoutesVerbsAndAuthorization()
     {
         var expected = JsonSerializer.Deserialize<Endpoint[]>(File.ReadAllText(
             Path.Combine(AppContext.BaseDirectory, "Compatibility", "endpoints.json")),
@@ -49,7 +49,7 @@ public class MigrationCompatibilityTests
     }
 
     [Fact]
-    public void ExistingDtoSourcesRemainByteForByteUnchanged()
+    public void ApprovedDtoSourcesMatchThePhase1Contracts()
     {
         var root = RepositoryRoot();
         var expected = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(
@@ -87,19 +87,15 @@ public class MigrationCompatibilityTests
     }
 
     [Fact]
-    public void RelationalModelMatchesCorrectedPreMoveSchemaWithoutConnectingToPostgres()
+    public void NewRelationalModelMatchesGeneratedMigrationWithoutConnectingToPostgres()
     {
         using var context = DesignContext();
-        var old = context.GetService<IModelRuntimeInitializer>().Initialize(new CorrectedSchemaBaseline().Model, designTime: true);
-        var current = context.GetService<IDesignTimeModel>().Model;
-        var changes = context.GetService<IMigrationsModelDiffer>().GetDifferences(old.GetRelationalModel(), current.GetRelationalModel());
-        Assert.Empty(changes);
         Assert.False(context.Database.HasPendingModelChanges());
         Assert.Single(context.Database.GetMigrations());
     }
 
     [Fact]
-    public void InitialMigrationRetainsBookingConstraintStringRequesterAndHistoricalDefaults()
+    public void InitialMigrationHasGenericModelsOwnershipAndBookingConstraint()
     {
         var migration = new InitialCreate();
         var tables = migration.UpOperations.OfType<CreateTableOperation>().ToDictionary(table => table.Name);
@@ -111,14 +107,15 @@ public class MigrationCompatibilityTests
         Assert.True(slot.IsUnique);
         Assert.Equal("\"Status\" <> 5", slot.Filter);
         Assert.Equal(new[] { "SessionSlotId" }, slot.Columns);
-        Assert.Equal("", tables["Appointments"].Columns.Single(c => c.Name == "CreatedByUserId").DefaultValue);
-        Assert.Equal(Guid.Empty, tables["Appointments"].Columns.Single(c => c.Name == "HospitalId").DefaultValue);
-        Assert.Equal(0, tables["Appointments"].Columns.Single(c => c.Name == "Number").DefaultValue);
-        Assert.Equal(Guid.Empty, tables["Appointments"].Columns.Single(c => c.Name == "SessionSlotId").DefaultValue);
-        foreach (var (table, name) in new[] { ("Prescriptions", "IsActive"), ("Prescriptions", "IsLongTermUse"), ("DoctorSessions", "IsActive"), ("SessionSlots", "BookingAllowed") })
-            Assert.Equal(false, tables[table].Columns.Single(c => c.Name == name).DefaultValue);
-        Assert.Equal(0, tables["Prescriptions"].Columns.Single(c => c.Name == "TimesPerDay").DefaultValue);
-        Assert.Equal(0, tables["SessionSlots"].Columns.Single(c => c.Name == "SlotNumber").DefaultValue);
+        foreach (var table in new[] { "PractitionerRoles", "OrganizationMemberships", "OrganizationPatients", "Locations",
+            "AccessRoles", "MembershipAccessRoles", "Encounters", "EncounterParticipants", "ClinicalRecords", "Prescriptions" })
+            Assert.False(tables[table].Columns.Single(column => column.Name == "OrganizationId").IsNullable);
+        Assert.Contains("People", tables.Keys);
+        Assert.Contains("Practitioners", tables.Keys);
+        Assert.DoesNotContain("Doctors", tables.Keys);
+        Assert.DoesNotContain("HospitalAdmins", tables.Keys);
+        Assert.DoesNotContain("Receptionists", tables.Keys);
+        Assert.True(tables["Encounters"].Columns.Single(column => column.Name == "AppointmentId").IsNullable);
     }
 
     private static ApplicationDbContext DesignContext()

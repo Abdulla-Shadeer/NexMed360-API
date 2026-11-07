@@ -8,7 +8,8 @@ internal sealed class SessionHistoryConfiguration : IEntityTypeConfiguration<Ses
 {
     public void Configure(EntityTypeBuilder<SessionHistory> builder)
     {
-        EntityConfiguration.Configure(builder, "SessionHistories");
-
+        EntityConfiguration.Organization(builder, "SessionHistories");
+        builder.HasOne(row => row.PractitionerSchedule).WithMany(row => row.History).HasForeignKey(row => new { row.PractitionerScheduleId, row.OrganizationId })
+            .HasPrincipalKey(row => new { row.Id, row.OrganizationId }).OnDelete(DeleteBehavior.Cascade);
     }
 }

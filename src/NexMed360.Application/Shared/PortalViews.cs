@@ -1,13 +1,13 @@
 using NexMed360Api.Entities;
 using NexMed360Api.Dtos.Appointment;
-using NexMed360Api.Dtos.ClinicRecord;
+using NexMed360Api.Dtos.ClinicalRecord;
 using NexMed360Api.Dtos.Patient;
-using NexMed360Api.Dtos.Doctor;
-using NexMed360Api.Dtos.Receptionist;
-using NexMed360Api.Dtos.HospitalAdmin;
-using NexMed360Api.Dtos.Hospital;
+using NexMed360Api.Dtos.PractitionerRole;
+using NexMed360Api.Dtos.OrganizationMember;
+using NexMed360Api.Dtos.OrganizationMember;
+using NexMed360Api.Dtos.Organization;
 using NexMed360Api.Dtos.User;
-using NexMed360Api.Dtos.doctorSession;
+using NexMed360Api.Dtos.practitionerSchedule;
 using NexMed360Api.Entities.Enums;
 
 namespace NexMed360.Application.Shared;
@@ -16,21 +16,24 @@ namespace NexMed360.Application.Shared;
 public sealed class PortalViews(IPortalReadStore store)
 {
     private static AccountSummary? Account(PortalReadData data, string? id) => id == null ? null : data.Accounts.GetValueOrDefault(id);
-    private static Hospital? HospitalRow(PortalReadData data, Guid id) => data.Hospitals.GetValueOrDefault(id);
-    private static string? Address(Hospital? row) => row == null ? null : $"{row.Street}, {row.City}, {row.District}";
+    private static AccountSummary? PersonAccount(PortalReadData data, Guid personId) => data.People.GetValueOrDefault(personId);
+    private static AccountSummary? RoleAccount(PortalReadData data, PractitionerRole? role) => role == null ? null
+        : data.Practitioners.TryGetValue(role.PractitionerId, out var practitioner) ? PersonAccount(data, practitioner.PersonId) : null;
+    private static Organization? OrganizationRow(PortalReadData data, Guid id) => data.Organizations.GetValueOrDefault(id);
+    private static string? Address(Organization? row) => row == null ? null : $"{row.Street}, {row.City}, {row.District}";
 
     public async Task<List<ViewAppointmentDto>> Appointments(IEnumerable<Appointment> source)
     {
         var rows = source.ToList(); var request = new PortalReadRequest();
-        foreach (var row in rows) { request.PatientIds.Add(row.PatientId); request.DoctorIds.Add(row.DoctorId); request.HospitalIds.Add(row.HospitalId); request.SlotIds.Add(row.SessionSlotId); request.AccountIds.Add(row.CreatedByUserId); }
+        foreach (var row in rows) { request.PatientIds.Add(row.PatientId); request.PractitionerRoleIds.Add(row.PractitionerRoleId); request.OrganizationIds.Add(row.OrganizationId); request.SlotIds.Add(row.SessionSlotId); request.AccountIds.Add(row.CreatedByUserId); }
         var data = await store.Load(request);
         return rows.Select(row => AppointmentDto(row, data)).ToList();
     }
     public async Task<ViewAppointmentDto?> Appointment(Appointment? row) => row == null ? null : (await Appointments([row]))[0];
     private static ViewAppointmentDto AppointmentDto(Appointment row, PortalReadData data)
     {
-        var patient = data.Patients.GetValueOrDefault(row.PatientId); var doctor = data.Doctors.GetValueOrDefault(row.DoctorId);
-        var patientAccount = Account(data, patient?.UserId); var hospital = HospitalRow(data, row.HospitalId);
+        var patient = data.Patients.GetValueOrDefault(row.PatientId); var practitionerRole = data.PractitionerRoles.GetValueOrDefault(row.PractitionerRoleId);
+        var patientAccount = patient == null ? null : PersonAccount(data, patient.PersonId); var organization = OrganizationRow(data, row.OrganizationId);
         return new ViewAppointmentDto
         {
             BookingReference = row.Id.ToString(),
@@ -38,13 +41,13 @@ public sealed class PortalViews(IPortalReadStore store)
             PatientName = patientAccount?.FullName!,
             PatientEmail = patientAccount?.Email!,
             PatientPhone = patientAccount?.PhoneNumber!,
-            DoctorId = row.DoctorId.ToString(),
-            DoctorName = Account(data, doctor?.UserId)?.FullName!,
-            DoctorSpeciality = doctor?.Speciality!,
-            HospitalId = row.HospitalId.ToString(),
-            HospitalName = hospital?.Name!,
-            HospitalAddress = Address(hospital)!,
-            HospitalPhone = hospital?.Phone!,
+            PractitionerRoleId = row.PractitionerRoleId.ToString(),
+            PractitionerName = RoleAccount(data, practitionerRole)?.FullName!,
+            PractitionerSpecialty = practitionerRole?.Specialty!,
+            OrganizationId = row.OrganizationId.ToString(),
+            OrganizationName = organization?.Name!,
+            OrganizationAddress = Address(organization)!,
+            OrganizationPhone = organization?.Phone!,
             CreatedByUserId = row.CreatedByUserId,
             CreatedByUserName = Account(data, row.CreatedByUserId)?.FullName!,
             AppointmentDateTime = row.AppointmentDateTime.ToString(),
@@ -56,16 +59,17 @@ public sealed class PortalViews(IPortalReadStore store)
     public async Task<ViewPatientDto?> Patient(Patient? row)
     {
         if (row == null) return null;
-        var request = new PortalReadRequest(); request.AccountIds.Add(row.UserId);
+        var request = new PortalReadRequest(); request.PersonIds.Add(row.PersonId);
         return PatientDto(row, await store.Load(request));
     }
     private static ViewPatientDto PatientDto(Patient row, PortalReadData data)
     {
-        var user = Account(data, row.UserId);
+        var user = PersonAccount(data, row.PersonId);
         return new ViewPatientDto
         {
             Id = row.Id.ToString(),
-            UserId = row.UserId,
+            UserId = user?.Id!,
+            PersonId = row.PersonId.ToString(),
             FirstName = user?.FirstName!,
             LastName = user?.LastName!,
             Email = user?.Email!,
@@ -74,15 +78,43 @@ public sealed class PortalViews(IPortalReadStore store)
             Gender = row.Gender
         };
     }
-    public async Task<ViewDoctorDto?> Doctor(Doctor? row)
+    public async Task<ViewPractitionerRoleDto?> PractitionerRole(PractitionerRole? row)
     {
-        if (row == null) return null; var request = new PortalReadRequest(); request.HospitalIds.Add(row.HospitalId); request.AccountIds.Add(row.UserId);
-        return DoctorDto(row, await store.Load(request));
+        if (row == null) return null; var request = new PortalReadRequest(); request.OrganizationIds.Add(row.OrganizationId); request.PractitionerRoleIds.Add(row.Id);
+        return PractitionerRoleDto(row, await store.Load(request));
     }
-    private static ViewDoctorDto DoctorDto(Doctor row, PortalReadData data)
+    private static ViewPractitionerRoleDto PractitionerRoleDto(PractitionerRole row, PortalReadData data)
+    {
+        var user = RoleAccount(data, row);
+        return new ViewPractitionerRoleDto
+        {
+            Id = row.Id.ToString(),
+            UserId = user?.Id!,
+            PractitionerId = row.PractitionerId.ToString(),
+            RoleName = row.RoleName,
+            FirstName = user?.FirstName!,
+            LastName = user?.LastName!,
+            Email = user?.Email!,
+            PhoneNumber = user?.PhoneNumber!,
+            Specialty = row.Specialty,
+            OrganizationId = row.OrganizationId.ToString(),
+            OrganizationName = OrganizationRow(data, row.OrganizationId)?.Name!
+        };
+    }
+    public async Task<List<ViewPractitionerRoleDto>> PractitionerRoles(IEnumerable<PractitionerRole> source)
+    {
+        var rows = source.ToList(); var request = new PortalReadRequest(); foreach (var row in rows) { request.OrganizationIds.Add(row.OrganizationId); request.PractitionerRoleIds.Add(row.Id); }
+        var data = await store.Load(request); return rows.Select(row => PractitionerRoleDto(row, data)).ToList();
+    }
+    public async Task<ViewOrganizationMemberDto?> OrganizationMembership(OrganizationMembership? row)
+    {
+        if (row == null) return null; var request = new PortalReadRequest(); request.OrganizationIds.Add(row.OrganizationId); request.AccountIds.Add(row.UserId);
+        return OrganizationMemberDto(row, await store.Load(request));
+    }
+    private static ViewOrganizationMemberDto OrganizationMemberDto(OrganizationMembership row, PortalReadData data)
     {
         var user = Account(data, row.UserId);
-        return new ViewDoctorDto
+        return new ViewOrganizationMemberDto
         {
             Id = row.Id.ToString(),
             UserId = row.UserId,
@@ -90,79 +122,54 @@ public sealed class PortalViews(IPortalReadStore store)
             LastName = user?.LastName!,
             Email = user?.Email!,
             PhoneNumber = user?.PhoneNumber!,
-            Speciality = row.Speciality,
-            HospitalId = row.HospitalId.ToString(),
-            HospitalName = HospitalRow(data, row.HospitalId)?.Name!
+            Location = row.LocationId.HasValue ? data.Locations.GetValueOrDefault(row.LocationId.Value)?.Name : null,
+            Department = null,
+            OrganizationId = row.OrganizationId.ToString(),
+            OrganizationName = OrganizationRow(data, row.OrganizationId)?.Name!
         };
     }
-    public async Task<List<ViewDoctorDto>> Doctors(IEnumerable<Doctor> source)
+    public async Task<ViewOrganizationManagerDto?> Admin(OrganizationMembership? row)
     {
-        var rows = source.ToList(); var request = new PortalReadRequest(); foreach (var row in rows) { request.HospitalIds.Add(row.HospitalId); request.AccountIds.Add(row.UserId); }
-        var data = await store.Load(request); return rows.Select(row => DoctorDto(row, data)).ToList();
-    }
-    public async Task<ViewReceptionistDto?> Receptionist(Receptionist? row)
-    {
-        if (row == null) return null; var request = new PortalReadRequest(); request.HospitalIds.Add(row.HospitalId); request.AccountIds.Add(row.UserId);
-        return ReceptionistDto(row, await store.Load(request));
-    }
-    private static ViewReceptionistDto ReceptionistDto(Receptionist row, PortalReadData data)
-    {
-        var user = Account(data, row.UserId);
-        return new ViewReceptionistDto
-        {
-            Id = row.Id.ToString(),
-            UserId = row.UserId,
-            FirstName = user?.FirstName!,
-            LastName = user?.LastName!,
-            Email = user?.Email!,
-            PhoneNumber = user?.PhoneNumber!,
-            Location = row.Location,
-            Department = row.Department,
-            HospitalId = row.HospitalId.ToString(),
-            HospitalName = HospitalRow(data, row.HospitalId)?.Name!
-        };
-    }
-    public async Task<ViewHospitalAdminDto?> Admin(HospitalAdmin? row)
-    {
-        if (row == null) return null; var request = new PortalReadRequest(); request.HospitalIds.Add(row.HospitalId); request.AccountIds.Add(row.UserId);
+        if (row == null) return null; var request = new PortalReadRequest(); request.OrganizationIds.Add(row.OrganizationId); request.AccountIds.Add(row.UserId);
         return AdminDto(row, await store.Load(request));
     }
-    private static ViewHospitalAdminDto AdminDto(HospitalAdmin row, PortalReadData data)
+    private static ViewOrganizationManagerDto AdminDto(OrganizationMembership row, PortalReadData data)
     {
         var user = Account(data, row.UserId);
-        return new ViewHospitalAdminDto
+        return new ViewOrganizationManagerDto
         {
             Id = row.Id.ToString(),
             UserId = row.UserId,
-            HospitalId = row.HospitalId.ToString(),
-            HospitalName = HospitalRow(data, row.HospitalId)?.Name!,
+            OrganizationId = row.OrganizationId.ToString(),
+            OrganizationName = OrganizationRow(data, row.OrganizationId)?.Name!,
             FirstName = user?.FirstName!,
             LastName = user?.LastName!,
             Email = user?.Email!,
             PhoneNumber = user?.PhoneNumber!
         };
     }
-    public async Task<ViewHospitalDto?> Hospital(Hospital? row, bool includeAdmins = false)
+    public async Task<ViewOrganizationDto?> Organization(Organization? row, bool includeAdmins = false)
     {
         if (row == null) return null;
-        var request = new PortalReadRequest { IncludeHospitalAdmins = includeAdmins, IncludeAccountRoles = includeAdmins }; request.HospitalIds.Add(row.Id);
-        return HospitalDto(row, await store.Load(request));
+        var request = new PortalReadRequest { IncludeOrganizationManagers = includeAdmins, IncludeAccountRoles = includeAdmins }; request.OrganizationIds.Add(row.Id);
+        return OrganizationDto(row, await store.Load(request));
     }
-    public Task<List<ViewHospitalDto>> Hospitals(IEnumerable<Hospital> rows)
-        => Task.FromResult(rows.Select(row => HospitalDto(row, new PortalReadData())).ToList());
-    private static ViewHospitalDto HospitalDto(Hospital row, PortalReadData data) => new()
+    public Task<List<ViewOrganizationDto>> Organizations(IEnumerable<Organization> rows)
+        => Task.FromResult(rows.Select(row => OrganizationDto(row, new PortalReadData())).ToList());
+    private static ViewOrganizationDto OrganizationDto(Organization row, PortalReadData data) => new()
     {
         Id = row.Id.ToString(),
         Name = row.Name,
+        Type = row.Type,
         Street = row.Street,
         City = row.City,
         District = row.District,
         Phone = row.Phone,
         Grade = row.Grade,
-        Admins = data.Admins.Where(admin => admin.HospitalId == row.Id).Select(admin =>
+        Admins = data.Memberships.Where(admin => admin.OrganizationId == row.Id).Select(admin =>
         {
             var dto = UserDto(admin.UserId, data);
-            dto.HospitalAdminProfile = AdminDto(admin, data);
+            dto.OrganizationManagerProfile = AdminDto(admin, data);
             return dto;
         }).ToList()
     };
@@ -172,6 +179,7 @@ public sealed class PortalViews(IPortalReadStore store)
         return new ViewUserDto
         {
             Id = userId,
+            PersonId = user?.PersonId.ToString() ?? "",
             FirstName = user?.FirstName!,
             LastName = user?.LastName!,
             Email = user?.Email!,
@@ -179,52 +187,50 @@ public sealed class PortalViews(IPortalReadStore store)
             Roles = user?.Roles ?? []
         };
     }
-    public async Task<List<ViewUserDto>> Members(IEnumerable<Doctor> doctors, IEnumerable<Receptionist> receptionists)
+    public async Task<List<ViewUserDto>> Members(IEnumerable<OrganizationMembership> memberships)
     {
-        var doctorRows = doctors.ToList();
-        var receptionistRows = receptionists.ToList();
+        var rows = memberships.ToList();
         var request = new PortalReadRequest { IncludeAccountRoles = true };
-        request.AccountIds.AddRange(doctorRows.Select(row => row.UserId).Concat(receptionistRows.Select(row => row.UserId)));
-        request.HospitalIds.AddRange(doctorRows.Select(row => row.HospitalId).Concat(receptionistRows.Select(row => row.HospitalId)));
-        var data = await store.Load(request);
-        return doctorRows.Select(row =>
-        {
-            var dto = UserDto(row.UserId, data);
-            dto.DoctorProfile = DoctorDto(row, data);
-            return dto;
-        }).Concat(receptionistRows.Select(row =>
-        {
-            var dto = UserDto(row.UserId, data);
-            dto.ReceptionistProfile = ReceptionistDto(row, data);
-            return dto;
-        })).ToList();
-    }
-    public async Task<List<ViewClinicRecordDto>> Records(IEnumerable<ClinicRecord> source)
-    {
-        var rows = source.ToList(); var request = new PortalReadRequest();
-        foreach (var row in rows) { request.PatientIds.Add(row.PatientId); request.DoctorIds.Add(row.DoctorId); }
+        request.AccountIds.AddRange(rows.Select(row => row.UserId));
+        request.ProfileUserIds.AddRange(rows.Select(row => row.UserId));
+        request.OrganizationIds.AddRange(rows.Select(row => row.OrganizationId));
         var data = await store.Load(request);
         return rows.Select(row =>
         {
-            var doctor = data.Doctors.GetValueOrDefault(row.DoctorId); var patient = data.Patients.GetValueOrDefault(row.PatientId);
-            return new ViewClinicRecordDto
+            var dto = UserDto(row.UserId, data);
+            dto.OrganizationMemberProfile = OrganizationMemberDto(row, data);
+            dto.Memberships = [dto.OrganizationMemberProfile];
+            dto.PractitionerRoleProfiles = data.PractitionerRoles.Values.Where(role => role.OrganizationId == row.OrganizationId
+                && RoleAccount(data, role)?.Id == row.UserId).Select(role => PractitionerRoleDto(role, data)).ToList();
+            dto.PractitionerRoleProfile = dto.PractitionerRoleProfiles.FirstOrDefault();
+            return dto;
+        }).ToList();
+    }
+    public async Task<List<ViewClinicalRecordDto>> Records(IEnumerable<ClinicalRecord> source)
+    {
+        var rows = source.ToList(); var request = new PortalReadRequest();
+        foreach (var row in rows) { request.PatientIds.Add(row.PatientId); request.PractitionerRoleIds.Add(row.PractitionerRoleId); request.OrganizationIds.Add(row.OrganizationId); }
+        var data = await store.Load(request);
+        return rows.Select(row =>
+        {
+            var practitionerRole = data.PractitionerRoles.GetValueOrDefault(row.PractitionerRoleId); var patient = data.Patients.GetValueOrDefault(row.PatientId);
+            return new ViewClinicalRecordDto
             {
                 Id = row.Id.ToString(),
-                PatientName = Account(data, patient?.UserId)?.FullName!,
-                DoctorName = Account(data, doctor?.UserId)?.FullName!,
-                // ClinicRecord has no durable originating-hospital ID. Do not infer it from a current doctor assignment.
-                HospitalName = null!,
+                PatientName = (patient == null ? null : PersonAccount(data, patient.PersonId))?.FullName!,
+                PractitionerName = RoleAccount(data, practitionerRole)?.FullName!,
+                OrganizationName = OrganizationRow(data, row.OrganizationId)?.Name!,
                 VisitDate = row.VisitDate,
                 Diagnosis = row.Diagnosis,
-                DoctorNotes = row.DoctorNotes,
+                PractitionerNotes = row.PractitionerNotes,
                 FollowUpDate = row.FollowUpDate,
                 Prescriptions = row.Prescriptions?.Select(prescription => new ViewPrescriptionDto
                 {
                     Id = prescription.Id.ToString(),
-                    ClinicRecordId = prescription.ClinicRecordId.ToString(),
+                    ClinicalRecordId = prescription.ClinicalRecordId.ToString(),
                     IssuedOn = row.VisitDate,
-                    IssuedByDoctor = Account(data, doctor?.UserId)?.FullName!,
-                    IssuedAtHospital = doctor == null ? null! : HospitalRow(data, doctor.HospitalId)?.Name!,
+                    IssuedByPractitioner = RoleAccount(data, practitionerRole)?.FullName!,
+                    IssuedAtOrganization = OrganizationRow(data, row.OrganizationId)?.Name!,
                     MedicineName = prescription.MedicineName,
                     Dosage = prescription.Dosage,
                     TimesPerDay = prescription.TimesPerDay,
@@ -236,18 +242,18 @@ public sealed class PortalViews(IPortalReadStore store)
             };
         }).ToList();
     }
-    public async Task<ViewClinicRecordDto?> Record(ClinicRecord? row) => row == null ? null : (await Records([row]))[0];
-    public async Task<List<ViewDoctorSessionDto>> Sessions(IEnumerable<DoctorSession> source)
+    public async Task<ViewClinicalRecordDto?> Record(ClinicalRecord? row) => row == null ? null : (await Records([row]))[0];
+    public async Task<List<ViewPractitionerScheduleDto>> Sessions(IEnumerable<PractitionerSchedule> source)
     {
-        var rows = source.ToList(); var request = new PortalReadRequest(); request.HospitalIds.AddRange(rows.Select(row => row.HospitalId));
+        var rows = source.ToList(); var request = new PortalReadRequest(); request.OrganizationIds.AddRange(rows.Select(row => row.OrganizationId));
         var data = await store.Load(request);
-        return rows.Select(row => new ViewDoctorSessionDto
+        return rows.Select(row => new ViewPractitionerScheduleDto
         {
             Id = row.Id,
-            DoctorId = row.DoctorId,
-            HospitalId = row.HospitalId,
-            HospitalName = HospitalRow(data, row.HospitalId)?.Name!,
-            HospitalAddress = Address(HospitalRow(data, row.HospitalId))!,
+            PractitionerRoleId = row.PractitionerRoleId,
+            OrganizationId = row.OrganizationId,
+            OrganizationName = OrganizationRow(data, row.OrganizationId)?.Name!,
+            OrganizationAddress = Address(OrganizationRow(data, row.OrganizationId))!,
             StartTime = row.StartTime,
             EndTime = row.EndTime,
             SlotDurationMinutes = row.SlotDurationMinutes,
@@ -256,7 +262,7 @@ public sealed class PortalViews(IPortalReadStore store)
             IsActive = row.IsActive
         }).ToList();
     }
-    public async Task<ViewDoctorSessionDto?> Session(DoctorSession? row) => row == null ? null : (await Sessions([row]))[0];
+    public async Task<ViewPractitionerScheduleDto?> Session(PractitionerSchedule? row) => row == null ? null : (await Sessions([row]))[0];
     public static ViewSessionSlotDto Slot(SessionSlot row) => new()
     {
         Id = row.Id,
@@ -271,16 +277,16 @@ public sealed class PortalViews(IPortalReadStore store)
     public async Task<List<ViewSessionHistoryDto>> Histories(IEnumerable<SessionHistory> source)
     {
         var rows = source.ToList(); var request = new PortalReadRequest();
-        request.SessionIds.AddRange(rows.Select(row => row.DoctorSessionId)); var data = await store.Load(request);
+        request.SessionIds.AddRange(rows.Select(row => row.PractitionerScheduleId)); var data = await store.Load(request);
         return rows.Select(row =>
         {
-            var session = data.Sessions.GetValueOrDefault(row.DoctorSessionId); var doctor = session == null ? null : data.Doctors.GetValueOrDefault(session.DoctorId);
+            var session = data.Sessions.GetValueOrDefault(row.PractitionerScheduleId); var practitionerRole = session == null ? null : data.PractitionerRoles.GetValueOrDefault(session.PractitionerRoleId);
             return new ViewSessionHistoryDto
             {
                 Id = row.Id.ToString(),
-                DoctorSessionId = row.DoctorSessionId.ToString(),
-                DoctorName = Account(data, doctor?.UserId)?.FullName!,
-                DoctorSpeciality = doctor?.Speciality!,
+                PractitionerScheduleId = row.PractitionerScheduleId.ToString(),
+                PractitionerName = RoleAccount(data, practitionerRole)?.FullName!,
+                PractitionerSpecialty = practitionerRole?.Specialty!,
                 Date = row.Date,
                 StartTime = session?.StartTime ?? default,
                 EndTime = session?.EndTime ?? default,
@@ -293,7 +299,7 @@ public sealed class PortalViews(IPortalReadStore store)
         }).ToList();
     }
     public async Task<ViewSessionHistoryDto?> History(SessionHistory? row) => row == null ? null : (await Histories([row]))[0];
-    public static ViewCurrentOrNextSessionDto? Current(DoctorSession? row) => row == null ? null : new()
+    public static ViewCurrentOrNextSessionDto? Current(PractitionerSchedule? row) => row == null ? null : new()
     {
         IsCurrent = row.History.Any(),
         SessionId = row.Id.ToString(),
@@ -306,24 +312,33 @@ public sealed class PortalViews(IPortalReadStore store)
     public static ViewCurrentOrNextSessionDto Current(SessionHistory row) => new()
     {
         IsCurrent = row.SessionStatus == SessionStatus.Started,
-        SessionId = row.DoctorSessionId.ToString(),
-        StartTime = row.DoctorSession.StartTime.ToString(),
-        EndTime = row.DoctorSession.EndTime.ToString(),
+        SessionId = row.PractitionerScheduleId.ToString(),
+        StartTime = row.PractitionerSchedule.StartTime.ToString(),
+        EndTime = row.PractitionerSchedule.EndTime.ToString(),
         StartedTime = row.StartTime.ToString(),
         LastKnownAppointmentId = row.LastKnownAppointmentId?.ToString(),
         EncountersCount = row.EncountersCount
     };
     public async Task<ViewUserDto> User(AccountSummary account, bool includeProfiles = true)
     {
-        var dto = new ViewUserDto { Id = account.Id, FirstName = account.FirstName!, LastName = account.LastName!, Email = account.Email!, PhoneNumber = account.PhoneNumber!, Roles = account.Roles };
+        var dto = new ViewUserDto { Id = account.Id, PersonId = account.PersonId.ToString(), FirstName = account.FirstName!, LastName = account.LastName!, Email = account.Email!, PhoneNumber = account.PhoneNumber!, Roles = account.Roles };
         if (!includeProfiles) return dto;
         var request = new PortalReadRequest(); request.ProfileUserIds.Add(account.Id); var data = await store.Load(request);
         // Reuse the already loaded account fields when composing profiles.
         data.Accounts[account.Id] = account;
-        if (account.Roles.Contains("Patient") && data.Patients.Values.FirstOrDefault(row => row.UserId == account.Id) is { } patient) dto.PatientProfile = PatientDto(patient, data);
-        if (account.Roles.Contains("Doctor") && data.Doctors.Values.FirstOrDefault(row => row.UserId == account.Id) is { } doctor) dto.DoctorProfile = DoctorDto(doctor, data);
-        if (account.Roles.Contains("Receptionist") && data.Receptionists.FirstOrDefault(row => row.UserId == account.Id) is { } receptionist) dto.ReceptionistProfile = ReceptionistDto(receptionist, data);
-        if (account.Roles.Contains("HospitalAdmin") && data.Admins.FirstOrDefault(row => row.UserId == account.Id) is { } admin) dto.HospitalAdminProfile = AdminDto(admin, data);
+        dto.PersonId = account.PersonId.ToString();
+        if (data.Patients.Values.FirstOrDefault(row => row.PersonId == account.PersonId) is { } patient)
+            dto.PatientProfile = PatientDto(patient, data);
+        dto.PractitionerRoleProfiles = data.PractitionerRoles.Values.Where(row => RoleAccount(data, row)?.PersonId == account.PersonId)
+            .Select(row => PractitionerRoleDto(row, data)).ToList();
+        dto.Memberships = data.Memberships.Where(row => row.UserId == account.Id).Select(row => OrganizationMemberDto(row, data)).ToList();
+        // Phase 2 replaces these current-screen defaults with explicit workspace selection.
+        dto.PractitionerRoleProfile = dto.PractitionerRoleProfiles.FirstOrDefault();
+        if (data.Memberships.FirstOrDefault(row => row.UserId == account.Id) is { } membership)
+        {
+            dto.OrganizationMemberProfile = OrganizationMemberDto(membership, data);
+            if (account.Roles.Contains("OrganizationManager")) dto.OrganizationManagerProfile = AdminDto(membership, data);
+        }
         return dto;
     }
 }

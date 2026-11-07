@@ -15,8 +15,8 @@ public class AppointmentCancellationAccessTests
 {
     [Theory]
     [InlineData(UserRoles.PATIENT)]
-    [InlineData(UserRoles.DOCTOR)]
-    [InlineData(UserRoles.RECEPTIONIST)]
+    [InlineData(UserRoles.PRACTITIONER)]
+    [InlineData(UserRoles.ORGANIZATION_MEMBER)]
     public async Task RelatedCallerKeepsExistingCreatorOrRequestBehaviorAndStoresExactStringId(string role)
     {
         using var fixture = new BookingFixture();
@@ -24,8 +24,8 @@ public class AppointmentCancellationAccessTests
         var caller = role switch
         {
             UserRoles.PATIENT => owner,
-            UserRoles.DOCTOR => (await fixture.Context.Doctors.SingleAsync()).UserId,
-            _ => await AppointmentReadAccessTests.AddReceptionist(fixture, true)
+            UserRoles.PRACTITIONER => TestProfiles.UserId(await fixture.Context.PractitionerRoles.SingleAsync()),
+            _ => await AppointmentReadAccessTests.AddOrganizationMember(fixture, true)
         };
         Assert.False(Guid.TryParse(caller, out _));
 
@@ -47,8 +47,8 @@ public class AppointmentCancellationAccessTests
     {
         using var fixture = new BookingFixture();
         var (id, owner) = await BookAsPatient(fixture);
-        var doctor = (await fixture.Context.Doctors.SingleAsync()).UserId;
-        Assert.True((await fixture.Service.Cancel(Request(id), doctor, [UserRoles.DOCTOR])).IsSuccess);
+        var practitionerRole = TestProfiles.UserId(await fixture.Context.PractitionerRoles.SingleAsync());
+        Assert.True((await fixture.Service.Cancel(Request(id), practitionerRole, [UserRoles.PRACTITIONER])).IsSuccess);
 
         var result = await fixture.Service.Cancel(
             new CancellationRequestDto { AppointmentId = id, Reason = "Creator confirmation" }, owner, [UserRoles.PATIENT]);
@@ -57,7 +57,7 @@ public class AppointmentCancellationAccessTests
         Assert.Equal(AppointmentStatus.Cancelled, result.Data!.Status);
         fixture.Context.ChangeTracker.Clear();
         var request = await fixture.Context.CancellationRequests.SingleAsync();
-        Assert.Equal(doctor, request.RequestedById);
+        Assert.Equal(practitionerRole, request.RequestedById);
         Assert.Equal("Synthetic reason", request.Reason);
         Assert.Equal(AppointmentStatus.Cancelled, request.Status);
         Assert.True((await fixture.Context.SessionSlots.SingleAsync()).IsAvailable);
@@ -68,10 +68,10 @@ public class AppointmentCancellationAccessTests
     {
         using var fixture = new BookingFixture();
         var (id, _) = await BookAsPatient(fixture);
-        var doctor = (await fixture.Context.Doctors.SingleAsync()).UserId;
-        await fixture.Service.Cancel(Request(id), doctor, [UserRoles.DOCTOR]);
+        var practitionerRole = TestProfiles.UserId(await fixture.Context.PractitionerRoles.SingleAsync());
+        await fixture.Service.Cancel(Request(id), practitionerRole, [UserRoles.PRACTITIONER]);
 
-        var result = await fixture.Service.Cancel(Request(id), doctor, [UserRoles.DOCTOR]);
+        var result = await fixture.Service.Cancel(Request(id), practitionerRole, [UserRoles.PRACTITIONER]);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(ErrorCode.APPT_CancellationAlreadyRequested, result.Error!.Code);
@@ -83,13 +83,13 @@ public class AppointmentCancellationAccessTests
     }
 
     [Fact]
-    public async Task OtherHospitalReceptionistCannotCancelOrRequestCancellation()
+    public async Task OtherOrganizationOrganizationMemberCannotCancelOrRequestCancellation()
     {
         using var fixture = new BookingFixture();
         var (id, _) = await BookAsPatient(fixture);
-        var caller = await AppointmentReadAccessTests.AddReceptionist(fixture, false);
+        var caller = await AppointmentReadAccessTests.AddOrganizationMember(fixture, false);
 
-        var result = await fixture.Service.Cancel(Request(id), caller, [UserRoles.RECEPTIONIST]);
+        var result = await fixture.Service.Cancel(Request(id), caller, [UserRoles.ORGANIZATION_MEMBER]);
 
         Assert.False(result.IsSuccess);
         Assert.Null(result.Data);
@@ -112,14 +112,14 @@ public class AppointmentCancellationAccessTests
 
     [Theory]
     [InlineData(UserRoles.PATIENT)]
-    [InlineData(UserRoles.SUPERUSER)]
-    public async Task StoredDoctorProfileWithoutItsTokenRoleCannotCancel(string tokenRole)
+    [InlineData(UserRoles.PLATFORM_ADMIN)]
+    public async Task StoredPractitionerRoleProfileWithoutItsTokenRoleCannotCancel(string tokenRole)
     {
         using var fixture = new BookingFixture();
         var (id, _) = await BookAsPatient(fixture);
-        var doctor = (await fixture.Context.Doctors.SingleAsync()).UserId;
+        var practitionerRole = TestProfiles.UserId(await fixture.Context.PractitionerRoles.SingleAsync());
 
-        var result = await fixture.Service.Cancel(Request(id), doctor, [tokenRole]);
+        var result = await fixture.Service.Cancel(Request(id), practitionerRole, [tokenRole]);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(404, result.Error!.HttpStatus);
@@ -131,19 +131,19 @@ public class AppointmentCancellationAccessTests
     {
         using var fixture = new BookingFixture();
         var (id, _) = await BookAsPatient(fixture);
-        var doctor = (await fixture.Context.Doctors.SingleAsync()).UserId;
-        await fixture.Service.Cancel(Request(id), doctor, [UserRoles.DOCTOR]);
+        var practitionerRole = TestProfiles.UserId(await fixture.Context.PractitionerRoles.SingleAsync());
+        await fixture.Service.Cancel(Request(id), practitionerRole, [UserRoles.PRACTITIONER]);
         fixture.Context.ChangeTracker.Clear();
         var originalId = (await fixture.Context.CancellationRequests.SingleAsync()).Id;
 
-        var result = await fixture.Service.Cancel(Request(id), "unrelated-doctor", [UserRoles.DOCTOR]);
+        var result = await fixture.Service.Cancel(Request(id), "unrelated-practitionerRole", [UserRoles.PRACTITIONER]);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(404, result.Error!.HttpStatus);
         fixture.Context.ChangeTracker.Clear();
         var request = await fixture.Context.CancellationRequests.SingleAsync();
         Assert.Equal(originalId, request.Id);
-        Assert.Equal(doctor, request.RequestedById);
+        Assert.Equal(practitionerRole, request.RequestedById);
         Assert.Equal(AppointmentStatus.CancelRequested, request.Status);
         Assert.False((await fixture.Context.SessionSlots.SingleAsync()).IsAvailable);
     }
@@ -189,7 +189,7 @@ public class AppointmentCancellationAccessTests
         using var fixture = new BookingFixture();
         var (id, owner) = await BookAsPatient(fixture);
         (await fixture.Context.Appointments.SingleAsync()).Status = AppointmentStatus.CancelRequested;
-        await fixture.Context.SaveChangesAsync();
+        await TestProfiles.SaveAsync(fixture.Context);
         fixture.Context.ChangeTracker.Clear();
 
         var result = await fixture.Service.Cancel(Request(id), owner, [UserRoles.PATIENT]);
@@ -231,7 +231,7 @@ public class AppointmentCancellationAccessTests
 
     private static async Task<(string Id, string Owner)> BookAsPatient(BookingFixture fixture)
     {
-        var owner = (await fixture.Context.Patients.SingleAsync()).UserId;
+        var owner = TestProfiles.UserId(await fixture.Context.Patients.SingleAsync());
         var result = await fixture.Service.Create(fixture.Request(), owner);
         Assert.True(result.IsSuccess);
         fixture.Context.ChangeTracker.Clear();

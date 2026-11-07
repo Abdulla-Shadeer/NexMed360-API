@@ -1,8 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using NexMed360Api.Entities;
-using NexMed360Api.Data;
-using NexMed360Api.Entities.Enums;
 
 namespace NexMed360.Infrastructure.Data.Configurations;
 
@@ -10,14 +8,14 @@ internal sealed class AppointmentConfiguration : IEntityTypeConfiguration<Appoin
 {
     public void Configure(EntityTypeBuilder<Appointment> builder)
     {
-        EntityConfiguration.Configure(builder, "Appointments");
-        builder.HasOne<Patient>().WithMany().HasForeignKey(row => row.PatientId).OnDelete(DeleteBehavior.Cascade);
-        builder.HasOne<Doctor>().WithMany().HasForeignKey(row => row.DoctorId).OnDelete(DeleteBehavior.Cascade);
-        builder.HasOne<Hospital>().WithMany().HasForeignKey(row => row.HospitalId).OnDelete(DeleteBehavior.Cascade);
-        builder.HasOne<SessionSlot>().WithMany().HasForeignKey(row => row.SessionSlotId).OnDelete(DeleteBehavior.Cascade);
-        builder.HasOne<User>().WithMany().HasForeignKey(appointment => appointment.CreatedByUserId);
-        builder.HasIndex(appointment => appointment.SessionSlotId);
-        builder.HasIndex(appointment => appointment.SessionSlotId, ApplicationDbContext.NonCancelledSlotIndexName)
-            .IsUnique().HasFilter($"\"Status\" <> {(int)AppointmentStatus.Cancelled}");
+        EntityConfiguration.Organization(builder, "Appointments");
+        builder.HasOne<Patient>().WithMany().HasForeignKey(row => row.PatientId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<PractitionerRole>().WithMany().HasForeignKey(row => new { row.PractitionerRoleId, row.OrganizationId })
+            .HasPrincipalKey(row => new { row.Id, row.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<SessionSlot>().WithMany().HasForeignKey(row => new { row.SessionSlotId, row.OrganizationId })
+            .HasPrincipalKey(row => new { row.Id, row.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(row => row.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(row => row.SessionSlotId, NexMed360Api.Data.ApplicationDbContext.NonCancelledSlotIndexName)
+            .IsUnique().HasFilter($"\"Status\" <> {(int)NexMed360Api.Entities.Enums.AppointmentStatus.Cancelled}");
     }
 }

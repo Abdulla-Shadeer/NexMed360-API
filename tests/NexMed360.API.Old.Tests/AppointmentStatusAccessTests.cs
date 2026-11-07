@@ -17,13 +17,13 @@ public class AppointmentStatusAccessTests
     [InlineData(AppointmentStatus.Completed)]
     [InlineData(AppointmentStatus.Arrived)]
     [InlineData(AppointmentStatus.InProgress)]
-    public async Task AssignedDoctorCanPerformExistingStatusActions(AppointmentStatus status)
+    public async Task AssignedPractitionerRoleCanPerformExistingStatusActions(AppointmentStatus status)
     {
         using var fixture = new BookingFixture();
         var id = await AppointmentReadAccessTests.Book(fixture);
-        var caller = (await fixture.Context.Doctors.SingleAsync()).UserId;
+        var caller = TestProfiles.UserId(await fixture.Context.PractitionerRoles.SingleAsync());
 
-        var result = await fixture.Service.ChangeStatus(id, status, caller, [UserRoles.DOCTOR]);
+        var result = await fixture.Service.ChangeStatus(id, status, caller, [UserRoles.PRACTITIONER]);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(id, result.Data!.BookingReference);
@@ -37,26 +37,26 @@ public class AppointmentStatusAccessTests
     [InlineData(AppointmentStatus.Confirmed)]
     [InlineData(AppointmentStatus.Completed)]
     [InlineData(AppointmentStatus.Arrived)]
-    public async Task SameHospitalReceptionistCanPerformExistingFrontOfficeActions(AppointmentStatus status)
+    public async Task SameOrganizationOrganizationMemberCanPerformExistingFrontOfficeActions(AppointmentStatus status)
     {
         using var fixture = new BookingFixture();
         var id = await AppointmentReadAccessTests.Book(fixture);
-        var caller = await AppointmentReadAccessTests.AddReceptionist(fixture, true);
+        var caller = await AppointmentReadAccessTests.AddOrganizationMember(fixture, true);
 
-        var result = await fixture.Service.ChangeStatus(id, status, caller, [UserRoles.RECEPTIONIST]);
+        var result = await fixture.Service.ChangeStatus(id, status, caller, [UserRoles.ORGANIZATION_MEMBER]);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(status, result.Data!.Status);
     }
 
     [Fact]
-    public async Task OtherHospitalReceptionistCannotMutateAppointment()
+    public async Task OtherOrganizationOrganizationMemberCannotMutateAppointment()
     {
         using var fixture = new BookingFixture();
         var id = await AppointmentReadAccessTests.Book(fixture);
-        var caller = await AppointmentReadAccessTests.AddReceptionist(fixture, false);
+        var caller = await AppointmentReadAccessTests.AddOrganizationMember(fixture, false);
 
-        var result = await fixture.Service.ChangeStatus(id, AppointmentStatus.Confirmed, caller, [UserRoles.RECEPTIONIST]);
+        var result = await fixture.Service.ChangeStatus(id, AppointmentStatus.Confirmed, caller, [UserRoles.ORGANIZATION_MEMBER]);
 
         Assert.False(result.IsSuccess);
         Assert.Null(result.Data);
@@ -67,23 +67,23 @@ public class AppointmentStatusAccessTests
     }
 
     [Fact]
-    public async Task AnotherDoctorAtSameHospitalCannotMutateAppointment()
+    public async Task AnotherPractitionerRoleAtSameOrganizationCannotMutateAppointment()
     {
         using var fixture = new BookingFixture();
         var id = await AppointmentReadAccessTests.Book(fixture);
-        var hospital = await fixture.Context.Hospitals.SingleAsync();
-        var user = new User { Id = "other-doctor", FirstName = "Other", LastName = "Doctor" };
+        var organization = await fixture.Context.Organizations.SingleAsync();
+        var user = new ApplicationUser { Id = "other-practitionerRole", FirstName = "Other", LastName = "PractitionerRole" };
         fixture.Context.Users.Add(user);
-        if (fixture.Context.Entry(hospital).State == EntityState.Detached) fixture.Context.Hospitals.Add(hospital);
-        fixture.Context.Doctors.Add(new Doctor
+        if (fixture.Context.Entry(organization).State == EntityState.Detached) fixture.Context.Organizations.Add(organization);
+        fixture.Context.PractitionerRoles.Add(new PractitionerRole
         {
-            Id = Guid.NewGuid(), UserId = user.Id,
-            HospitalId = hospital.Id,  Speciality = "Test speciality"
+            Id = Guid.NewGuid(), PractitionerId = TestProfiles.PractitionerId(user.Id),
+            OrganizationId = organization.Id,  Specialty = "Test specialty"
         });
-        await fixture.Context.SaveChangesAsync();
+        await TestProfiles.SaveAsync(fixture.Context);
         fixture.Context.ChangeTracker.Clear();
 
-        var result = await fixture.Service.ChangeStatus(id, AppointmentStatus.Completed, user.Id, [UserRoles.DOCTOR]);
+        var result = await fixture.Service.ChangeStatus(id, AppointmentStatus.Completed, user.Id, [UserRoles.PRACTITIONER]);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(404, result.Error!.HttpStatus);
@@ -92,14 +92,14 @@ public class AppointmentStatusAccessTests
     }
 
     [Fact]
-    public async Task PatientScopeDoesNotGrantStaffPermissionsEvenWithAnUnassignedDoctorRole()
+    public async Task PatientScopeDoesNotGrantStaffPermissionsEvenWithAnUnassignedPractitionerRoleRole()
     {
         using var fixture = new BookingFixture();
         var id = await AppointmentReadAccessTests.Book(fixture);
-        var caller = (await fixture.Context.Patients.SingleAsync()).UserId;
+        var caller = TestProfiles.UserId(await fixture.Context.Patients.SingleAsync());
 
         var result = await fixture.Service.ChangeStatus(id, AppointmentStatus.Confirmed,
-            caller, [UserRoles.PATIENT, UserRoles.DOCTOR]);
+            caller, [UserRoles.PATIENT, UserRoles.PRACTITIONER]);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(404, result.Error!.HttpStatus);
@@ -108,14 +108,14 @@ public class AppointmentStatusAccessTests
     }
 
     [Fact]
-    public async Task ReceptionistScopeDoesNotAllowStartingAnEncounterEvenWithAnUnassignedDoctorRole()
+    public async Task OrganizationMemberScopeDoesNotAllowStartingAnEncounterEvenWithAnUnassignedPractitionerRoleRole()
     {
         using var fixture = new BookingFixture();
         var id = await AppointmentReadAccessTests.Book(fixture);
-        var caller = await AppointmentReadAccessTests.AddReceptionist(fixture, true);
+        var caller = await AppointmentReadAccessTests.AddOrganizationMember(fixture, true);
 
         var result = await fixture.Service.ChangeStatus(id, AppointmentStatus.InProgress,
-            caller, [UserRoles.RECEPTIONIST, UserRoles.DOCTOR]);
+            caller, [UserRoles.ORGANIZATION_MEMBER, UserRoles.PRACTITIONER]);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(404, result.Error!.HttpStatus);
@@ -125,8 +125,8 @@ public class AppointmentStatusAccessTests
 
     [Theory]
     [InlineData(UserRoles.PATIENT, AppointmentStatus.Confirmed)]
-    [InlineData(UserRoles.SUPERUSER, AppointmentStatus.Completed)]
-    [InlineData(UserRoles.RECEPTIONIST, AppointmentStatus.InProgress)]
+    [InlineData(UserRoles.PLATFORM_ADMIN, AppointmentStatus.Completed)]
+    [InlineData(UserRoles.ORGANIZATION_MEMBER, AppointmentStatus.InProgress)]
     public async Task UnsupportedRoleIsRejectedBeforeStorageAccess(string role, AppointmentStatus status)
     {
         using var context = new ApplicationDbContext(new DbContextOptions<ApplicationDbContext>());
@@ -148,7 +148,7 @@ public class AppointmentStatusAccessTests
         using var context = new ApplicationDbContext(new DbContextOptions<ApplicationDbContext>());
 
         var result = await new AppointmentService(new AppointmentRepository(context), TestViews.For(context)).ChangeStatus(
-            Guid.NewGuid().ToString(), AppointmentStatus.Confirmed, caller, [UserRoles.DOCTOR]);
+            Guid.NewGuid().ToString(), AppointmentStatus.Confirmed, caller, [UserRoles.PRACTITIONER]);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(401, result.Error!.HttpStatus);
@@ -159,12 +159,12 @@ public class AppointmentStatusAccessTests
     {
         using var fixture = new BookingFixture();
         await AppointmentReadAccessTests.Book(fixture);
-        var caller = (await fixture.Context.Doctors.SingleAsync()).UserId;
+        var caller = TestProfiles.UserId(await fixture.Context.PractitionerRoles.SingleAsync());
 
         var missing = await fixture.Service.ChangeStatus(Guid.NewGuid().ToString(),
-            AppointmentStatus.Confirmed, caller, [UserRoles.DOCTOR]);
+            AppointmentStatus.Confirmed, caller, [UserRoles.PRACTITIONER]);
         var malformed = await fixture.Service.ChangeStatus("invalid",
-            AppointmentStatus.Confirmed, caller, [UserRoles.DOCTOR]);
+            AppointmentStatus.Confirmed, caller, [UserRoles.PRACTITIONER]);
 
         Assert.Equal(404, missing.Error!.HttpStatus);
         Assert.Equal(ErrorCode.APPT_NotFound, missing.Error.Code);
@@ -178,12 +178,12 @@ public class AppointmentStatusAccessTests
         using var fixture = new BookingFixture();
         var id = await AppointmentReadAccessTests.Book(fixture);
         (await fixture.Context.Appointments.SingleAsync()).Status = AppointmentStatus.Cancelled;
-        await fixture.Context.SaveChangesAsync();
+        await TestProfiles.SaveAsync(fixture.Context);
         fixture.Context.ChangeTracker.Clear();
-        var caller = (await fixture.Context.Doctors.SingleAsync()).UserId;
+        var caller = TestProfiles.UserId(await fixture.Context.PractitionerRoles.SingleAsync());
 
-        var own = await fixture.Service.ChangeStatus(id, AppointmentStatus.Confirmed, caller, [UserRoles.DOCTOR]);
-        var other = await fixture.Service.ChangeStatus(id, AppointmentStatus.Confirmed, "unrelated-doctor", [UserRoles.DOCTOR]);
+        var own = await fixture.Service.ChangeStatus(id, AppointmentStatus.Confirmed, caller, [UserRoles.PRACTITIONER]);
+        var other = await fixture.Service.ChangeStatus(id, AppointmentStatus.Confirmed, "unrelated-practitionerRole", [UserRoles.PRACTITIONER]);
 
         Assert.Equal(410, own.Error!.HttpStatus);
         Assert.Equal(404, other.Error!.HttpStatus);
@@ -200,10 +200,10 @@ public class AppointmentStatusAccessTests
         using var fixture = new BookingFixture(options);
         var id = await AppointmentReadAccessTests.Book(fixture);
         await AddCancellationRequest(fixture);
-        var caller = (await fixture.Context.Doctors.SingleAsync()).UserId;
+        var caller = TestProfiles.UserId(await fixture.Context.PractitionerRoles.SingleAsync());
         probe.SaveCount = 0;
 
-        var result = await fixture.Service.ChangeStatus(id, AppointmentStatus.Confirmed, caller, [UserRoles.DOCTOR]);
+        var result = await fixture.Service.ChangeStatus(id, AppointmentStatus.Confirmed, caller, [UserRoles.PRACTITIONER]);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(1, probe.SaveCount);
@@ -221,12 +221,12 @@ public class AppointmentStatusAccessTests
         using var fixture = new BookingFixture(options);
         var id = await AppointmentReadAccessTests.Book(fixture);
         var cancellationId = await AddCancellationRequest(fixture);
-        var caller = (await fixture.Context.Doctors.SingleAsync()).UserId;
+        var caller = TestProfiles.UserId(await fixture.Context.PractitionerRoles.SingleAsync());
         probe.SaveCount = 0;
         probe.FailWhenAppointmentModified = true;
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.ChangeStatus(
-            id, AppointmentStatus.Confirmed, caller, [UserRoles.DOCTOR]));
+            id, AppointmentStatus.Confirmed, caller, [UserRoles.PRACTITIONER]));
 
         Assert.Equal(1, probe.SaveCount);
         fixture.Context.ChangeTracker.Clear();
@@ -242,7 +242,7 @@ public class AppointmentStatusAccessTests
         var cancellationId = await AddCancellationRequest(fixture);
 
         var result = await fixture.Service.ChangeStatus(id, AppointmentStatus.Confirmed,
-            "unrelated-doctor", [UserRoles.DOCTOR]);
+            "unrelated-practitionerRole", [UserRoles.PRACTITIONER]);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(404, result.Error!.HttpStatus);
@@ -257,11 +257,11 @@ public class AppointmentStatusAccessTests
         using var fixture = new BookingFixture();
         var id = await AppointmentReadAccessTests.Book(fixture);
         (await fixture.Context.Appointments.SingleAsync()).Status = AppointmentStatus.CancelRequested;
-        await fixture.Context.SaveChangesAsync();
+        await TestProfiles.SaveAsync(fixture.Context);
         fixture.Context.ChangeTracker.Clear();
-        var caller = (await fixture.Context.Doctors.SingleAsync()).UserId;
+        var caller = TestProfiles.UserId(await fixture.Context.PractitionerRoles.SingleAsync());
 
-        var result = await fixture.Service.ChangeStatus(id, AppointmentStatus.Confirmed, caller, [UserRoles.DOCTOR]);
+        var result = await fixture.Service.ChangeStatus(id, AppointmentStatus.Confirmed, caller, [UserRoles.PRACTITIONER]);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(AppointmentStatus.Confirmed, result.Data!.Status);
@@ -278,7 +278,7 @@ public class AppointmentStatusAccessTests
             Reason = "Synthetic reason"
         };
         fixture.Context.CancellationRequests.Add(cancellation);
-        await fixture.Context.SaveChangesAsync();
+        await TestProfiles.SaveAsync(fixture.Context);
         fixture.Context.ChangeTracker.Clear();
         return cancellation.Id;
     }

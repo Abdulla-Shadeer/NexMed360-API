@@ -3,7 +3,7 @@ using NexMed360Api.Entities.Enums;
 
 namespace NexMed360Api.Interfaces.Services;
 
-public sealed record AppointmentFilter(DateTime? FromDate, DateTime? ToDate, Guid? PatientId, Guid? DoctorId, Guid? HospitalId, AppointmentStatus? Status);
+public sealed record AppointmentFilter(DateTime? FromDate, DateTime? ToDate, Guid? PatientId, Guid? PractitionerRoleId, Guid? OrganizationId, AppointmentStatus? Status);
 public interface IAppointmentRepository
 {
     Task<SessionSlot?> FindSlot(Guid id);
@@ -15,8 +15,8 @@ public interface IAppointmentRepository
     void RemoveCancellationRequest(CancellationRequest request);
     Task SaveChanges();
     Task<List<Appointment>> GetOwn(AppointmentFilter filter, string userId);
-    Task<List<Appointment>> GetHospitalAppointments(AppointmentFilter filter, string userId);
+    Task<List<Appointment>> GetOrganizationAppointments(AppointmentFilter filter, string userId);
     Task<bool> PatientExists(Guid id);
-    Task<bool> DoctorExists(Guid id);
-    Task<bool> HospitalExists(Guid id);
+    Task<bool> PractitionerRoleExists(Guid id);
+    Task<bool> OrganizationExists(Guid id);
 }

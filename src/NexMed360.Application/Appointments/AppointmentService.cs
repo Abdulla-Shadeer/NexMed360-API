@@ -18,12 +18,12 @@ public class AppointmentService(IAppointmentRepository repository, PortalViews v
         if (slot.Session == null) return Result<ViewAppointmentDto>.Failure(ErrorCode.SYS_BadRequest, "No session found for given slot ID!");
         var eligibility = AppointmentRules.Booking(slot.Session.IsActive, slot.IsAvailable, slot.BookingAllowed);
         if (eligibility == BookingEligibility.InactiveSession)
-            return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_DoctorUnavailable, "The doctor session is inactive and cannot accept bookings.");
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_PractitionerRoleUnavailable, "The practitioner session is inactive and cannot accept bookings.");
         if (eligibility == BookingEligibility.UnavailableSlot)
-            return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_DoctorUnavailable, "The selected slot is not available for booking.");
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_PractitionerRoleUnavailable, "The selected slot is not available for booking.");
         var appointment = Appointment.Book(dto.PatientId, slot, requesterId, dto.Remarks);
         if (!await repository.TryBook(appointment, slot))
-            return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_DoctorUnavailable, "The selected slot has already been booked. Please choose another slot.");
+            return Result<ViewAppointmentDto>.Failure(ErrorCode.APPT_PractitionerRoleUnavailable, "The selected slot has already been booked. Please choose another slot.");
         return Result<ViewAppointmentDto>.Success(await views.Appointment(await repository.Find(appointment.Id)));
     }
     public async Task<Result<List<ViewAppointmentDto>>> GetOwn(ViewAppointmentsFilterDto filter, string userId)
@@ -32,32 +32,32 @@ public class AppointmentService(IAppointmentRepository repository, PortalViews v
         if (!validation.IsSuccess) return Result<List<ViewAppointmentDto>>.Failure(validation.Error!);
         return Result<List<ViewAppointmentDto>>.Success(await views.Appointments(await repository.GetOwn(validation.Data!, userId)));
     }
-    public async Task<Result<List<ViewAppointmentDto>>> GetHospitalAppointments(ViewAppointmentsFilterDto filter, string userId)
+    public async Task<Result<List<ViewAppointmentDto>>> GetOrganizationAppointments(ViewAppointmentsFilterDto filter, string userId)
     {
         var validation = await ValidateFilter(filter); if (!validation.IsSuccess) return Result<List<ViewAppointmentDto>>.Failure(validation.Error!);
-        return Result<List<ViewAppointmentDto>>.Success(await views.Appointments(await repository.GetHospitalAppointments(validation.Data!, userId)));
+        return Result<List<ViewAppointmentDto>>.Success(await views.Appointments(await repository.GetOrganizationAppointments(validation.Data!, userId)));
     }
     private async Task<Result<AppointmentFilter>> ValidateFilter(ViewAppointmentsFilterDto filter)
     {
         if (filter.FromDate.HasValue && filter.ToDate.HasValue && filter.FromDate > filter.ToDate)
             return Result<AppointmentFilter>.Failure(ErrorCode.APPT_FromDateAfterToDate);
-        Guid? patient = null, doctor = null, hospital = null;
+        Guid? patient = null, practitionerRole = null, organization = null;
         if (filter.PatientId != null)
         {
             if (!Guid.TryParse(filter.PatientId, out var id)) return Result<AppointmentFilter>.Failure(ErrorCode.SYS_InvalidGuid, "Patient ID has invalid GUID format!");
             if (!await repository.PatientExists(id)) return Result<AppointmentFilter>.Failure(ErrorCode.APPT_PatientNotFound); patient = id;
         }
-        if (filter.DoctorId != null)
+        if (filter.PractitionerRoleId != null)
         {
-            if (!Guid.TryParse(filter.DoctorId, out var id)) return Result<AppointmentFilter>.Failure(ErrorCode.SYS_InvalidGuid, "Doctor ID has invalid GUID format!");
-            if (!await repository.DoctorExists(id)) return Result<AppointmentFilter>.Failure(ErrorCode.APPT_DoctorNotFound); doctor = id;
+            if (!Guid.TryParse(filter.PractitionerRoleId, out var id)) return Result<AppointmentFilter>.Failure(ErrorCode.SYS_InvalidGuid, "Practitioner ID has invalid GUID format!");
+            if (!await repository.PractitionerRoleExists(id)) return Result<AppointmentFilter>.Failure(ErrorCode.APPT_PractitionerRoleNotFound); practitionerRole = id;
         }
-        if (filter.HospitalId != null)
+        if (filter.OrganizationId != null)
         {
-            if (!Guid.TryParse(filter.HospitalId, out var id)) return Result<AppointmentFilter>.Failure(ErrorCode.SYS_InvalidGuid, "Hospital ID has invalid GUID format!");
-            if (!await repository.HospitalExists(id)) return Result<AppointmentFilter>.Failure(ErrorCode.HOS_NotFound, $"Hospital not found with ID {id}"); hospital = id;
+            if (!Guid.TryParse(filter.OrganizationId, out var id)) return Result<AppointmentFilter>.Failure(ErrorCode.SYS_InvalidGuid, "Organization ID has invalid GUID format!");
+            if (!await repository.OrganizationExists(id)) return Result<AppointmentFilter>.Failure(ErrorCode.HOS_NotFound, $"Organization not found with ID {id}"); organization = id;
         }
-        return Result<AppointmentFilter>.Success(new(filter.FromDate, filter.ToDate, patient, doctor, hospital, filter.Status));
+        return Result<AppointmentFilter>.Success(new(filter.FromDate, filter.ToDate, patient, practitionerRole, organization, filter.Status));
     }
     public async Task<Result<ViewAppointmentDto>> Get(string id, string? caller, IReadOnlyCollection<string> roles)
     {
@@ -80,6 +80,7 @@ public class AppointmentService(IAppointmentRepository repository, PortalViews v
         if (request == null)
         {
             request = CancellationRequest.Create(id, caller, dto.Reason);
+            request.OrganizationId = appointment.OrganizationId;
             await repository.AddCancellationRequest(request);
         }
         var slot = await repository.FindSlot(appointment.SessionSlotId);

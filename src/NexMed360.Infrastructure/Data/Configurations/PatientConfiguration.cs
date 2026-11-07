@@ -9,6 +9,8 @@ internal sealed class PatientConfiguration : IEntityTypeConfiguration<Patient>
     public void Configure(EntityTypeBuilder<Patient> builder)
     {
         EntityConfiguration.Configure(builder, "Patients");
-        builder.HasOne<User>().WithOne().HasForeignKey<Patient>(patient => patient.UserId);
+        builder.HasOne<Person>().WithOne().HasForeignKey<Patient>(row => row.PersonId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(row => row.PersonId).IsUnique();
+        builder.HasMany(row => row.VisitHistories).WithOne().HasForeignKey(row => row.PatientId).OnDelete(DeleteBehavior.Cascade);
     }
 }

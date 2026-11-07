@@ -1,7 +1,7 @@
 ﻿using Asp.Versioning;
 using NexMed360Api.Common;
 using NexMed360Api.Common.Auth;
-using NexMed360Api.Dtos.ClinicRecord;
+using NexMed360Api.Dtos.ClinicalRecord;
 using NexMed360Api.Dtos.Patient;
 using NexMed360Api.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -24,7 +24,7 @@ public class PatientController : ControllerBase
 
     [HttpPost]
     [Route("Create")]
-    [Authorize(Roles = UserRoles.RECEPTIONIST)]
+    [Authorize(Roles = UserRoles.ORGANIZATION_MEMBER)]
     public async Task<ActionResult<Result<ViewPatientDto>>> Create(CreatePatientDto dto)
     {
         return HandleResult(await _patientService.CreatePatient(dto), true);
@@ -32,45 +32,45 @@ public class PatientController : ControllerBase
 
     [HttpGet]
     [Route("Get/{patientId}")]
-    [Authorize(Roles = $"{UserRoles.RECEPTIONIST},{UserRoles.DOCTOR}")]
+    [Authorize(Roles = $"{UserRoles.ORGANIZATION_MEMBER},{UserRoles.PRACTITIONER}")]
     public async Task<ActionResult<Result<ViewPatientDto>>> GetPatient(string patientId)
     {
         return HandleResult(await _patientService.GetPatient(patientId));
     }
 
     [HttpPost]
-    [Route("AddClinicRecord")]
-    [Authorize(Roles = UserRoles.DOCTOR)]
-    public async Task<ActionResult<Result<ViewClinicRecordDto>>> AddClinicRecord(AddClinicRecordDto dto)
+    [Route("AddClinicalRecord")]
+    [Authorize(Roles = UserRoles.PRACTITIONER)]
+    public async Task<ActionResult<Result<ViewClinicalRecordDto>>> AddClinicalRecord(AddClinicalRecordDto dto)
     {
-        var doctorUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        return HandleResult(await _patientService.AddToClinicRecords(dto, doctorUserId!), true);
+        var practitionerRoleUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return HandleResult(await _patientService.AddToClinicalRecords(dto, practitionerRoleUserId!), true);
     }
 
     [HttpGet]
-    [Route("GetClinicRecord/{recordId}")]
-    [Authorize(Roles = $"{UserRoles.DOCTOR}, {UserRoles.PATIENT}")]
-    [ProducesResponseType(typeof(Result<ViewClinicRecordDto>), StatusCodes.Status200OK)]
+    [Route("GetClinicalRecord/{recordId}")]
+    [Authorize(Roles = $"{UserRoles.PRACTITIONER}, {UserRoles.PATIENT}")]
+    [ProducesResponseType(typeof(Result<ViewClinicalRecordDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<Result<ViewClinicRecordDto>>> GetClinicRecord(string recordId)
+    public async Task<ActionResult<Result<ViewClinicalRecordDto>>> GetClinicalRecord(string recordId)
     {
         var requesterUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        return HandleResult(await _patientService.ViewClinicRecord(
-            recordId, requesterUserId, User.IsInRole(UserRoles.DOCTOR)));
+        return HandleResult(await _patientService.ViewClinicalRecord(
+            recordId, requesterUserId, User.IsInRole(UserRoles.PRACTITIONER)));
     }
 
     [HttpGet]
-    [Route("GetClinicRecords/{patientId}")]
-    [Authorize(Roles = $"{UserRoles.DOCTOR}, {UserRoles.PATIENT}")]
-    [ProducesResponseType(typeof(Result<List<ViewClinicRecordDto>>), StatusCodes.Status200OK)]
+    [Route("GetClinicalRecords/{patientId}")]
+    [Authorize(Roles = $"{UserRoles.PRACTITIONER}, {UserRoles.PATIENT}")]
+    [ProducesResponseType(typeof(Result<List<ViewClinicalRecordDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<Result<List<ViewClinicRecordDto>>>> GetClinicRecords(string patientId)
+    public async Task<ActionResult<Result<List<ViewClinicalRecordDto>>>> GetClinicalRecords(string patientId)
     {
         var requesterUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        return HandleResult(await _patientService.ViewAllClinicRecords(
-            patientId, requesterUserId, User.IsInRole(UserRoles.DOCTOR)));
+        return HandleResult(await _patientService.ViewAllClinicalRecords(
+            patientId, requesterUserId, User.IsInRole(UserRoles.PRACTITIONER)));
     }
 
     private ActionResult<Result<T>> HandleResult<T>(Result<T> result, bool isCreatedResult = false)

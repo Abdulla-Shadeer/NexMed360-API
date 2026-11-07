@@ -8,7 +8,9 @@ internal sealed class CancellationRequestConfiguration : IEntityTypeConfiguratio
 {
     public void Configure(EntityTypeBuilder<CancellationRequest> builder)
     {
-        EntityConfiguration.Configure(builder, "CancellationRequests");
-
+        EntityConfiguration.Organization(builder, "CancellationRequests");
+        builder.HasOne(row => row.Appointment).WithMany().HasForeignKey(row => new { row.AppointmentId, row.OrganizationId })
+            .HasPrincipalKey(row => new { row.Id, row.OrganizationId }).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(row => row.RequestedById).OnDelete(DeleteBehavior.Restrict);
     }
 }

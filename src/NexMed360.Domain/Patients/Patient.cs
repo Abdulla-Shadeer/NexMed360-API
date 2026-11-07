@@ -1,12 +1,9 @@
-﻿namespace NexMed360Api.Entities
+﻿namespace NexMed360Api.Entities;
+
+public class Patient : Entity
 {
-    public class Patient: Entity
-    {
-        public DateOnly BirthDate { get; set; }
-        public string Gender { get; set; }
-        public string UserId { get; set; }
-
-        public List<VisitHistory> VisitHistories { get; set; } = new List<VisitHistory>();
-
-    }
+    public Guid PersonId { get; set; }
+    public DateOnly BirthDate { get; set; }
+    public string Gender { get; set; } = "";
+    public List<VisitHistory> VisitHistories { get; set; } = [];
 }

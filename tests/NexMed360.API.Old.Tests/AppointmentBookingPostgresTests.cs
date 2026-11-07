@@ -22,8 +22,8 @@ namespace NexMed360.API.Old.Tests;
 [Trait("Category", "PostgreSQL")]
 public class AppointmentBookingPostgresTests
 {
-    public const string ConnectionVariable = "NEXMED360_MIGRATED_TEST_POSTGRES";
-    private const string SkipReason = "Set NEXMED360_MIGRATED_TEST_POSTGRES for the separate nexmed360_migrated_tests database.";
+    public const string ConnectionVariable = "NEXMED360_REFACTORED_TEST_POSTGRES";
+    private const string SkipReason = "Set NEXMED360_REFACTORED_TEST_POSTGRES for the separate nexmed360_refactored_tests database.";
     public static bool HasPostgresConfiguration =>
         !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(ConnectionVariable));
 
@@ -47,9 +47,9 @@ public class AppointmentBookingPostgresTests
         Assert.Equal("Synthetic Patient", winner.Data!.PatientName);
         Assert.Equal("patient@example.test", winner.Data.PatientEmail);
         Assert.Equal("1111111111", winner.Data.PatientPhone);
-        Assert.Equal("Synthetic Doctor", winner.Data.DoctorName);
+        Assert.Equal("Synthetic PractitionerRole", winner.Data.PractitionerName);
         Assert.Equal("Synthetic Booker", winner.Data.CreatedByUserName);
-        Assert.Equal("Synthetic hospital", winner.Data.HospitalName);
+        Assert.Equal("Synthetic organization", winner.Data.OrganizationName);
         var loser = Assert.Single(results.Where(result => !result.IsSuccess));
         Assert.Equal(409, loser.Error!.HttpStatus);
         Assert.Null(loser.Data);
@@ -119,25 +119,25 @@ public class AppointmentBookingPostgresTests
     {
         var options = await PrepareDatabase();
         using var fixture = new AppointmentBookingEligibilityTests.Fixture(options);
-        var owner = (await fixture.Context.Patients.SingleAsync(patient => patient.Id == fixture.PatientId)).UserId;
+        var owner = TestProfiles.UserId(await fixture.Context.Patients.SingleAsync(patient => patient.Id == fixture.PatientId));
         var booked = await fixture.Service.Create(fixture.Request(), owner);
         Assert.True(booked.IsSuccess);
         var appointmentId = Guid.Parse(booked.Data!.BookingReference);
         var slot = await fixture.Context.SessionSlots.Include(value => value.Session)
             .SingleAsync(value => value.Id == fixture.SlotId);
         var requesterId = "front-office-" + Guid.NewGuid().ToString("N");
-        fixture.Context.Users.Add(new User { Id = requesterId, FirstName = "Synthetic", LastName = "Receptionist" });
-        fixture.Context.Receptionists.Add(new Receptionist
+        fixture.Context.Users.Add(new ApplicationUser { Id = requesterId, FirstName = "Synthetic", LastName = "OrganizationMembership" });
+        fixture.Context.OrganizationMemberships.Add(new OrganizationMembership
         {
             Id = Guid.NewGuid(), UserId = requesterId,
 
-            HospitalId = slot.Session.HospitalId, Department = "Front office", Location = "Test desk"
+            OrganizationId = slot.Session.OrganizationId,
         });
-        await fixture.Context.SaveChangesAsync();
+        await TestProfiles.SaveAsync(fixture.Context);
         fixture.Context.ChangeTracker.Clear();
         var dto = new CancellationRequestDto { AppointmentId = appointmentId.ToString(), Reason = "Synthetic reason" };
 
-        var requested = await fixture.Service.Cancel(dto, requesterId, [UserRoles.RECEPTIONIST]);
+        var requested = await fixture.Service.Cancel(dto, requesterId, [UserRoles.ORGANIZATION_MEMBER]);
         Assert.True(requested.IsSuccess);
         Assert.Equal(AppointmentStatus.CancelRequested, requested.Data!.Status);
         fixture.Context.ChangeTracker.Clear();
@@ -186,19 +186,19 @@ public class AppointmentBookingPostgresTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddDbContext<ApplicationDbContext>(builder => builder.UseNpgsql(connection).AddInterceptors(new RejectPatientSave()));
-        services.AddIdentityCore<User>().AddRoles<IdentityRole>().AddEntityFrameworkStores<ApplicationDbContext>();
+        services.AddIdentityCore<ApplicationUser>().AddRoles<IdentityRole>().AddEntityFrameworkStores<ApplicationDbContext>();
         using var provider = services.BuildServiceProvider();
         using var scope = provider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
         if (!await roles.RoleExistsAsync(UserRoles.PATIENT))
             Assert.True((await roles.CreateAsync(new IdentityRole(UserRoles.PATIENT))).Succeeded);
-        var identity = new IdentityGateway(scope.ServiceProvider.GetRequiredService<UserManager<User>>(),
+        var identity = new IdentityGateway(scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
             roles, NullLogger<IdentityGateway>.Instance, context, null!);
         var views = TestViews.For(context);
         var users = new UserService(identity, null!, views);
         var auth = new AuthService(identity, users, views);
-        var patients = new PatientService(auth, new PatientRepository(context), new RegistrationTransactions(context), TestViews.For(context), new ClinicRecordRepository(context));
+        var patients = new PatientService(auth, new PatientRepository(context), new RegistrationTransactions(context), TestViews.For(context), new ClinicalRecordRepository(context));
         var email = $"rollback-{Guid.NewGuid():N}@example.test";
         var request = new CreatePatientDto
         {
@@ -214,7 +214,10 @@ public class AppointmentBookingPostgresTests
         Assert.Equal("Synthetic profile save failure", error.Message);
         await using var verification = new ApplicationDbContext(options);
         Assert.False(await verification.Users.AnyAsync(user => user.Email == email));
-        Assert.False(await verification.Patients.Join(verification.Users, patient => patient.UserId, user => user.Id, (patient, user) => user).AnyAsync(user => user.Email == email));
+        Assert.False(await verification.People.AnyAsync(person => person.Email == email));
+        Assert.False(await verification.Patients.Join(verification.Users,
+            patient => patient.PersonId, user => user.PersonId, (patient, user) => user)
+            .AnyAsync(user => user.Email == email));
     }
 
     private sealed class RejectPatientSave : SaveChangesInterceptor
@@ -231,8 +234,8 @@ public class AppointmentBookingPostgresTests
     private static async Task<DbContextOptions<ApplicationDbContext>> PrepareDatabase()
     {
         var connection = new NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable(ConnectionVariable)!);
-        if (!string.Equals(connection.Database, "nexmed360_migrated_tests", StringComparison.Ordinal))
-            throw new InvalidOperationException("Booking tests require the separate database named nexmed360_migrated_tests.");
+        if (!string.Equals(connection.Database, "nexmed360_refactored_tests", StringComparison.Ordinal))
+            throw new InvalidOperationException("Booking tests require the separate database named nexmed360_refactored_tests.");
 
         // Match the application's existing timestamp behavior; never load appsettings.
         AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
@@ -258,13 +261,13 @@ public class AppointmentBookingPostgresTests
         var appointment = new Appointment
         {
             Id = Guid.NewGuid(), PatientId = fixture.PatientId,
-            DoctorId = slot.Session.DoctorId, HospitalId = slot.Session.HospitalId,
+            PractitionerRoleId = slot.Session.PractitionerRoleId, OrganizationId = slot.Session.OrganizationId,
             CreatedByUserId = fixture.RequesterId, SessionSlotId = slot.Id,
             AppointmentDateTime = slot.Date.ToDateTime(slot.StartTime), Number = slot.SlotNumber,
             Status = status
         };
         fixture.Context.Appointments.Add(appointment);
-        await fixture.Context.SaveChangesAsync();
+        await TestProfiles.SaveAsync(fixture.Context);
         return appointment;
     }
 

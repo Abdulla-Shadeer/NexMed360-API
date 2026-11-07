@@ -2,9 +2,12 @@
 
 public class Entity
 {
-    public Guid Id { get; set; }
+    public Guid Id { get; set; } = Guid.CreateVersion7();
+    public DateTime? CreatedDate { get; set; } = DateTime.UtcNow;
+    public DateTime? UpdatedDate { get; set; } = DateTime.UtcNow;
+}
 
-    public DateTime? CreatedDate { get; set; }
-
-    public DateTime? UpdatedDate { get; set; }
+public interface IOrganizationOwned
+{
+    Guid OrganizationId { get; set; }
 }

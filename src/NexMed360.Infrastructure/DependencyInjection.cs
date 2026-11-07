@@ -21,7 +21,7 @@ public static class DependencyInjection
     public static IServiceCollection AddNexMed360Infrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddApplicationDbContext(configuration);
-        var identity = services.AddIdentityCore<User>().AddRoles<IdentityRole>();
+        var identity = services.AddIdentityCore<ApplicationUser>().AddRoles<IdentityRole>();
         identity = new IdentityBuilder(identity.UserType, typeof(IdentityRole), services);
         identity.AddEntityFrameworkStores<ApplicationDbContext>().AddDefaultTokenProviders();
         services.AddAuthentication(options =>
@@ -39,24 +39,23 @@ public static class DependencyInjection
         services.AddScoped<PortalViews>();
         services.AddScoped<IOverviewData, OverviewData>();
         services.AddScoped<ISearchData, SearchData>();
-        services.AddScoped<IDoctorSessionRepository, DoctorSessionRepository>();
+        services.AddScoped<IPractitionerScheduleRepository, PractitionerScheduleRepository>();
         services.AddScoped<IRegistrationTransactions, RegistrationTransactions>();
         services.AddScoped<IIdentityGateway, IdentityGateway>();
         services.AddScoped<IPatientRepository, PatientRepository>();
-        services.AddScoped<IClinicRecordRepository, ClinicRecordRepository>();
-        services.AddScoped<IDoctorRepository, DoctorRepository>();
-        services.AddScoped<IHospitalAdminRepository, HospitalAdminRepository>();
-        services.AddScoped<IReceptionistRepository, ReceptionistRepository>();
-        services.AddScoped<IHospitalRepository, HospitalRepository>();
+        services.AddScoped<IClinicalRecordRepository, ClinicalRecordRepository>();
+        services.AddScoped<IPractitionerRoleRepository, PractitionerRoleRepository>();
+        services.AddScoped<IOrganizationMembershipRepository, OrganizationMembershipRepository>();
+        services.AddScoped<IOrganizationRepository, OrganizationRepository>();
         services.AddScoped<IAppointmentRepository, AppointmentRepository>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IPatientService, PatientService>();
-        services.AddScoped<IHospitalService, HospitalService>();
+        services.AddScoped<IOrganizationService, OrganizationService>();
         services.AddScoped<IAppointmentService, AppointmentService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IOverviewService, OverviewService>();
         services.AddScoped<ISearchService, SearchService>();
-        services.AddScoped<IDoctorSessionService, DoctorSessionService>();
+        services.AddScoped<IPractitionerScheduleService, PractitionerScheduleService>();
         services.AddScoped<IDbInitializerService, DbInitializerService>();
         return services;
     }

@@ -3,9 +3,9 @@
     public static class UserRoles
     {
         public const string PATIENT = "Patient";
-        public const string SUPERUSER = "SuperUser";
-        public const string HOSPITAL_ADMIN = "HospitalAdmin";
-        public const string RECEPTIONIST = "Receptionist";
-        public const string DOCTOR = "Doctor";
+        public const string PLATFORM_ADMIN = "PlatformAdmin";
+        public const string ORGANIZATION_MANAGER = "OrganizationManager";
+        public const string ORGANIZATION_MEMBER = "OrganizationMember";
+        public const string PRACTITIONER = "Practitioner";
     }
 }

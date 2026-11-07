@@ -1,6 +1,6 @@
 ﻿using Asp.Versioning;
 using NexMed360Api.Common;
-using NexMed360Api.Dtos.Doctor;
+using NexMed360Api.Dtos.PractitionerRole;
 using NexMed360Api.Dtos.Search;
 using NexMed360Api.Interfaces.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -34,12 +34,12 @@ public class SearchController : ControllerBase
         return StatusCode(res.Error!.HttpStatus, res);
     }
 
-    [Route("Doctor")]
+    [Route("PractitionerRole")]
     [HttpPost]
     [Authorize]
-    public async Task<ActionResult<Result<List<ViewDoctorDto>>>> DoctorSearch(SearchDoctorDto dto)
+    public async Task<ActionResult<Result<List<ViewPractitionerRoleDto>>>> PractitionerRoleSearch(SearchPractitionerRoleDto dto)
     {
-        var res = await _searchService.SearchDoctor(dto);
+        var res = await _searchService.SearchPractitionerRole(dto);
         if (res.IsSuccess)
         {
             return Ok(res);

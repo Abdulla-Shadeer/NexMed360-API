@@ -9,13 +9,13 @@ public class ViewAppointmentDto
     public string PatientName { get; set; }
     public string PatientEmail { get; set; }
     public string PatientPhone { get; set; }
-    public string DoctorId { get; set; }
-    public string DoctorName { get; set; }
-    public string DoctorSpeciality { get; set; }
-    public string HospitalId { get; set; }
-    public string HospitalName { get; set; }
-    public string HospitalAddress { get; set; }
-    public string HospitalPhone { get; set; }
+    public string PractitionerRoleId { get; set; }
+    public string PractitionerName { get; set; }
+    public string PractitionerSpecialty { get; set; }
+    public string OrganizationId { get; set; }
+    public string OrganizationName { get; set; }
+    public string OrganizationAddress { get; set; }
+    public string OrganizationPhone { get; set; }
     public string CreatedByUserId { get; set; }
     public string CreatedByUserName { get; set; }
     public string AppointmentDateTime { get; set; }

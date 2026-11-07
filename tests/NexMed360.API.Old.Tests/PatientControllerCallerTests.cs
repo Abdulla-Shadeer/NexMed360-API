@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using NexMed360Api.Common;
 using NexMed360Api.Common.Auth;
 using NexMed360Api.Controllers.v1;
-using NexMed360Api.Dtos.ClinicRecord;
+using NexMed360Api.Dtos.ClinicalRecord;
 using NexMed360Api.Dtos.Patient;
 using NexMed360Api.Interfaces.Services;
 
@@ -16,10 +16,10 @@ public class PatientControllerCallerTests
 {
     [Theory]
     [InlineData(UserRoles.PATIENT, false)]
-    [InlineData(UserRoles.DOCTOR, true)]
-    [InlineData("Patient,Doctor", true)]
-    [InlineData("Patient,HospitalAdmin", false)]
-    public async Task ReadActionsPassAuthenticatedIdentityAndDoctorRole(string roles, bool expectedIsDoctor)
+    [InlineData(UserRoles.PRACTITIONER, true)]
+    [InlineData("Patient,Practitioner", true)]
+    [InlineData("Patient,OrganizationMember", false)]
+    public async Task ReadActionsPassAuthenticatedIdentityAndPractitionerRoleRole(string roles, bool expectedIsPractitionerRole)
     {
         var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, "signed-in-user") };
         claims.AddRange(roles.Split(',').Select(role => new Claim(ClaimTypes.Role, role)));
@@ -27,42 +27,42 @@ public class PatientControllerCallerTests
         var controller = Controller(service, claims);
         var requestedId = Guid.NewGuid().ToString();
 
-        await controller.GetClinicRecord(requestedId);
+        await controller.GetClinicalRecord(requestedId);
 
         Assert.Equal(requestedId, service.RequestedId);
         Assert.Equal("signed-in-user", service.RequesterUserId);
-        Assert.Equal(expectedIsDoctor, service.IsDoctor);
+        Assert.Equal(expectedIsPractitionerRole, service.IsPractitionerRole);
 
-        await controller.GetClinicRecords(requestedId);
+        await controller.GetClinicalRecords(requestedId);
 
         Assert.Equal(requestedId, service.RequestedId);
         Assert.Equal("signed-in-user", service.RequesterUserId);
-        Assert.Equal(expectedIsDoctor, service.IsDoctor);
+        Assert.Equal(expectedIsPractitionerRole, service.IsPractitionerRole);
     }
 
     [Fact]
     public async Task ReadActionsDoNotInventMissingCallerIdentity()
     {
         var service = new RecordingPatientService();
-        var controller = Controller(service, [new Claim(ClaimTypes.Role, UserRoles.DOCTOR)]);
+        var controller = Controller(service, [new Claim(ClaimTypes.Role, UserRoles.PRACTITIONER)]);
 
-        await controller.GetClinicRecord(Guid.NewGuid().ToString());
+        await controller.GetClinicalRecord(Guid.NewGuid().ToString());
         Assert.Null(service.RequesterUserId);
 
-        await controller.GetClinicRecords(Guid.NewGuid().ToString());
+        await controller.GetClinicalRecords(Guid.NewGuid().ToString());
         Assert.Null(service.RequesterUserId);
     }
 
     [Theory]
-    [InlineData(nameof(PatientController.GetClinicRecord))]
-    [InlineData(nameof(PatientController.GetClinicRecords))]
-    public void ReadActionsKeepPatientAndDoctorAuthorization(string action)
+    [InlineData(nameof(PatientController.GetClinicalRecord))]
+    [InlineData(nameof(PatientController.GetClinicalRecords))]
+    public void ReadActionsKeepPatientAndPractitionerRoleAuthorization(string action)
     {
         var method = typeof(PatientController).GetMethod(action)!;
         var authorization = Assert.Single(method.GetCustomAttributes<AuthorizeAttribute>());
         var roles = authorization.Roles!.Split(',').Select(role => role.Trim()).Order().ToArray();
 
-        Assert.Equal(new[] { UserRoles.DOCTOR, UserRoles.PATIENT }, roles);
+        Assert.Equal(new[] { UserRoles.PRACTITIONER, UserRoles.PATIENT }.OrderBy(role => role), roles);
     }
 
     private static PatientController Controller(RecordingPatientService service, IEnumerable<Claim> claims) => new(service)
@@ -80,22 +80,22 @@ public class PatientControllerCallerTests
     {
         public string? RequestedId { get; private set; }
         public string? RequesterUserId { get; private set; }
-        public bool IsDoctor { get; private set; }
+        public bool IsPractitionerRole { get; private set; }
 
-        public Task<Result<ViewClinicRecordDto>> ViewClinicRecord(string id, string? requesterUserId, bool isDoctor)
+        public Task<Result<ViewClinicalRecordDto>> ViewClinicalRecord(string id, string? requesterUserId, bool isPractitionerRole)
         {
-            (RequestedId, RequesterUserId, IsDoctor) = (id, requesterUserId, isDoctor);
-            return Task.FromResult(Result<ViewClinicRecordDto>.Success(null));
+            (RequestedId, RequesterUserId, IsPractitionerRole) = (id, requesterUserId, isPractitionerRole);
+            return Task.FromResult(Result<ViewClinicalRecordDto>.Success(null));
         }
 
-        public Task<Result<List<ViewClinicRecordDto>>> ViewAllClinicRecords(string patientId, string? requesterUserId, bool isDoctor)
+        public Task<Result<List<ViewClinicalRecordDto>>> ViewAllClinicalRecords(string patientId, string? requesterUserId, bool isPractitionerRole)
         {
-            (RequestedId, RequesterUserId, IsDoctor) = (patientId, requesterUserId, isDoctor);
-            return Task.FromResult(Result<List<ViewClinicRecordDto>>.Success([]));
+            (RequestedId, RequesterUserId, IsPractitionerRole) = (patientId, requesterUserId, isPractitionerRole);
+            return Task.FromResult(Result<List<ViewClinicalRecordDto>>.Success([]));
         }
 
         public Task<Result<ViewPatientDto>> CreatePatient(CreatePatientDto dto) => throw new NotSupportedException();
         public Task<Result<ViewPatientDto>> GetPatient(string id) => throw new NotSupportedException();
-        public Task<Result<ViewClinicRecordDto>> AddToClinicRecords(AddClinicRecordDto dto, string doctorUserId) => throw new NotSupportedException();
+        public Task<Result<ViewClinicalRecordDto>> AddToClinicalRecords(AddClinicalRecordDto dto, string practitionerRoleUserId) => throw new NotSupportedException();
     }
 }

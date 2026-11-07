@@ -10,19 +10,22 @@ public class DomainModelTests
     [Fact]
     public void ClinicalModelsHaveNoIdentityNavigationsOrStorageAnnotations()
     {
-        var models = new[] { typeof(Appointment), typeof(CancellationRequest), typeof(ClinicRecord), typeof(Prescription),
-            typeof(Patient), typeof(Doctor), typeof(Hospital), typeof(HospitalAdmin), typeof(Receptionist),
-            typeof(DoctorSession), typeof(SessionSlot), typeof(SessionHistory), typeof(VisitHistory), typeof(Entity) };
+        var models = new[] { typeof(Appointment), typeof(CancellationRequest), typeof(ClinicalRecord), typeof(Prescription),
+            typeof(Patient), typeof(PractitionerRole), typeof(Organization), typeof(OrganizationMembership), typeof(OrganizationMembership),
+            typeof(PractitionerSchedule), typeof(SessionSlot), typeof(SessionHistory), typeof(VisitHistory), typeof(Entity) };
         foreach (var model in models)
         {
             Assert.Equal("NexMed360.Domain", model.Assembly.GetName().Name);
-            Assert.DoesNotContain(model.GetProperties(), property => property.PropertyType == typeof(User));
+            Assert.DoesNotContain(model.GetProperties(), property => property.PropertyType == typeof(ApplicationUser));
             Assert.DoesNotContain(model.GetProperties().SelectMany(property => property.GetCustomAttributes()),
                 attribute => attribute.GetType().Namespace == "System.ComponentModel.DataAnnotations.Schema");
         }
-        Assert.Equal("NexMed360.Infrastructure", typeof(User).Assembly.GetName().Name);
-        foreach (var model in new[] { typeof(Patient), typeof(Doctor), typeof(HospitalAdmin), typeof(Receptionist), typeof(VisitHistory) })
-            Assert.Equal(typeof(string), model.GetProperty("UserId")!.PropertyType);
+        Assert.Equal("NexMed360.Infrastructure", typeof(ApplicationUser).Assembly.GetName().Name);
+        Assert.Equal(typeof(Guid), typeof(Patient).GetProperty("PersonId")!.PropertyType);
+        Assert.Equal(typeof(Guid), typeof(Practitioner).GetProperty("PersonId")!.PropertyType);
+        Assert.Equal(typeof(Guid), typeof(PractitionerRole).GetProperty("PractitionerId")!.PropertyType);
+        Assert.Null(typeof(Patient).GetProperty("UserId"));
+        Assert.Null(typeof(PractitionerRole).GetProperty("UserId"));
         Assert.Equal(typeof(string), typeof(Appointment).GetProperty("CreatedByUserId")!.PropertyType);
         Assert.Equal(typeof(string), typeof(CancellationRequest).GetProperty("RequestedById")!.PropertyType);
     }
@@ -47,13 +50,13 @@ public class DomainModelTests
     [Fact]
     public void BookingUsesTheSelectedSlotAndKeepsOpaqueUserIds()
     {
-        var session = new DoctorSession { DoctorId = Guid.NewGuid(), HospitalId = Guid.NewGuid() };
+        var session = new PractitionerSchedule { PractitionerRoleId = Guid.NewGuid(), OrganizationId = Guid.NewGuid() };
         var slot = new SessionSlot { Id = Guid.NewGuid(), Session = session, Date = new DateOnly(2030, 2, 3), StartTime = new TimeOnly(9, 30), SlotNumber = 4 };
         var patient = Guid.NewGuid();
         var appointment = Appointment.Book(patient, slot, "opaque-account", "Synthetic note");
         Assert.Equal(patient, appointment.PatientId);
-        Assert.Equal(session.DoctorId, appointment.DoctorId);
-        Assert.Equal(session.HospitalId, appointment.HospitalId);
+        Assert.Equal(session.PractitionerRoleId, appointment.PractitionerRoleId);
+        Assert.Equal(session.OrganizationId, appointment.OrganizationId);
         Assert.Equal(slot.Id, appointment.SessionSlotId);
         Assert.Equal(new DateTime(2030, 2, 3, 9, 30, 0), appointment.AppointmentDateTime);
         Assert.Equal(4, appointment.Number);
@@ -79,10 +82,10 @@ public class DomainModelTests
     public void ClinicalRecordUsesExistingServerVisitTimeAndPrescriptionValues()
     {
         var before = DateTime.UtcNow;
-        var patient = Guid.NewGuid(); var doctor = Guid.NewGuid();
+        var patient = Guid.NewGuid(); var practitionerRole = Guid.NewGuid();
         var prescription = new Prescription { MedicineName = "Synthetic medicine", Dosage = "Synthetic dosage", TimesPerDay = 2, IsLongTermUse = true };
-        var record = ClinicRecord.Create(patient, doctor, "Synthetic diagnosis", null, null, [prescription]);
-        Assert.Equal(patient, record.PatientId); Assert.Equal(doctor, record.DoctorId);
+        var record = ClinicalRecord.Create(patient, practitionerRole, "Synthetic diagnosis", null, null, [prescription]);
+        Assert.Equal(patient, record.PatientId); Assert.Equal(practitionerRole, record.PractitionerRoleId);
         Assert.InRange(record.VisitDate, before, DateTime.UtcNow);
         Assert.Equal(DateTimeKind.Utc, record.VisitDate.Kind);
         Assert.Same(prescription, Assert.Single(record.Prescriptions!));

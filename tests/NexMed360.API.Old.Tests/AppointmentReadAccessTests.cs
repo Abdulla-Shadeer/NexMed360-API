@@ -12,14 +12,14 @@ public class AppointmentReadAccessTests
 {
     [Theory]
     [InlineData(UserRoles.PATIENT)]
-    [InlineData(UserRoles.DOCTOR)]
-    public async Task PatientAndAssignedDoctorCanReadTheAppointment(string role)
+    [InlineData(UserRoles.PRACTITIONER)]
+    public async Task PatientAndAssignedPractitionerRoleCanReadTheAppointment(string role)
     {
         using var fixture = new BookingFixture();
         var id = await Book(fixture);
         var caller = role == UserRoles.PATIENT
-            ? (await fixture.Context.Patients.SingleAsync()).UserId
-            : (await fixture.Context.Doctors.SingleAsync()).UserId;
+            ? TestProfiles.UserId(await fixture.Context.Patients.SingleAsync())
+            : TestProfiles.UserId(await fixture.Context.PractitionerRoles.SingleAsync());
         fixture.Context.ChangeTracker.Clear();
 
         var result = await fixture.Service.Get(id, caller, [role]);
@@ -29,23 +29,23 @@ public class AppointmentReadAccessTests
         Assert.Equal(id, result.Data.BookingReference);
         Assert.Equal(fixture.PatientId.ToString(), result.Data.PatientId);
         Assert.Equal("Synthetic Patient", result.Data.PatientName);
-        Assert.Equal("Synthetic Doctor", result.Data.DoctorName);
-        Assert.Equal("Synthetic hospital", result.Data.HospitalName);
+        Assert.Equal("Synthetic PractitionerRole", result.Data.PractitionerName);
+        Assert.Equal("Synthetic organization", result.Data.OrganizationName);
     }
 
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task ReceptionistAccessIsLimitedToTheAppointmentsHospital(bool sameHospital)
+    public async Task OrganizationMemberAccessIsLimitedToTheAppointmentsOrganization(bool sameOrganization)
     {
         using var fixture = new BookingFixture();
         var id = await Book(fixture);
-        var caller = await AddReceptionist(fixture, sameHospital);
+        var caller = await AddOrganizationMember(fixture, sameOrganization);
 
-        var result = await fixture.Service.Get(id, caller, [UserRoles.RECEPTIONIST]);
+        var result = await fixture.Service.Get(id, caller, [UserRoles.ORGANIZATION_MEMBER]);
 
-        Assert.Equal(sameHospital, result.IsSuccess);
-        if (sameHospital)
+        Assert.Equal(sameOrganization, result.IsSuccess);
+        if (sameOrganization)
             Assert.Equal(id, result.Data!.BookingReference);
         else
         {
@@ -55,23 +55,23 @@ public class AppointmentReadAccessTests
     }
 
     [Fact]
-    public async Task AnotherDoctorAtTheSameHospitalCannotReadAnUnassignedAppointment()
+    public async Task AnotherPractitionerRoleAtTheSameOrganizationCannotReadAnUnassignedAppointment()
     {
         using var fixture = new BookingFixture();
         var id = await Book(fixture);
-        var hospital = await fixture.Context.Hospitals.SingleAsync();
-        var user = new User { Id = "other-doctor", FirstName = "Other", LastName = "Doctor" };
+        var organization = await fixture.Context.Organizations.SingleAsync();
+        var user = new ApplicationUser { Id = "other-practitionerRole", FirstName = "Other", LastName = "PractitionerRole" };
         fixture.Context.Users.Add(user);
-        if (fixture.Context.Entry(hospital).State == EntityState.Detached) fixture.Context.Hospitals.Add(hospital);
-        fixture.Context.Doctors.Add(new Doctor
+        if (fixture.Context.Entry(organization).State == EntityState.Detached) fixture.Context.Organizations.Add(organization);
+        fixture.Context.PractitionerRoles.Add(new PractitionerRole
         {
-            Id = Guid.NewGuid(), UserId = user.Id,
-            HospitalId = hospital.Id,  Speciality = "Test speciality"
+            Id = Guid.NewGuid(), PractitionerId = TestProfiles.PractitionerId(user.Id),
+            OrganizationId = organization.Id,  Specialty = "Test specialty"
         });
-        await fixture.Context.SaveChangesAsync();
+        await TestProfiles.SaveAsync(fixture.Context);
         fixture.Context.ChangeTracker.Clear();
 
-        var result = await fixture.Service.Get(id, user.Id, [UserRoles.DOCTOR]);
+        var result = await fixture.Service.Get(id, user.Id, [UserRoles.PRACTITIONER]);
 
         Assert.False(result.IsSuccess);
         Assert.Null(result.Data);
@@ -85,14 +85,14 @@ public class AppointmentReadAccessTests
         var id = await Book(fixture);
         var unrelated = new Patient
         {
-            Id = Guid.NewGuid(), UserId = fixture.RequesterId, Gender = "Test",
+            Id = Guid.NewGuid(), PersonId = TestProfiles.PersonId(fixture.RequesterId), Gender = "Test",
             BirthDate = new DateOnly(2000, 1, 1)
         };
         fixture.Context.Patients.Add(unrelated);
-        await fixture.Context.SaveChangesAsync();
+        await TestProfiles.SaveAsync(fixture.Context);
         fixture.Context.ChangeTracker.Clear();
 
-        // This caller created the booking but is not its patient, doctor or receptionist.
+        // This caller created the booking but is not its patient, practitionerRole or organizationMember.
         var denied = await fixture.Service.Get(id, fixture.RequesterId, [UserRoles.PATIENT]);
         var missing = await fixture.Service.Get(Guid.NewGuid().ToString(), fixture.RequesterId, [UserRoles.PATIENT]);
 
@@ -105,12 +105,12 @@ public class AppointmentReadAccessTests
 
     [Theory]
     [InlineData(UserRoles.PATIENT)]
-    [InlineData(UserRoles.SUPERUSER)]
-    public async Task ReceptionistProfileWithoutTheReceptionistTokenRoleDoesNotGrantHospitalAccess(string tokenRole)
+    [InlineData(UserRoles.PLATFORM_ADMIN)]
+    public async Task OrganizationMemberProfileWithoutTheOrganizationMemberTokenRoleDoesNotGrantOrganizationAccess(string tokenRole)
     {
         using var fixture = new BookingFixture();
         var id = await Book(fixture);
-        var caller = await AddReceptionist(fixture, true);
+        var caller = await AddOrganizationMember(fixture, true);
 
         var result = await fixture.Service.Get(id, caller, [tokenRole]);
 
@@ -120,11 +120,11 @@ public class AppointmentReadAccessTests
     }
 
     [Fact]
-    public async Task DoctorProfileWithoutTheDoctorTokenRoleDoesNotGrantAssignedDoctorAccess()
+    public async Task PractitionerRoleProfileWithoutThePractitionerRoleTokenRoleDoesNotGrantAssignedPractitionerRoleAccess()
     {
         using var fixture = new BookingFixture();
         var id = await Book(fixture);
-        var caller = (await fixture.Context.Doctors.SingleAsync()).UserId;
+        var caller = TestProfiles.UserId(await fixture.Context.PractitionerRoles.SingleAsync());
 
         var result = await fixture.Service.Get(id, caller, [UserRoles.PATIENT]);
 
@@ -134,13 +134,13 @@ public class AppointmentReadAccessTests
     }
 
     [Fact]
-    public async Task MultipleRolesAllowAnExistingReceptionistScope()
+    public async Task MultipleRolesAllowAnExistingOrganizationMemberScope()
     {
         using var fixture = new BookingFixture();
         var id = await Book(fixture);
-        var caller = await AddReceptionist(fixture, true);
+        var caller = await AddOrganizationMember(fixture, true);
 
-        var result = await fixture.Service.Get(id, caller, [UserRoles.PATIENT, UserRoles.RECEPTIONIST]);
+        var result = await fixture.Service.Get(id, caller, [UserRoles.PATIENT, UserRoles.ORGANIZATION_MEMBER]);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(id, result.Data!.BookingReference);
@@ -151,7 +151,7 @@ public class AppointmentReadAccessTests
     {
         using var fixture = new BookingFixture();
         var id = await Book(fixture);
-        var caller = (await fixture.Context.Patients.SingleAsync()).UserId;
+        var caller = TestProfiles.UserId(await fixture.Context.Patients.SingleAsync());
 
         var wrongCase = await fixture.Service.Get(id, caller.ToUpperInvariant(), [UserRoles.PATIENT]);
         var noRoles = await fixture.Service.Get(id, caller, []);
@@ -171,7 +171,7 @@ public class AppointmentReadAccessTests
         using var context = new ApplicationDbContext(new DbContextOptions<ApplicationDbContext>());
         var service = new AppointmentService(new AppointmentRepository(context), TestViews.For(context));
 
-        var result = await service.Get(Guid.NewGuid().ToString(), caller, [UserRoles.DOCTOR]);
+        var result = await service.Get(Guid.NewGuid().ToString(), caller, [UserRoles.PRACTITIONER]);
 
         Assert.False(result.IsSuccess);
         Assert.Null(result.Data);
@@ -200,22 +200,22 @@ public class AppointmentReadAccessTests
         return result.Data!.BookingReference;
     }
 
-    internal static async Task<string> AddReceptionist(BookingFixture fixture, bool sameHospital)
+    internal static async Task<string> AddOrganizationMember(BookingFixture fixture, bool sameOrganization)
     {
-        var hospital = sameHospital ? await fixture.Context.Hospitals.SingleAsync() : new Hospital
+        var organization = sameOrganization ? await fixture.Context.Organizations.SingleAsync() : new Organization
         {
-            Id = Guid.NewGuid(), Name = "Other hospital", Street = "Test street", City = "Test city",
+            Id = Guid.NewGuid(), Name = "Other organization", Street = "Test street", City = "Test city",
             District = "Test district", Phone = "0000000000", Grade = "Test"
         };
-        var user = new User { Id = "receptionist-user", FirstName = "Synthetic", LastName = "Receptionist" };
+        var user = new ApplicationUser { Id = "organizationMember-user", FirstName = "Synthetic", LastName = "OrganizationMembership" };
         fixture.Context.Users.Add(user);
-        if (fixture.Context.Entry(hospital).State == EntityState.Detached) fixture.Context.Hospitals.Add(hospital);
-        fixture.Context.Receptionists.Add(new Receptionist
+        if (fixture.Context.Entry(organization).State == EntityState.Detached) fixture.Context.Organizations.Add(organization);
+        fixture.Context.OrganizationMemberships.Add(new OrganizationMembership
         {
-            Id = Guid.NewGuid(), UserId = user.Id, HospitalId = hospital.Id,
-            Department = "Front office", Location = "Test desk"
+            Id = Guid.NewGuid(), UserId = user.Id, OrganizationId = organization.Id,
+
         });
-        await fixture.Context.SaveChangesAsync();
+        await TestProfiles.SaveAsync(fixture.Context);
         fixture.Context.ChangeTracker.Clear();
         return user.Id;
     }

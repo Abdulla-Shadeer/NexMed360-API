@@ -17,9 +17,9 @@ public class AppointmentControllerCallerTests
 {
     [Theory]
     [InlineData("Patient")]
-    [InlineData("Doctor")]
-    [InlineData("Receptionist")]
-    [InlineData("Patient,Receptionist,SuperUser")]
+    [InlineData("Practitioner")]
+    [InlineData("OrganizationMember")]
+    [InlineData("Patient,OrganizationMember,PlatformAdmin")]
     public async Task ReadPassesOnlySupportedTokenRolesAndCallerIdentity(string roleNames)
     {
         var roles = roleNames.Split(',');
@@ -34,7 +34,7 @@ public class AppointmentControllerCallerTests
 
         Assert.Equal(id, service.AppointmentId);
         Assert.Equal("signed-in-user", service.RequesterId);
-        Assert.Equal(roles.Where(role => role != UserRoles.SUPERUSER).Order(), service.RequesterRoles.Order());
+        Assert.Equal(roles.Where(role => role != UserRoles.PLATFORM_ADMIN).Order(), service.RequesterRoles.Order());
         var response = Assert.IsType<ObjectResult>(result.Result);
         Assert.Equal(404, response.StatusCode);
         Assert.Null(Assert.IsType<Result<ViewAppointmentDto>>(response.Value).Data);
@@ -44,21 +44,21 @@ public class AppointmentControllerCallerTests
     public async Task ReadDoesNotInferCallerIdentityFromTheRequestedAppointmentId()
     {
         var service = new RecordingAppointmentService();
-        var controller = Controller(service, [new Claim("test-role", UserRoles.DOCTOR)]);
+        var controller = Controller(service, [new Claim("test-role", UserRoles.PRACTITIONER)]);
 
         await controller.ViewAppointment(Guid.NewGuid().ToString());
 
         Assert.Null(service.RequesterId);
-        Assert.Equal(new[] { UserRoles.DOCTOR }, service.RequesterRoles);
+        Assert.Equal(new[] { UserRoles.PRACTITIONER }, service.RequesterRoles);
     }
 
     [Fact]
-    public void ReadKeepsItsExistingPatientDoctorReceptionistAuthorization()
+    public void ReadKeepsItsExistingPatientPractitionerRoleOrganizationMemberAuthorization()
     {
         var method = typeof(AppointmentsController).GetMethod(nameof(AppointmentsController.ViewAppointment))!;
         var authorization = Assert.Single(method.GetCustomAttributes<AuthorizeAttribute>());
 
-        Assert.Equal(new[] { UserRoles.DOCTOR, UserRoles.PATIENT, UserRoles.RECEPTIONIST },
+        Assert.Equal(new[] { UserRoles.PRACTITIONER, UserRoles.PATIENT, UserRoles.ORGANIZATION_MEMBER }.Order(),
             authorization.Roles!.Split(',').Select(role => role.Trim()).Order().ToArray());
         Assert.Empty(method.GetCustomAttributes<AllowAnonymousAttribute>());
     }
@@ -75,7 +75,7 @@ public class AppointmentControllerCallerTests
     public async Task StatusActionsPassCallerIdentityRolesAndServerSelectedStatus(AppointmentStatus status, string? caller)
     {
         var service = new RecordingAppointmentService();
-        var claims = new List<Claim> { new("test-role", UserRoles.DOCTOR) };
+        var claims = new List<Claim> { new("test-role", UserRoles.PRACTITIONER) };
         if (caller != null)
             claims.Add(new Claim(ClaimTypes.NameIdentifier, caller));
         var controller = Controller(service, claims);
@@ -93,15 +93,15 @@ public class AppointmentControllerCallerTests
         Assert.Equal(id, service.AppointmentId);
         Assert.Equal(status, service.RequestedStatus);
         Assert.Equal(caller, service.RequesterId);
-        Assert.Equal(new[] { UserRoles.DOCTOR }, service.RequesterRoles);
+        Assert.Equal(new[] { UserRoles.PRACTITIONER }, service.RequesterRoles);
         Assert.Equal(404, Assert.IsType<ObjectResult>(result.Result).StatusCode);
     }
 
     [Theory]
-    [InlineData(nameof(AppointmentsController.ConfirmAppointment), "Doctor,Receptionist")]
-    [InlineData(nameof(AppointmentsController.CompleteAppointment), "Doctor,Receptionist")]
-    [InlineData(nameof(AppointmentsController.ConfirmArrival), "Doctor,Receptionist")]
-    [InlineData(nameof(AppointmentsController.ConfirmInProgress), "Doctor")]
+    [InlineData(nameof(AppointmentsController.ConfirmAppointment), "Practitioner,OrganizationMember")]
+    [InlineData(nameof(AppointmentsController.CompleteAppointment), "Practitioner,OrganizationMember")]
+    [InlineData(nameof(AppointmentsController.ConfirmArrival), "Practitioner,OrganizationMember")]
+    [InlineData(nameof(AppointmentsController.ConfirmInProgress), "Practitioner")]
     public void StatusActionsKeepExistingRoleRestrictions(string action, string allowedRoles)
     {
         var method = typeof(AppointmentsController).GetMethod(action)!;
@@ -114,9 +114,9 @@ public class AppointmentControllerCallerTests
 
     [Theory]
     [InlineData("Patient", "signed-in-user")]
-    [InlineData("Doctor", "signed-in-user")]
-    [InlineData("Receptionist", "signed-in-user")]
-    [InlineData("Patient,SuperUser", "signed-in-user")]
+    [InlineData("Practitioner", "signed-in-user")]
+    [InlineData("OrganizationMember", "signed-in-user")]
+    [InlineData("Patient,PlatformAdmin", "signed-in-user")]
     [InlineData("Patient", null)]
     public async Task CancellationPassesTokenIdentityAndRolesSeparatelyFromTheRequestedAppointment(string roleNames, string? caller)
     {
@@ -132,16 +132,16 @@ public class AppointmentControllerCallerTests
 
         Assert.Equal(dto.AppointmentId, service.AppointmentId);
         Assert.Equal(caller, service.RequesterId);
-        Assert.Equal(roles.Where(role => role != UserRoles.SUPERUSER).Order(), service.RequesterRoles.Order());
+        Assert.Equal(roles.Where(role => role != UserRoles.PLATFORM_ADMIN).Order(), service.RequesterRoles.Order());
         Assert.Equal(404, Assert.IsType<ObjectResult>(result.Result).StatusCode);
     }
 
     [Fact]
-    public void CancellationRetainsItsExistingPatientDoctorReceptionistRolesAndPostMethod()
+    public void CancellationRetainsItsExistingPatientPractitionerRoleOrganizationMemberRolesAndPostMethod()
     {
         var method = typeof(AppointmentsController).GetMethod(nameof(AppointmentsController.CancelAppointment))!;
         var authorization = Assert.Single(method.GetCustomAttributes<AuthorizeAttribute>());
-        Assert.Equal(new[] { UserRoles.DOCTOR, UserRoles.PATIENT, UserRoles.RECEPTIONIST },
+        Assert.Equal(new[] { UserRoles.PRACTITIONER, UserRoles.PATIENT, UserRoles.ORGANIZATION_MEMBER }.Order(),
             authorization.Roles!.Split(',').Select(role => role.Trim()).Order().ToArray());
         Assert.Single(method.GetCustomAttributes<HttpPostAttribute>());
         Assert.Empty(method.GetCustomAttributes<AllowAnonymousAttribute>());
@@ -173,7 +173,7 @@ public class AppointmentControllerCallerTests
 
         public Task<Result<ViewAppointmentDto>> Create(CreateAppointmentDto dto, string requesterId) => throw new NotSupportedException();
         public Task<Result<List<ViewAppointmentDto>>> GetOwn(ViewAppointmentsFilterDto filter, string userId) => throw new NotSupportedException();
-        public Task<Result<List<ViewAppointmentDto>>> GetHospitalAppointments(ViewAppointmentsFilterDto filter, string userId) => throw new NotSupportedException();
+        public Task<Result<List<ViewAppointmentDto>>> GetOrganizationAppointments(ViewAppointmentsFilterDto filter, string userId) => throw new NotSupportedException();
         public Task<Result<ViewAppointmentDto>> ChangeStatus(
             string appointmentId, AppointmentStatus status, string? requesterId, IReadOnlyCollection<string> requesterRoles)
         {

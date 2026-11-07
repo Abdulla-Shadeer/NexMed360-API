@@ -2,8 +2,10 @@
 
 namespace NexMed360Api.Entities;
 
-public class CancellationRequest: Entity
+public class CancellationRequest: Entity, IOrganizationOwned
 {
+    public Guid OrganizationId { get; set; }
+
     public Guid AppointmentId { get; set; }
     public Appointment Appointment { get; set; }
     public string RequestedById { get; set; } = null!;

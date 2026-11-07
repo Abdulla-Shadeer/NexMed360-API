@@ -68,7 +68,7 @@ public class UserUpdateAccessTests
         Assert.Equal("Updated", result.Data.FirstName);
         Assert.Equal("Name", result.Data.LastName);
         Assert.Equal("2222222222", result.Data.PhoneNumber);
-        Assert.Contains(UserRoles.SUPERUSER, result.Data.Roles);
+        Assert.Contains(UserRoles.PLATFORM_ADMIN, result.Data.Roles);
 
         fixture.Context.ChangeTracker.Clear();
         var owner = await fixture.Context.Users.SingleAsync(user => user.Id == "owner-user");
@@ -147,30 +147,30 @@ public class UserUpdateAccessTests
             services.AddLogging();
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
-            services.AddIdentityCore<User>().AddRoles<IdentityRole>()
+            services.AddIdentityCore<ApplicationUser>().AddRoles<IdentityRole>()
                 .AddEntityFrameworkStores<ApplicationDbContext>();
             _provider = services.BuildServiceProvider();
             _scope = _provider.CreateScope();
             Context = _scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            Context.Users.AddRange(User("owner-user", "Owner", "owner@example.test"),
-                User("other-user", "Other", "other@example.test"));
-            Context.Roles.Add(new IdentityRole(UserRoles.SUPERUSER)
+            Context.Users.AddRange(ApplicationUser("owner-user", "Owner", "owner@example.test"),
+                ApplicationUser("other-user", "Other", "other@example.test"));
+            Context.Roles.Add(new IdentityRole(UserRoles.PLATFORM_ADMIN)
             {
-                Id = "superuser-role", NormalizedName = UserRoles.SUPERUSER.ToUpperInvariant()
+                Id = "superuser-role", NormalizedName = UserRoles.PLATFORM_ADMIN.ToUpperInvariant()
             });
             Context.UserRoles.Add(new IdentityUserRole<string>
             {
                 UserId = "owner-user", RoleId = "superuser-role"
             });
-            Context.SaveChanges();
+            TestProfiles.Save(Context);
             Context.ChangeTracker.Clear();
             Service = new UserService(new IdentityGateway(
-                _scope.ServiceProvider.GetRequiredService<UserManager<User>>(),
+                _scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
                 _scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>(),
                 NullLogger<IdentityGateway>.Instance, Context, null!), null!, TestViews.For(Context));
         }
 
-        private static User User(string id, string firstName, string email) => new()
+        private static ApplicationUser ApplicationUser(string id, string firstName, string email) => new()
         {
             Id = id, FirstName = firstName, LastName = "Patient", Email = email,
             NormalizedEmail = email.ToUpperInvariant(), UserName = email,

@@ -13,6 +13,6 @@ public static class AppointmentRules
             : BookingEligibility.Allowed;
 
     public static string[] StatusRoles(IReadOnlyCollection<string> roles, AppointmentStatus status)
-        => roles.Where(role => role == UserRoles.DOCTOR
-            || (role == UserRoles.RECEPTIONIST && status != AppointmentStatus.InProgress)).ToArray();
+        => roles.Where(role => role == UserRoles.PRACTITIONER
+            || (role == UserRoles.ORGANIZATION_MEMBER && status != AppointmentStatus.InProgress)).ToArray();
 }

@@ -29,7 +29,7 @@ public class AppointmentBookingConstraintTests
         Assert.True(unique.IsUnique);
         Assert.Equal("\"Status\" <> 5", unique.GetFilter());
         Assert.Equal(nameof(Appointment.SessionSlotId), Assert.Single(unique.Properties).Name);
-        Assert.Contains(indexes, index => index.GetDatabaseName() == "IX_Appointments_SessionSlotId"
+        Assert.Contains(indexes, index => index.GetDatabaseName() == "IX_Appointments_SessionSlotId_OrganizationId"
             && !index.IsUnique && index.GetFilter() == null);
         var requester = model.FindEntityType(typeof(CancellationRequest))!.FindProperty(nameof(CancellationRequest.RequestedById))!;
         Assert.Equal(typeof(string), requester.ClrType);
@@ -52,7 +52,7 @@ public class AppointmentBookingConstraintTests
 
         Assert.False(result.IsSuccess);
         Assert.Equal(409, result.Error!.HttpStatus);
-        Assert.Equal(ErrorCode.APPT_DoctorUnavailable, result.Error.Code);
+        Assert.Equal(ErrorCode.APPT_PractitionerRoleUnavailable, result.Error.Code);
         Assert.Null(result.Data);
         Assert.DoesNotContain(fixture.Context.ChangeTracker.Entries<Appointment>(),
             entry => entry.State == EntityState.Added);

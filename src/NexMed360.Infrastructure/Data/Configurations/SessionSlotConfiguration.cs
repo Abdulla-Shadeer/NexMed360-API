@@ -8,7 +8,9 @@ internal sealed class SessionSlotConfiguration : IEntityTypeConfiguration<Sessio
 {
     public void Configure(EntityTypeBuilder<SessionSlot> builder)
     {
-        EntityConfiguration.Configure(builder, "SessionSlots");
-
+        EntityConfiguration.Organization(builder, "SessionSlots");
+        builder.HasOne(row => row.Session).WithMany(row => row.SessionSlots).HasForeignKey(row => new { row.SessionId, row.OrganizationId })
+            .HasPrincipalKey(row => new { row.Id, row.OrganizationId }).OnDelete(DeleteBehavior.Cascade);
+        builder.HasIndex(row => new { row.SessionId, row.Date, row.SlotNumber }).IsUnique();
     }
 }

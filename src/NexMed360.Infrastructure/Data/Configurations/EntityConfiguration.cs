@@ -9,9 +9,14 @@ internal static class EntityConfiguration
     internal static void Configure<T>(EntityTypeBuilder<T> builder, string table) where T : Entity
     {
         builder.ToTable(table);
-        builder.HasKey(entity => entity.Id);
-        builder.Property(entity => entity.Id).ValueGeneratedOnAdd();
-        builder.Property(entity => entity.CreatedDate).ValueGeneratedOnAdd();
-        builder.Property(entity => entity.UpdatedDate).ValueGeneratedOnAddOrUpdate();
+        builder.HasKey(row => row.Id);
+        builder.Property(row => row.Id).ValueGeneratedNever();
+    }
+
+    internal static void Organization<T>(EntityTypeBuilder<T> builder, string table) where T : Entity, IOrganizationOwned
+    {
+        Configure(builder, table);
+        builder.HasAlternateKey(row => new { row.Id, row.OrganizationId });
+        builder.HasOne<Organization>().WithMany().HasForeignKey(row => row.OrganizationId).OnDelete(DeleteBehavior.Restrict);
     }
 }

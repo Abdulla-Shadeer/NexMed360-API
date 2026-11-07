@@ -10,7 +10,7 @@ namespace NexMed360Api.Dtos.Patient
         public VisitReason Reason { get; set; }
 
         [Required]
-        public Guid HospitalId { get; set; }
+        public Guid OrganizationId { get; set; }
 
         [Required]
         public string UserId { get; set; }

@@ -10,15 +10,15 @@ public class OverviewService(IOverviewData data, PortalViews views) : IOverviewS
 {
     private static DatewiseStatsDto Counts(PeriodCount value) => new() { Today = value.Today, ThisWeek = value.ThisWeek, ThisMonth = value.ThisMonth };
     private static CapacityDto? Capacity(CapacityRead? value) => value == null ? null : new() { TotalCapacity = value.TotalCapacity, AvailableCapacity = value.AvailableCapacity };
-    public async Task<DoctorOverviewDto> GetDoctorOverview(string userId)
+    public async Task<PractitionerRoleOverviewDto> GetPractitionerRoleOverview(string userId)
     {
-        var row = await data.GetDoctorOverview(userId);
+        var row = await data.GetPractitionerRoleOverview(userId);
         return new() { TotalPatientsTreated = Counts(row.TotalPatientsTreated), PendingAppointments = row.PendingAppointments,
             UpcomingAppointments = row.UpcomingAppointments, RecentAppointments = row.RecentAppointments == null ? null : await views.Appointments(row.RecentAppointments) };
     }
-    public async Task<HospitalOverviewDto> GetHospitalOverview(string userId, bool isAdmin)
+    public async Task<OrganizationOverviewDto> GetOrganizationOverview(string userId, bool isAdmin)
     {
-        var row = await data.GetHospitalOverview(userId, isAdmin);
+        var row = await data.GetOrganizationOverview(userId, isAdmin);
         return new() { TotalPatients = Counts(row.TotalPatients), AvailableBeds = Capacity(row.AvailableBeds)!, StaffOnDutyToday = Capacity(row.StaffOnDutyToday),
             PendingAppointments = row.PendingAppointments, PatientTrendsOverMonths = row.PatientTrendsOverMonths,
             RecentAppointments = row.RecentAppointments == null ? null : await views.Appointments(row.RecentAppointments) };
@@ -31,7 +31,7 @@ public class OverviewService(IOverviewData data, PortalViews views) : IOverviewS
     }
     public async Task<SystemOverviewDto> GetSystemOverview()
     {
-        var row = await data.GetSystemOverview(); return new() { TotalPatients = row.TotalPatients, TotalHospitals = row.TotalHospitals,
+        var row = await data.GetSystemOverview(); return new() { TotalPatients = row.TotalPatients, TotalOrganizations = row.TotalOrganizations,
             TotalMedicalStaff = row.TotalMedicalStaff, TotalUsers = row.TotalUsers, TotalEHRs = row.TotalEHRs };
     }
 }

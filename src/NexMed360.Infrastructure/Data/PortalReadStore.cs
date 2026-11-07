@@ -1,45 +1,62 @@
 using Microsoft.EntityFrameworkCore;
+using NexMed360Api.Common.Auth;
 using NexMed360.Application.Shared;
 using NexMed360Api.Data;
 using NexMed360Api.Entities;
 
 namespace NexMed360.Infrastructure.Data;
 
-// Queries only. Related roots are joined by ID and never reattached as domain navigations.
 public sealed class PortalReadStore(ApplicationDbContext context) : IPortalReadStore
 {
     public async Task<PortalReadData> Load(PortalReadRequest request)
     {
-        var patients = request.PatientIds.Count + request.ProfileUserIds.Count == 0 ? []
-            : await context.Patients.Where(row => request.PatientIds.Contains(row.Id) || request.ProfileUserIds.Contains(row.UserId)).ToDictionaryAsync(row => row.Id);
-        var slots = request.SlotIds.Count == 0 ? new Dictionary<Guid, SessionSlot>()
-            : await context.SessionSlots.Where(row => request.SlotIds.Contains(row.Id)).ToDictionaryAsync(row => row.Id);
-        var sessions = request.SessionIds.Count == 0 ? new Dictionary<Guid, DoctorSession>()
-            : await context.DoctorSessions.Where(row => request.SessionIds.Contains(row.Id)).ToDictionaryAsync(row => row.Id);
-        var doctorIds = request.DoctorIds.Concat(sessions.Values.Select(row => row.DoctorId)).Distinct().ToArray();
-        var doctors = doctorIds.Length + request.ProfileUserIds.Count == 0 ? []
-            : await context.Doctors.Where(row => doctorIds.Contains(row.Id) || request.ProfileUserIds.Contains(row.UserId)).ToDictionaryAsync(row => row.Id);
-        var admins = request.IncludeHospitalAdmins || request.ProfileUserIds.Count > 0
-            ? await context.HospitalAdmins.Where(row => (request.IncludeHospitalAdmins && request.HospitalIds.Contains(row.HospitalId)) || request.ProfileUserIds.Contains(row.UserId)).ToListAsync() : [];
-        var receptionists = request.ProfileUserIds.Count == 0 ? new List<Receptionist>()
-            : await context.Receptionists.Where(row => request.ProfileUserIds.Contains(row.UserId)).ToListAsync();
-        var hospitalIds = request.HospitalIds.Concat(doctors.Values.Select(row => row.HospitalId))
-            .Concat(admins.Select(row => row.HospitalId)).Concat(receptionists.Select(row => row.HospitalId)).Distinct().ToArray();
-        var hospitals = hospitalIds.Length == 0 ? new Dictionary<Guid, Hospital>()
-            : await context.Hospitals.Where(row => hospitalIds.Contains(row.Id)).ToDictionaryAsync(row => row.Id);
-        var accountIds = request.AccountIds.Concat(patients.Values.Select(row => row.UserId)).Concat(doctors.Values.Select(row => row.UserId))
-            .Concat(admins.Select(row => row.UserId)).Concat(receptionists.Select(row => row.UserId)).Distinct().ToArray();
-        var accounts = accountIds.Length == 0 ? new Dictionary<string, AccountSummary>()
-            : await context.Users.Where(row => accountIds.Contains(row.Id))
-                .Select(row => new AccountSummary(row.Id, row.FirstName, row.LastName, row.Email, row.PhoneNumber)).ToDictionaryAsync(row => row.Id);
-        if (request.IncludeAccountRoles && accounts.Count > 0)
+        var profilePeople = await context.Users.Where(row => request.ProfileUserIds.Contains(row.Id)).Select(row => row.PersonId).ToListAsync();
+        var patients = await context.Patients.Where(row => request.PatientIds.Contains(row.Id) || profilePeople.Contains(row.PersonId)).ToDictionaryAsync(row => row.Id);
+        var slots = await context.SessionSlots.Where(row => request.SlotIds.Contains(row.Id)).ToDictionaryAsync(row => row.Id);
+        var sessions = await context.PractitionerSchedules.Where(row => request.SessionIds.Contains(row.Id)).ToDictionaryAsync(row => row.Id);
+        var practitionerIds = await context.Practitioners.Where(row => profilePeople.Contains(row.PersonId)).Select(row => row.Id).ToListAsync();
+        var roleIds = request.PractitionerRoleIds.Concat(sessions.Values.Select(row => row.PractitionerRoleId)).Distinct().ToArray();
+        var roles = await context.PractitionerRoles.Where(row => roleIds.Contains(row.Id) || practitionerIds.Contains(row.PractitionerId)).ToDictionaryAsync(row => row.Id);
+        practitionerIds.AddRange(roles.Values.Select(row => row.PractitionerId));
+        var practitioners = await context.Practitioners.Where(row => practitionerIds.Contains(row.Id)).ToDictionaryAsync(row => row.Id);
+        var memberships = await context.OrganizationMemberships.Where(row => request.ProfileUserIds.Contains(row.UserId)
+            || (request.IncludeOrganizationManagers && request.OrganizationIds.Contains(row.OrganizationId)
+                && context.MembershipAccessRoles.Any(link => link.MembershipId == row.Id
+                    && context.AccessRoles.Any(role => role.Id == link.AccessRoleId && role.Permissions.Contains(Permissions.MembersManage))))).ToListAsync();
+        var organizationIds = request.OrganizationIds.Concat(roles.Values.Select(row => row.OrganizationId))
+            .Concat(memberships.Select(row => row.OrganizationId)).Distinct().ToArray();
+        var organizations = await context.Organizations.Where(row => organizationIds.Contains(row.Id)).ToDictionaryAsync(row => row.Id);
+        var personIds = request.PersonIds.Concat(patients.Values.Select(row => row.PersonId)).Concat(practitioners.Values.Select(row => row.PersonId)).Concat(profilePeople).Distinct().ToArray();
+        var accountIds = request.AccountIds.Concat(memberships.Select(row => row.UserId)).Distinct().ToArray();
+        var users = await context.Users.Where(row => accountIds.Contains(row.Id) || personIds.Contains(row.PersonId)).ToListAsync();
+        var accounts = users.ToDictionary(row => row.Id, row => new AccountSummary(row.Id, row.FirstName, row.LastName, row.Email, row.PhoneNumber) { PersonId = row.PersonId });
+        var allPersonIds = personIds.Concat(users.Select(row => row.PersonId)).Distinct().ToArray();
+        var people = await context.People.Where(row => allPersonIds.Contains(row.Id)).ToListAsync();
+        var personAccounts = people.ToDictionary(row => row.Id, row => new AccountSummary("", row.FirstName, row.LastName, row.Email, row.PhoneNumber) { PersonId = row.Id });
+        if (request.IncludeAccountRoles)
         {
-            var roles = await context.UserRoles.Where(row => accountIds.Contains(row.UserId))
-                .Join(context.Roles, row => row.RoleId, role => role.Id, (row, role) => new { row.UserId, role.Name }).ToListAsync();
-            foreach (var role in roles)
+            var ids = users.Select(row => row.Id).ToArray();
+            var accountRoles = await context.UserRoles.Where(row => ids.Contains(row.UserId)).Join(context.Roles,
+                row => row.RoleId, role => role.Id, (row, role) => new { row.UserId, role.Name }).ToListAsync();
+            foreach (var role in accountRoles)
                 if (role.Name != null) accounts[role.UserId].Roles.Add(role.Name);
         }
-        return new PortalReadData { Patients = patients, Doctors = doctors, Hospitals = hospitals, Sessions = sessions,
-            Slots = slots, Accounts = accounts, Admins = admins, Receptionists = receptionists };
+        foreach (var account in accounts.Values) personAccounts[account.PersonId] = account;
+        var locationIds = memberships.Where(row => row.LocationId.HasValue).Select(row => row.LocationId!.Value)
+            .Concat(roles.Values.Where(row => row.LocationId.HasValue).Select(row => row.LocationId!.Value)).Distinct().ToArray();
+        var locations = await context.Locations.Where(row => locationIds.Contains(row.Id)).ToDictionaryAsync(row => row.Id);
+        return new PortalReadData
+        {
+            Patients = patients,
+            Practitioners = practitioners,
+            PractitionerRoles = roles,
+            Organizations = organizations,
+            Sessions = sessions,
+            Slots = slots,
+            Accounts = accounts,
+            People = personAccounts,
+            Memberships = memberships,
+            Locations = locations
+        };
     }
 }

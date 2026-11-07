@@ -25,7 +25,7 @@ public class AppointmentsController : ControllerBase
 
     [HttpPost]
     [Route("Create")]
-    [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
+    [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.ORGANIZATION_MEMBER}, {UserRoles.PRACTITIONER}")]
     public async Task<ActionResult<Result<ViewAppointmentDto>>> CreateAppointment(CreateAppointmentDto createAppointment)
     {
         var requesterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -34,7 +34,7 @@ public class AppointmentsController : ControllerBase
 
     [HttpGet]
     [Route("ViewOwn")]
-    [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.DOCTOR}")]
+    [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.PRACTITIONER}")]
     public async Task<ActionResult<Result<List<ViewAppointmentDto>>>> ViewOwnAppointments([FromQuery] ViewAppointmentsFilterDto filter)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -42,17 +42,17 @@ public class AppointmentsController : ControllerBase
     }
 
     [HttpGet]
-    [Route("ViewHospital")]
-    [Authorize(Roles = UserRoles.RECEPTIONIST)]
-    public async Task<ActionResult<Result<List<ViewAppointmentDto>>>> ViewHospitalAppointments([FromQuery] ViewAppointmentsFilterDto filter)
+    [Route("ViewOrganization")]
+    [Authorize(Roles = UserRoles.ORGANIZATION_MEMBER)]
+    public async Task<ActionResult<Result<List<ViewAppointmentDto>>>> ViewOrganizationAppointments([FromQuery] ViewAppointmentsFilterDto filter)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        return HandleResult(await _appointmentsService.GetHospitalAppointments(filter, userId));
+        return HandleResult(await _appointmentsService.GetOrganizationAppointments(filter, userId));
     }
 
     [HttpGet]
     [Route("View/{appointmentId}")]
-    [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
+    [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.ORGANIZATION_MEMBER}, {UserRoles.PRACTITIONER}")]
     public async Task<ActionResult<Result<ViewAppointmentDto>>> ViewAppointment(string appointmentId)
     {
         var requesterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -62,7 +62,7 @@ public class AppointmentsController : ControllerBase
 
     [HttpGet]
     [Route("Confirm/{appointmentId}")]
-    [Authorize(Roles = $"{UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
+    [Authorize(Roles = $"{UserRoles.ORGANIZATION_MEMBER}, {UserRoles.PRACTITIONER}")]
     public async Task<ActionResult<Result<ViewAppointmentDto>>> ConfirmAppointment(string appointmentId)
     {
         return HandleResult(await ChangeStatusForCurrentUser(appointmentId, AppointmentStatus.Confirmed));
@@ -70,7 +70,7 @@ public class AppointmentsController : ControllerBase
 
     [HttpGet]
     [Route("Complete/{appointmentId}")]
-    [Authorize(Roles = $"{UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
+    [Authorize(Roles = $"{UserRoles.ORGANIZATION_MEMBER}, {UserRoles.PRACTITIONER}")]
     public async Task<ActionResult<Result<ViewAppointmentDto>>> CompleteAppointment(string appointmentId)
     {
         return HandleResult(await ChangeStatusForCurrentUser(appointmentId, AppointmentStatus.Completed));
@@ -78,7 +78,7 @@ public class AppointmentsController : ControllerBase
 
     [HttpGet]
     [Route("ConfirmArrival/{appointmentId}")]
-    [Authorize(Roles = $"{UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
+    [Authorize(Roles = $"{UserRoles.ORGANIZATION_MEMBER}, {UserRoles.PRACTITIONER}")]
     public async Task<ActionResult<Result<ViewAppointmentDto>>> ConfirmArrival(string appointmentId)
     {
         return HandleResult(await ChangeStatusForCurrentUser(appointmentId, AppointmentStatus.Arrived));
@@ -86,7 +86,7 @@ public class AppointmentsController : ControllerBase
 
     [HttpGet]
     [Route("ConfirmInProgress/{appointmentId}")]
-    [Authorize(Roles = UserRoles.DOCTOR)]
+    [Authorize(Roles = UserRoles.PRACTITIONER)]
     public async Task<ActionResult<Result<ViewAppointmentDto>>> ConfirmInProgress(string appointmentId)
     {
         return HandleResult(await ChangeStatusForCurrentUser(appointmentId, AppointmentStatus.InProgress));
@@ -94,7 +94,7 @@ public class AppointmentsController : ControllerBase
 
     [HttpPost]
     [Route("Cancel")]
-    [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.RECEPTIONIST}, {UserRoles.DOCTOR}")]
+    [Authorize(Roles = $"{UserRoles.PATIENT}, {UserRoles.ORGANIZATION_MEMBER}, {UserRoles.PRACTITIONER}")]
     public async Task<ActionResult<Result<ViewAppointmentDto>>> CancelAppointment(CancellationRequestDto cancellationRequestDto)
     {
         var requesterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -102,7 +102,7 @@ public class AppointmentsController : ControllerBase
     }
 
     private IReadOnlyCollection<string> GetRequesterRoles()
-        => new[] { UserRoles.PATIENT, UserRoles.DOCTOR, UserRoles.RECEPTIONIST }
+        => new[] { UserRoles.PATIENT, UserRoles.PRACTITIONER, UserRoles.ORGANIZATION_MEMBER }
             .Where(role => User.IsInRole(role)).ToArray();
 
     private Task<Result<ViewAppointmentDto>> ChangeStatusForCurrentUser(string appointmentId, AppointmentStatus status)

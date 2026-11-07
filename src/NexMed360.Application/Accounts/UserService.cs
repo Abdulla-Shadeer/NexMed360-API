@@ -34,22 +34,22 @@ public class UserService(IIdentityGateway identity, IOverviewService overviewSer
         if (userId == null)
             return Result<List<OverviewDto>>.Failure(ErrorCode.SYS_BadRequest, "The received token is missing a valid 'sub' claim");
 
-        var isSuperUser = user.IsInRole(UserRoles.SUPERUSER);
-        var isHospitalAdmin = user.IsInRole(UserRoles.HOSPITAL_ADMIN);
-        var isReceptionist = user.IsInRole(UserRoles.RECEPTIONIST);
-        var isDoctor = user.IsInRole(UserRoles.DOCTOR);
+        var isPlatformAdmin = user.IsInRole(UserRoles.PLATFORM_ADMIN);
+        var isOrganizationManager = user.IsInRole(UserRoles.ORGANIZATION_MANAGER);
+        var isOrganizationMember = user.IsInRole(UserRoles.ORGANIZATION_MEMBER);
+        var isPractitionerRole = user.IsInRole(UserRoles.PRACTITIONER);
         var isPatient = user.IsInRole(UserRoles.PATIENT);
 
         List<OverviewDto> overviews = [];
 
-        if (isSuperUser)
+        if (isPlatformAdmin)
             overviews.Add(await _overviewService.GetSystemOverview());
 
-        if (isReceptionist || isHospitalAdmin)
-            overviews.Add(await _overviewService.GetHospitalOverview(userId, isHospitalAdmin));
+        if (isOrganizationMember || isOrganizationManager)
+            overviews.Add(await _overviewService.GetOrganizationOverview(userId, isOrganizationManager));
 
-        if (isDoctor)
-            overviews.Add(await _overviewService.GetDoctorOverview(userId));
+        if (isPractitionerRole)
+            overviews.Add(await _overviewService.GetPractitionerRoleOverview(userId));
 
         if (isPatient)
             overviews.Add(await _overviewService.GetPatientOverview(userId));
