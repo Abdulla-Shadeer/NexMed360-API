@@ -1,15 +1,19 @@
 using Microsoft.EntityFrameworkCore;
 using NexMed360Api.Data;
+using NexMed360Api.Common.Auth;
 using NexMed360Api.Entities;
 using NexMed360Api.Interfaces.Services;
 
-namespace NexMed360Api.Services;
+namespace NexMed360.Infrastructure.Repositories;
 
 public class OrganizationMembershipRepository(ApplicationDbContext context) : IOrganizationMembershipRepository
 {
     public async Task<OrganizationMembership> Add(OrganizationMembership membership, string roleName, IReadOnlyCollection<string> permissions)
     {
         var existing = await context.OrganizationMemberships.FirstOrDefaultAsync(row => row.OrganizationId == membership.OrganizationId && row.UserId == membership.UserId);
+        context.Access.RequireOrganization(membership.OrganizationId);
+        if (context.Access.IsSelected && context.Access.Mode != WorkspaceModes.Platform && !context.Access.Has(Permissions.MembersManage))
+            throw new UnauthorizedAccessException("You need permission to manage staff.");
         if (existing == null) context.OrganizationMemberships.Add(membership);
         else membership = existing;
         var role = await context.AccessRoles.FirstOrDefaultAsync(row => row.OrganizationId == membership.OrganizationId && row.Name == roleName);
@@ -18,6 +22,7 @@ public class OrganizationMembershipRepository(ApplicationDbContext context) : IO
             role = new AccessRole { OrganizationId = membership.OrganizationId, Name = roleName, Permissions = permissions.ToList() };
             context.AccessRoles.Add(role);
         }
+        if (context.Access.Mode == WorkspaceModes.Platform) role.Permissions = permissions.Distinct().ToList();
         if (!await context.MembershipAccessRoles.AnyAsync(row => row.MembershipId == membership.Id && row.AccessRoleId == role.Id))
             context.MembershipAccessRoles.Add(new MembershipAccessRole { OrganizationId = membership.OrganizationId, MembershipId = membership.Id, AccessRoleId = role.Id });
         await context.SaveChangesAsync();

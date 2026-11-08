@@ -1,3 +1,4 @@
+using NexMed360.Application.Access;
 using System.Reflection;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
@@ -16,10 +17,10 @@ namespace NexMed360.API.Old.Tests;
 public class AppointmentControllerCallerTests
 {
     [Theory]
-    [InlineData("Patient")]
-    [InlineData("Practitioner")]
-    [InlineData("OrganizationMember")]
-    [InlineData("Patient,OrganizationMember,PlatformAdmin")]
+    [InlineData(WorkspaceModes.Patient)]
+    [InlineData("encounters.start")]
+    [InlineData("appointments.manage")]
+    [InlineData("patient,appointments.manage,PlatformAdmin")]
     public async Task ReadPassesOnlySupportedTokenRolesAndCallerIdentity(string roleNames)
     {
         var roles = roleNames.Split(',');
@@ -44,22 +45,24 @@ public class AppointmentControllerCallerTests
     public async Task ReadDoesNotInferCallerIdentityFromTheRequestedAppointmentId()
     {
         var service = new RecordingAppointmentService();
-        var controller = Controller(service, [new Claim("test-role", UserRoles.PRACTITIONER)]);
+        var controller = Controller(service, [new Claim("test-role", Permissions.EncountersStart)]);
 
         await controller.ViewAppointment(Guid.NewGuid().ToString());
 
         Assert.Null(service.RequesterId);
-        Assert.Equal(new[] { UserRoles.PRACTITIONER }, service.RequesterRoles);
+        Assert.Equal(new[] { Permissions.EncountersStart }, service.RequesterRoles);
     }
 
     [Fact]
-    public void ReadKeepsItsExistingPatientPractitionerRoleOrganizationMemberAuthorization()
+    public void ReadRequiresPatientModeOrAppointmentPermission()
     {
         var method = typeof(AppointmentsController).GetMethod(nameof(AppointmentsController.ViewAppointment))!;
         var authorization = Assert.Single(method.GetCustomAttributes<AuthorizeAttribute>());
 
-        Assert.Equal(new[] { UserRoles.PRACTITIONER, UserRoles.PATIENT, UserRoles.ORGANIZATION_MEMBER }.Order(),
-            authorization.Roles!.Split(',').Select(role => role.Trim()).Order().ToArray());
+        Assert.Null(authorization.Roles);
+        var workspace = method.GetCustomAttribute<WorkspaceAttribute>()!;
+        Assert.Equal(new[] { WorkspaceModes.Patient, WorkspaceModes.Work }, workspace.Modes);
+        Assert.Equal(Permissions.AppointmentsManage, workspace.Permission);
         Assert.Empty(method.GetCustomAttributes<AllowAnonymousAttribute>());
     }
 
@@ -75,7 +78,7 @@ public class AppointmentControllerCallerTests
     public async Task StatusActionsPassCallerIdentityRolesAndServerSelectedStatus(AppointmentStatus status, string? caller)
     {
         var service = new RecordingAppointmentService();
-        var claims = new List<Claim> { new("test-role", UserRoles.PRACTITIONER) };
+        var claims = new List<Claim> { new("test-role", Permissions.EncountersStart) };
         if (caller != null)
             claims.Add(new Claim(ClaimTypes.NameIdentifier, caller));
         var controller = Controller(service, claims);
@@ -93,31 +96,34 @@ public class AppointmentControllerCallerTests
         Assert.Equal(id, service.AppointmentId);
         Assert.Equal(status, service.RequestedStatus);
         Assert.Equal(caller, service.RequesterId);
-        Assert.Equal(new[] { UserRoles.PRACTITIONER }, service.RequesterRoles);
+        Assert.Equal(new[] { Permissions.EncountersStart }, service.RequesterRoles);
         Assert.Equal(404, Assert.IsType<ObjectResult>(result.Result).StatusCode);
     }
 
     [Theory]
-    [InlineData(nameof(AppointmentsController.ConfirmAppointment), "Practitioner,OrganizationMember")]
-    [InlineData(nameof(AppointmentsController.CompleteAppointment), "Practitioner,OrganizationMember")]
-    [InlineData(nameof(AppointmentsController.ConfirmArrival), "Practitioner,OrganizationMember")]
-    [InlineData(nameof(AppointmentsController.ConfirmInProgress), "Practitioner")]
-    public void StatusActionsKeepExistingRoleRestrictions(string action, string allowedRoles)
+    [InlineData(nameof(AppointmentsController.ConfirmAppointment), "encounters.start,appointments.manage")]
+    [InlineData(nameof(AppointmentsController.CompleteAppointment), "encounters.start,appointments.manage")]
+    [InlineData(nameof(AppointmentsController.ConfirmArrival), "encounters.start,appointments.manage")]
+    [InlineData(nameof(AppointmentsController.ConfirmInProgress), "encounters.start")]
+    public void StatusActionsRequireCurrentWorkspacePermissions(string action, string allowedRoles)
     {
         var method = typeof(AppointmentsController).GetMethod(action)!;
         var authorization = Assert.Single(method.GetCustomAttributes<AuthorizeAttribute>());
 
-        Assert.Equal(allowedRoles.Split(',').Order(),
-            authorization.Roles!.Split(',').Select(role => role.Trim()).Order());
+        Assert.Null(authorization.Roles);
+        var workspace = method.GetCustomAttribute<WorkspaceAttribute>()!;
+        Assert.Equal(new[] { WorkspaceModes.Work }, workspace.Modes);
+        Assert.Equal(action == nameof(AppointmentsController.ConfirmInProgress) ? Permissions.EncountersStart : Permissions.AppointmentsManage, workspace.Permission);
+        Assert.Equal(action == nameof(AppointmentsController.ConfirmInProgress), workspace.Assignment);
         Assert.Empty(method.GetCustomAttributes<AllowAnonymousAttribute>());
     }
 
     [Theory]
-    [InlineData("Patient", "signed-in-user")]
-    [InlineData("Practitioner", "signed-in-user")]
-    [InlineData("OrganizationMember", "signed-in-user")]
-    [InlineData("Patient,PlatformAdmin", "signed-in-user")]
-    [InlineData("Patient", null)]
+    [InlineData(WorkspaceModes.Patient, "signed-in-user")]
+    [InlineData("encounters.start", "signed-in-user")]
+    [InlineData("appointments.manage", "signed-in-user")]
+    [InlineData("patient,PlatformAdmin", "signed-in-user")]
+    [InlineData(WorkspaceModes.Patient, null)]
     public async Task CancellationPassesTokenIdentityAndRolesSeparatelyFromTheRequestedAppointment(string roleNames, string? caller)
     {
         var service = new RecordingAppointmentService();
@@ -137,17 +143,19 @@ public class AppointmentControllerCallerTests
     }
 
     [Fact]
-    public void CancellationRetainsItsExistingPatientPractitionerRoleOrganizationMemberRolesAndPostMethod()
+    public void CancellationRequiresWorkspacePermissionAndPostMethod()
     {
         var method = typeof(AppointmentsController).GetMethod(nameof(AppointmentsController.CancelAppointment))!;
         var authorization = Assert.Single(method.GetCustomAttributes<AuthorizeAttribute>());
-        Assert.Equal(new[] { UserRoles.PRACTITIONER, UserRoles.PATIENT, UserRoles.ORGANIZATION_MEMBER }.Order(),
-            authorization.Roles!.Split(',').Select(role => role.Trim()).Order().ToArray());
+        Assert.Null(authorization.Roles);
+        var workspace = method.GetCustomAttribute<WorkspaceAttribute>()!;
+        Assert.Equal(new[] { WorkspaceModes.Patient, WorkspaceModes.Work }, workspace.Modes);
+        Assert.Equal(Permissions.AppointmentsManage, workspace.Permission);
         Assert.Single(method.GetCustomAttributes<HttpPostAttribute>());
         Assert.Empty(method.GetCustomAttributes<AllowAnonymousAttribute>());
     }
 
-    private static AppointmentsController Controller(RecordingAppointmentService service, IEnumerable<Claim> claims) => new(service)
+    private static AppointmentsController Controller(RecordingAppointmentService service, IEnumerable<Claim> claims) => new(service, Workspace(claims))
     {
         ControllerContext = new ControllerContext
         {
@@ -157,6 +165,14 @@ public class AppointmentControllerCallerTests
             }
         }
     };
+
+    private static WorkspaceAccess Workspace(IEnumerable<Claim> claims)
+    {
+        var access = new WorkspaceAccess();
+        var permissions = claims.Where(claim => claim.Type == "test-role" && claim.Value != UserRoles.PLATFORM_ADMIN).Select(claim => claim.Value).ToList();
+        access.Select(new() { Mode = WorkspaceModes.Work, Permissions = permissions });
+        return access;
+    }
 
     private sealed class RecordingAppointmentService : IAppointmentService
     {

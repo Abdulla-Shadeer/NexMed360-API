@@ -75,7 +75,8 @@ public class Program
         builder.Services.AddNexMed360Infrastructure(_config);
         builder.Services.AddScoped<GlobalExceptionMiddleware>();
 
-        builder.Services.AddControllers()
+        builder.Services.AddScoped<WorkspaceFilter>();
+        builder.Services.AddControllers(options => options.Filters.AddService<WorkspaceFilter>())
             .ConfigureApiBehaviorOptions(opt =>
             opt.InvalidModelStateResponseFactory = InvalidModelStateResponseFactory.Function );
         builder.Services.AddApiVersioning(opt => {

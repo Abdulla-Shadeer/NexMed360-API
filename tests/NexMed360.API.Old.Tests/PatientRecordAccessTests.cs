@@ -1,3 +1,4 @@
+using NexMed360.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NexMed360Api.Common;
@@ -228,7 +229,7 @@ public class PatientRecordAccessTests
             _context.ChangeTracker.Clear();
 
             // These read methods never use the account-registration dependency.
-            Service = new PatientService(null!, new PatientRepository(_context), null!, TestViews.For(_context), new ClinicalRecordRepository(_context));
+            Service = new PatientService(null!, new PatientRepository(_context), null!, new ClinicalRecordRepository(_context));
         }
 
         private Patient Patient(string userId, string firstName)

@@ -1,7 +1,6 @@
-﻿using NexMed360Api.Common;
+using NexMed360Api.Common;
 using NexMed360Api.Dtos.PractitionerRole;
 using NexMed360Api.Dtos.Organization;
-using NexMed360Api.Dtos.OrganizationMember;
 using NexMed360Api.Dtos.OrganizationMember;
 using NexMed360Api.Dtos.User;
 

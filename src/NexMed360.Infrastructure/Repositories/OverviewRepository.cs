@@ -1,4 +1,6 @@
-﻿using NexMed360.Infrastructure.Data;
+using NexMed360Api.Dtos.Overview;
+using NexMed360Api.Dtos.Shared;
+using NexMed360.Infrastructure.Data;
 using NexMed360.Application.Overview;
 using NexMed360Api.Common;
 using NexMed360Api.Interfaces.Services;
@@ -7,39 +9,30 @@ using NexMed360Api.Entities.Enums;
 using Microsoft.EntityFrameworkCore;
 using NexMed360Api.Entities;
 
-namespace NexMed360Api.Services;
+namespace NexMed360.Infrastructure.Repositories;
 
-public class OverviewData : IOverviewData
+public class OverviewRepository(ApplicationDbContext context, IAppointmentRepository appointments) : IOverviewRepository
 {
-    private readonly ApplicationDbContext _context;
-    private readonly ILogger<OverviewData> _logger;
-
-    public OverviewData(ApplicationDbContext context, ILogger<OverviewData> logger)
+    public async Task<PractitionerRoleOverviewDto> GetPractitionerRoleOverview(string userId)
     {
-        _context = context;
-        _logger = logger;
-    }
-
-    public async Task<PractitionerRoleOverviewRead> GetPractitionerRoleOverview(string userId)
-    {
-        var practitionerRoleId = await _context.PractitionerRolesFor(userId)
+        var practitionerRoleId = context.Access.PractitionerRoleId ?? await context.PractitionerRoles.Where(role => context.Practitioners.Any(practitioner => practitioner.Id == role.PractitionerId && context.Users.Any(user => user.Id == userId && user.PersonId == practitioner.PersonId)))
             .Select(doc => doc.Id)
             .FirstOrDefaultAsync();
 
-        var practitionerRoleAppointments = _context.Appointments
+        var practitionerRoleAppointments = context.Appointments
             .Where(appt => appt.PractitionerRoleId == practitionerRoleId)
             .AsQueryable();
 
         if (!await practitionerRoleAppointments.AnyAsync()) {
-            return new PractitionerRoleOverviewRead();
+            return new PractitionerRoleOverviewDto();
         }
 
         var filterDates = GetFilterDates();
 
         var overviewDto = await practitionerRoleAppointments
             .GroupBy(appt => 1)
-            .Select(group => new PractitionerRoleOverviewRead {
-                TotalPatientsTreated = new PeriodCount {
+            .Select(group => new PractitionerRoleOverviewDto {
+                TotalPatientsTreated = new DatewiseStatsDto {
                     Today = group.Count(appt => appt.Status == AppointmentStatus.Completed &&
                     appt.AppointmentDateTime >= filterDates.TodayStart && appt.AppointmentDateTime <= filterDates.TomorrowStart),
 
@@ -54,36 +47,29 @@ public class OverviewData : IOverviewData
                 appt.AppointmentDateTime >= filterDates.Now)
             })
             .OrderBy(dto => 1)
-            .FirstOrDefaultAsync() ?? new PractitionerRoleOverviewRead();
+            .FirstOrDefaultAsync() ?? new PractitionerRoleOverviewDto();
 
         overviewDto.RecentAppointments = await GetRecentAppointments(practitionerRoleAppointments, filterDates.Now);
 
         return overviewDto;
     }
 
-    public async Task<OrganizationOverviewRead> GetOrganizationOverview(string userId, bool isAdmin)
+    public async Task<OrganizationOverviewDto> GetOrganizationOverview(string userId, bool isAdmin)
     {
-        var organizationId = isAdmin ?
-            await _context.OrganizationMemberships
-            .Where(admn => admn.UserId == userId)
-            .Select(admn => admn.OrganizationId)
-            .FirstOrDefaultAsync() :
-            await _context.OrganizationMemberships
-            .Where(rcpst => rcpst.UserId == userId)
-            .Select(rcpst => rcpst.OrganizationId)
-            .FirstOrDefaultAsync();
+        var organizationId = context.Access.OrganizationId ?? await context.OrganizationMemberships
+            .Where(member => member.UserId == userId).Select(member => member.OrganizationId).FirstOrDefaultAsync();
 
         // total patients (based on appointments registered at the organization)
         var filterDates = GetFilterDates();
-        var organizationAppointments = _context.Appointments
+        var organizationAppointments = context.Appointments
             .Where(appt => appt.OrganizationId == organizationId)
             .AsQueryable();
 
         var overview = await organizationAppointments
             .GroupBy(appt => 1)
-            .Select(group => new OrganizationOverviewRead()
+            .Select(group => new OrganizationOverviewDto()
             {
-                TotalPatients = new PeriodCount()
+                TotalPatients = new DatewiseStatsDto()
                 {
                     Today = group.Count(appt => appt.Status == AppointmentStatus.Completed &&
                     appt.AppointmentDateTime >= filterDates.TodayStart && appt.AppointmentDateTime < filterDates.TomorrowStart),
@@ -96,12 +82,12 @@ public class OverviewData : IOverviewData
                 },
 
                 // Bed and staff leave management is not yet implemented. thus, defaulted to zero
-                AvailableBeds = new CapacityRead(),
-                StaffOnDutyToday = isAdmin ? new CapacityRead() : null,
+                AvailableBeds = new CapacityDto(),
+                StaffOnDutyToday = isAdmin ? new CapacityDto() : null,
                 PendingAppointments = isAdmin ? null : group.Count(appt => appt.Status == AppointmentStatus.Pending)
             })
             .OrderBy(dto => 1)
-            .FirstOrDefaultAsync() ?? new OrganizationOverviewRead();
+            .FirstOrDefaultAsync() ?? new OrganizationOverviewDto();
 
         if (!isAdmin)
         {
@@ -130,22 +116,22 @@ public class OverviewData : IOverviewData
         return overview;
     }
 
-    public async Task<PatientOverviewRead> GetPatientOverview(string userId)
+    public async Task<PatientOverviewDto> GetPatientOverview(string userId)
     {
-        var patientId = await _context.PatientsFor(userId)
+        var patientId = await context.Patients.Where(patient => context.Users.Any(user => user.Id == userId && user.PersonId == patient.PersonId))
             .Select(p => p.Id)
             .FirstOrDefaultAsync();
 
         var filterDates = GetFilterDates();
 
-        var ehrStats = await _context.ClinicalRecords
+        var ehrStats = await context.ClinicalRecords
             .Where(cr => cr.PatientId == patientId)
             .Include(cr => cr.Prescriptions)
             .GroupBy(cr => 1)
             .Select(group => new
             {
                 ActivePrescriptions = group.Sum(cr => cr.Prescriptions!.Count(prs => prs.IsActive == true)),
-                TotalEHRs = new PeriodCount
+                TotalEHRs = new DatewiseStatsDto
                 {
                     Today = group.Count(cr => cr.VisitDate >= filterDates.TodayStart && cr.VisitDate < filterDates.TomorrowStart),
                     ThisWeek = group.Count(cr => cr.VisitDate >= filterDates.ThisWeekStart && cr.VisitDate < filterDates.Now),
@@ -153,9 +139,9 @@ public class OverviewData : IOverviewData
                 }
             })
             .OrderBy(obj => 1)
-            .FirstOrDefaultAsync() ?? new { ActivePrescriptions = 0, TotalEHRs = new PeriodCount() };
+            .FirstOrDefaultAsync() ?? new { ActivePrescriptions = 0, TotalEHRs = new DatewiseStatsDto() };
 
-        var patientAppointments = _context.Appointments
+        var patientAppointments = context.Appointments
             .Where(appt => appt.PatientId == patientId)
             .AsQueryable();
 
@@ -165,7 +151,7 @@ public class OverviewData : IOverviewData
 
         var recentAppointments = await GetRecentAppointments(patientAppointments, filterDates.Now);
 
-        return new PatientOverviewRead()
+        return new PatientOverviewDto()
         {
             TotalEHRs = ehrStats.TotalEHRs,
             ActivePrescriptions = ehrStats.ActivePrescriptions,
@@ -174,15 +160,15 @@ public class OverviewData : IOverviewData
         };
     }
 
-    public async Task<SystemOverviewRead> GetSystemOverview()
+    public async Task<SystemOverviewDto> GetSystemOverview()
     {
-        return new SystemOverviewRead()
+        return new SystemOverviewDto()
         {
-            TotalEHRs = await _context.ClinicalRecords.CountAsync(),
-            TotalOrganizations = await _context.Organizations.CountAsync(),
-            TotalMedicalStaff = await _context.OrganizationMemberships.CountAsync(),
-            TotalPatients = await _context.Patients.CountAsync(),
-            TotalUsers = await _context.Users.CountAsync(),
+            TotalEHRs = await context.ClinicalRecords.IgnoreQueryFilters().CountAsync(),
+            TotalOrganizations = await context.Organizations.CountAsync(),
+            TotalMedicalStaff = await context.OrganizationMemberships.CountAsync(),
+            TotalPatients = await context.Patients.IgnoreQueryFilters().CountAsync(),
+            TotalUsers = await context.Users.CountAsync(),
         };
     }
 
@@ -206,13 +192,14 @@ public class OverviewData : IOverviewData
         };
     }
 
-    private async Task<List<Appointment>> GetRecentAppointments(IQueryable<Appointment> appointments, DateTime now)
+    private async Task<List<NexMed360Api.Dtos.Appointment.ViewAppointmentDto>> GetRecentAppointments(IQueryable<Appointment> query, DateTime now)
     {
-        return await appointments
+        var rows = await query
             .Where(appt => appt.AppointmentDateTime < now && appt.Status == AppointmentStatus.Completed)
             .OrderByDescending(appt => appt.AppointmentDateTime)
 
             .Take(5).ToListAsync();
+        return await appointments.Views(rows);
     }
 
     internal class FilterDate

@@ -1,4 +1,4 @@
-﻿using NexMed360Api.Dtos.User;
+using NexMed360Api.Dtos.User;
 using System.ComponentModel.DataAnnotations;
 
 namespace NexMed360Api.Dtos.Organization;
@@ -13,5 +13,4 @@ public class ViewOrganizationDto
     public string? District { get; set; }
     public string Phone { get; set; }
     public string? Grade { get; set; }
-    public List<ViewUserDto>? Admins { get; set; }
 }

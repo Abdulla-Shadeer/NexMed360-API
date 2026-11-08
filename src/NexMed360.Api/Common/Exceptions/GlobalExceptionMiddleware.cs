@@ -1,4 +1,3 @@
-﻿
 using NexMed360Api.Common.ApplicationErrors;
 
 namespace NexMed360Api.Common.Exceptions;
@@ -7,20 +6,17 @@ public class GlobalExceptionMiddleware(ILogger<GlobalExceptionMiddleware> logger
 {
     public async Task InvokeAsync(HttpContext context, RequestDelegate next)
     {
-		try
-		{
-			await next(context);
-		}
-		catch (Exception e)
-		{
-			var error = new ApiError(
-				ErrorCode.Internal, 
-				"An exception occurred while processing the request.",
-				500,
-				e.Message ?? e.InnerException?.Message);
-			logger.LogWarning(e, "GlobalExceptionMiddleware => An exception occurred while processing the request. {message}", e.Message);
-			logger.LogInformation(e, "{msg}",e.InnerException?.Message);
-            await context.Response.WriteAsJsonAsync(Result<object>.Failure(error));
-		}
+        try { await next(context); }
+        catch (UnauthorizedAccessException exception)
+        {
+            context.Response.StatusCode = 403;
+            await context.Response.WriteAsJsonAsync(Result<object>.Failure(ErrorCode.SYS_Unauthorized, exception.Message, 403));
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Could not complete the request.");
+            context.Response.StatusCode = 500;
+            await context.Response.WriteAsJsonAsync(Result<object>.Failure(ErrorCode.Internal, "Could not complete the request. Please try again.", 500));
+        }
     }
 }

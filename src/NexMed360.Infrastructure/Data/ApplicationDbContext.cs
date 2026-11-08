@@ -1,17 +1,92 @@
 ﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using NexMed360Api.Entities;
+using NexMed360.Application.Access;
+using NexMed360Api.Common.Auth;
 
 namespace NexMed360Api.Data;
 
-public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : IdentityDbContext<ApplicationUser>(options)
+public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options, WorkspaceAccess? workspace = null) : IdentityDbContext<ApplicationUser>(options)
 {
+    public WorkspaceAccess Access { get; } = workspace ?? new();
+
     public const string NonCancelledSlotIndexName = "UX_Appointments_NonCancelledSlot";
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
         builder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
+        ApplyWorkspaceFilters(builder);
+    }
+
+    private void Scope<T>(ModelBuilder builder) where T : Entity, IOrganizationOwned =>
+        builder.Entity<T>().HasQueryFilter(row => !Access.IsSelected
+            || Access.Mode == WorkspaceModes.Platform || Access.Mode == WorkspaceModes.Work && row.OrganizationId == Access.OrganizationId);
+
+    private void ApplyWorkspaceFilters(ModelBuilder builder)
+    {
+        Scope<AccessRole>(builder);
+        Scope<MembershipAccessRole>(builder);
+
+        builder.Entity<OrganizationPatient>().HasQueryFilter(row => !Access.IsSelected
+            || Access.Mode == WorkspaceModes.Work && row.OrganizationId == Access.OrganizationId);
+
+        builder.Entity<VisitHistory>().HasQueryFilter(row => !Access.IsSelected
+            || Access.Mode == WorkspaceModes.Work && row.OrganizationId == Access.OrganizationId);
+
+        builder.Entity<CancellationRequest>().HasQueryFilter(row => !Access.IsSelected
+            || Appointments.Any(appointment => appointment.Id == row.AppointmentId));
+
+        builder.Entity<EncounterParticipant>().HasQueryFilter(row => !Access.IsSelected
+            || Encounters.Any(encounter => encounter.Id == row.EncounterId));
+
+        builder.Entity<OrganizationMembership>().HasQueryFilter(row => !Access.IsSelected || Access.Mode == WorkspaceModes.Platform
+            || Access.Mode == WorkspaceModes.Work && row.OrganizationId == Access.OrganizationId
+                && (!Access.HasLocationScope || row.LocationId.HasValue && Access.LocationIds.Contains(row.LocationId.Value)));
+
+        builder.Entity<Location>().HasQueryFilter(row => !Access.IsSelected || Access.Mode == WorkspaceModes.Platform
+            || Access.Mode == WorkspaceModes.Work && row.OrganizationId == Access.OrganizationId
+                && (!Access.HasLocationScope || Access.LocationIds.Contains(row.Id)));
+
+        builder.Entity<PractitionerRole>().HasQueryFilter(row => !Access.IsSelected || Access.Mode == WorkspaceModes.Patient
+            || Access.Mode == WorkspaceModes.Work && row.OrganizationId == Access.OrganizationId
+                && (!Access.HasLocationScope || row.LocationId.HasValue && Access.LocationIds.Contains(row.LocationId.Value)));
+
+        builder.Entity<Patient>().HasQueryFilter(row => !Access.IsSelected
+            || Access.Mode == WorkspaceModes.Patient && row.Id == Access.PatientId
+            || Access.Mode == WorkspaceModes.Work && (OrganizationPatients.Any(link => link.PatientId == row.Id)
+                || Appointments.Any(appointment => appointment.PatientId == row.Id)
+                || ClinicalRecords.Any(record => record.PatientId == row.Id)));
+
+        builder.Entity<Appointment>().HasQueryFilter(row => !Access.IsSelected
+            || Access.Mode == WorkspaceModes.Patient && row.PatientId == Access.PatientId
+            || Access.Mode == WorkspaceModes.Work && row.OrganizationId == Access.OrganizationId
+                && (Access.Has(Permissions.AppointmentsManage) || Access.Has(Permissions.EncountersStart))
+                && PractitionerRoles.Any(role => role.Id == row.PractitionerRoleId));
+
+        builder.Entity<ClinicalRecord>().HasQueryFilter(row => !Access.IsSelected
+            || Access.Mode == WorkspaceModes.Patient && row.PatientId == Access.PatientId && row.IsPatientVisible
+            || Access.Mode == WorkspaceModes.Work && row.OrganizationId == Access.OrganizationId
+                && Access.Has(Permissions.ClinicalRecordsRead) && PractitionerRoles.Any(role => role.Id == row.PractitionerRoleId));
+
+        builder.Entity<Prescription>().HasQueryFilter(row => !Access.IsSelected
+            || ClinicalRecords.Any(record => record.Id == row.ClinicalRecordId));
+
+        builder.Entity<PractitionerSchedule>().HasQueryFilter(row => !Access.IsSelected
+            || Access.Mode == WorkspaceModes.Patient && row.IsActive
+            || Access.Mode == WorkspaceModes.Work && row.OrganizationId == Access.OrganizationId
+                && PractitionerRoles.Any(role => role.Id == row.PractitionerRoleId));
+
+        builder.Entity<SessionSlot>().HasQueryFilter(row => !Access.IsSelected
+            || PractitionerSchedules.Any(schedule => schedule.Id == row.SessionId));
+
+        builder.Entity<SessionHistory>().HasQueryFilter(row => !Access.IsSelected
+            || Access.Mode == WorkspaceModes.Work && row.OrganizationId == Access.OrganizationId
+                && PractitionerSchedules.Any(schedule => schedule.Id == row.PractitionerScheduleId));
+
+        builder.Entity<Encounter>().HasQueryFilter(row => !Access.IsSelected
+            || Access.Mode == WorkspaceModes.Work && row.OrganizationId == Access.OrganizationId
+                && (!Access.HasLocationScope || row.LocationId.HasValue && Access.LocationIds.Contains(row.LocationId.Value)));
     }
 
     public DbSet<Person> People => Set<Person>();
@@ -51,8 +126,22 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     {
         foreach (var entry in ChangeTracker.Entries<IOrganizationOwned>())
         {
+            if (Access.IsSelected && entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+            {
+                if (Access.Mode == WorkspaceModes.Work && entry.Entity.OrganizationId != Access.OrganizationId)
+                    throw new UnauthorizedAccessException("This record belongs to another organization.");
+
+                if (Access.Mode == WorkspaceModes.Platform && entry.Entity is not OrganizationMembership and not AccessRole and not MembershipAccessRole and not Location
+                    && !(entry.State == EntityState.Deleted && entry.Entity is PractitionerRole or PractitionerSchedule or SessionSlot))
+                    throw new UnauthorizedAccessException("Platform administration does not allow clinical changes.");
+
+                if (Access.Mode == WorkspaceModes.Patient && entry.Entity is not Appointment and not CancellationRequest and not SessionSlot)
+                    throw new UnauthorizedAccessException("Patient mode does not allow this change.");
+            }
+
             if (entry.State is EntityState.Added or EntityState.Modified && entry.Entity.OrganizationId == Guid.Empty)
                 throw new InvalidOperationException("Choose an organization before saving this record.");
+
             if (entry.State == EntityState.Modified && entry.Property(nameof(IOrganizationOwned.OrganizationId)).IsModified
                 && !Equals(entry.Property(nameof(IOrganizationOwned.OrganizationId)).OriginalValue, entry.Entity.OrganizationId))
                 throw new InvalidOperationException("A saved record cannot be moved to another organization.");

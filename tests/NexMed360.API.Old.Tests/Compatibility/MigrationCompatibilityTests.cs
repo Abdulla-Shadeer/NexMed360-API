@@ -38,18 +38,18 @@ public class MigrationCompatibilityTests
                     var auth = type.GetCustomAttributes<AuthorizeAttribute>().Concat(method.GetCustomAttributes<AuthorizeAttribute>()).ToArray();
                     return new Endpoint(type.Name, method.Name,
                         method.GetCustomAttribute<HttpMethodAttribute>()!.HttpMethods.Single(),
-                        method.GetCustomAttribute<RouteAttribute>()!.Template,
+                        method.GetCustomAttribute<RouteAttribute>()?.Template ?? method.GetCustomAttribute<HttpMethodAttribute>()!.Template ?? "",
                         auth.SelectMany(a => (a.Roles ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
                             .OrderBy(role => role, StringComparer.Ordinal).ToArray(),
                         auth.Length > 0, method.IsDefined(typeof(AllowAnonymousAttribute)) || type.IsDefined(typeof(AllowAnonymousAttribute)));
                 })).OrderBy(endpoint => endpoint.Controller, StringComparer.Ordinal)
                 .ThenBy(endpoint => endpoint.Action, StringComparer.Ordinal).ToArray();
-        Assert.Equal(39, actual.Length);
+        Assert.Equal(55, actual.Length);
         Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
     }
 
     [Fact]
-    public void ApprovedDtoSourcesMatchThePhase1Contracts()
+    public void ApprovedDtoSourcesMatchTheCurrentContracts()
     {
         var root = RepositoryRoot();
         var expected = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(

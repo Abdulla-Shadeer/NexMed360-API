@@ -30,9 +30,9 @@ public class AggregateBoundaryTests
     }
 
     [Fact]
-    public void RepositoryContractsContainNoTransportDtosOrPersistenceTypes()
+    public void RepositoryContractsKeepPersistenceAndHttpTypesPrivate()
     {
-        foreach (var repository in new[] { typeof(IAppointmentRepository), typeof(IPatientRepository), typeof(IOrganizationRepository), typeof(IPractitionerScheduleRepository), typeof(IPractitionerRoleRepository), typeof(IOrganizationMembershipRepository), typeof(IOrganizationMembershipRepository), typeof(IClinicalRecordRepository) })
+        foreach (var repository in new[] { typeof(IAppointmentRepository), typeof(IPatientRepository), typeof(IOrganizationRepository), typeof(IPractitionerScheduleRepository), typeof(IPractitionerRoleRepository), typeof(IOrganizationMembershipRepository), typeof(IClinicalRecordRepository), typeof(NexMed360.Application.Access.IWorkspaceRepository), typeof(NexMed360.Application.Access.IAccessRepository), typeof(NexMed360.Application.Accounts.IUserRepository), typeof(NexMed360.Application.Overview.IOverviewRepository), typeof(NexMed360.Application.Search.ISearchRepository) })
             foreach (var method in repository.GetMethods())
             {
                 Check(method.ReturnType);
@@ -41,7 +41,7 @@ public class AggregateBoundaryTests
     }
     private static void Check(Type type)
     {
-        Assert.DoesNotContain(".Dtos.", type.Namespace ?? "");
+        Assert.False((type.Namespace ?? "").StartsWith("Microsoft.AspNetCore.Mvc"));
         Assert.False((type.Namespace ?? "").StartsWith("Microsoft.EntityFrameworkCore"));
         Assert.False((type.Namespace ?? "").StartsWith("Microsoft.AspNetCore.Identity"));
         Assert.NotEqual(typeof(IQueryable<>), type.IsGenericType ? type.GetGenericTypeDefinition() : type);

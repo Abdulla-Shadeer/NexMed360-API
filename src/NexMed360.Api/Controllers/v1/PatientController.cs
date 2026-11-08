@@ -1,4 +1,5 @@
-﻿using Asp.Versioning;
+using NexMed360.Application.Access;
+using Asp.Versioning;
 using NexMed360Api.Common;
 using NexMed360Api.Common.Auth;
 using NexMed360Api.Dtos.ClinicalRecord;
@@ -16,15 +17,18 @@ namespace NexMed360Api.Controllers.v1;
 public class PatientController : ControllerBase
 {
     private readonly IPatientService _patientService;
+    private readonly WorkspaceAccess? _workspace;
 
-    public PatientController(IPatientService patientService)
+    public PatientController(IPatientService patientService, WorkspaceAccess? workspace = null)
     {
         _patientService = patientService;
+        _workspace = workspace;
     }
 
     [HttpPost]
     [Route("Create")]
-    [Authorize(Roles = UserRoles.ORGANIZATION_MEMBER)]
+    [Authorize]
+    [Workspace(WorkspaceModes.Work, Permissions.PatientsRegister)]
     public async Task<ActionResult<Result<ViewPatientDto>>> Create(CreatePatientDto dto)
     {
         return HandleResult(await _patientService.CreatePatient(dto), true);
@@ -32,7 +36,8 @@ public class PatientController : ControllerBase
 
     [HttpGet]
     [Route("Get/{patientId}")]
-    [Authorize(Roles = $"{UserRoles.ORGANIZATION_MEMBER},{UserRoles.PRACTITIONER}")]
+    [Authorize]
+    [Workspace(WorkspaceModes.Work, Permissions.PatientsRead)]
     public async Task<ActionResult<Result<ViewPatientDto>>> GetPatient(string patientId)
     {
         return HandleResult(await _patientService.GetPatient(patientId));
@@ -40,7 +45,8 @@ public class PatientController : ControllerBase
 
     [HttpPost]
     [Route("AddClinicalRecord")]
-    [Authorize(Roles = UserRoles.PRACTITIONER)]
+    [Authorize]
+    [Workspace(WorkspaceModes.Work, Permissions.ClinicalRecordsWrite, true)]
     public async Task<ActionResult<Result<ViewClinicalRecordDto>>> AddClinicalRecord(AddClinicalRecordDto dto)
     {
         var practitionerRoleUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -49,28 +55,39 @@ public class PatientController : ControllerBase
 
     [HttpGet]
     [Route("GetClinicalRecord/{recordId}")]
-    [Authorize(Roles = $"{UserRoles.PRACTITIONER}, {UserRoles.PATIENT}")]
+    [Authorize]
     [ProducesResponseType(typeof(Result<ViewClinicalRecordDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [Workspace(WorkspaceModes.Work + "," + WorkspaceModes.Patient, Permissions.ClinicalRecordsRead)]
     public async Task<ActionResult<Result<ViewClinicalRecordDto>>> GetClinicalRecord(string recordId)
     {
         var requesterUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         return HandleResult(await _patientService.ViewClinicalRecord(
-            recordId, requesterUserId, User.IsInRole(UserRoles.PRACTITIONER)));
+            recordId, requesterUserId, _workspace?.Mode == WorkspaceModes.Work));
     }
 
     [HttpGet]
     [Route("GetClinicalRecords/{patientId}")]
-    [Authorize(Roles = $"{UserRoles.PRACTITIONER}, {UserRoles.PATIENT}")]
+    [Authorize]
     [ProducesResponseType(typeof(Result<List<ViewClinicalRecordDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+    [Workspace(WorkspaceModes.Work + "," + WorkspaceModes.Patient, Permissions.ClinicalRecordsRead)]
     public async Task<ActionResult<Result<List<ViewClinicalRecordDto>>>> GetClinicalRecords(string patientId)
     {
         var requesterUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         return HandleResult(await _patientService.ViewAllClinicalRecords(
-            patientId, requesterUserId, User.IsInRole(UserRoles.PRACTITIONER)));
+            patientId, requesterUserId, _workspace?.Mode == WorkspaceModes.Work));
+    }
+
+    [HttpGet("MyClinicalRecords")]
+    [Authorize]
+    [Workspace(WorkspaceModes.Patient)]
+    public async Task<ActionResult<Result<List<ViewClinicalRecordDto>>>> MyClinicalRecords()
+    {
+        return HandleResult(await _patientService.ViewAllClinicalRecords(
+            _workspace!.PatientId!.Value.ToString(), User.FindFirstValue(ClaimTypes.NameIdentifier), false));
     }
 
     private ActionResult<Result<T>> HandleResult<T>(Result<T> result, bool isCreatedResult = false)
@@ -79,4 +96,7 @@ public class PatientController : ControllerBase
             return StatusCode(result.Error!.HttpStatus, result);
         return isCreatedResult ? Created(string.Empty, result) : Ok(result);
     }
+    [HttpGet("Me"), Authorize, Workspace(WorkspaceModes.Patient)]
+    public async Task<ActionResult<Result<ViewPatientDto>>> Me() => HandleResult(await _patientService.GetOwnPatient());
+
 }

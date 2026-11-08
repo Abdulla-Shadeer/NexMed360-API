@@ -12,7 +12,7 @@ public static class AppointmentRules
             : !available || !bookingAllowed ? BookingEligibility.UnavailableSlot
             : BookingEligibility.Allowed;
 
-    public static string[] StatusRoles(IReadOnlyCollection<string> roles, AppointmentStatus status)
-        => roles.Where(role => role == UserRoles.PRACTITIONER
-            || (role == UserRoles.ORGANIZATION_MEMBER && status != AppointmentStatus.InProgress)).ToArray();
+    public static string[] StatusPermissions(IReadOnlyCollection<string> permissions, AppointmentStatus status)
+        => permissions.Where(role => role == Permissions.EncountersStart
+            || (role == Permissions.AppointmentsManage && status != AppointmentStatus.InProgress)).ToArray();
 }

@@ -1,3 +1,4 @@
+using NexMed360.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NexMed360.API.Entities.Enums;
@@ -166,7 +167,7 @@ public class AppointmentBookingEligibilityTests
             Context.SessionSlots.Add(slot);
             TestProfiles.Save(Context);
             Context.ChangeTracker.Clear();
-            Service = new AppointmentService(new AppointmentRepository(Context), TestViews.For(Context));
+            Service = new AppointmentService(new AppointmentRepository(Context));
         }
 
         public CreateAppointmentDto Request() => new()

@@ -14,6 +14,11 @@ public static class Permissions
     public const string ClinicalRecordsWrite = "clinical-records.write";
     public const string PrescriptionsIssue = "prescriptions.issue";
 
+    public static readonly IReadOnlyList<string> Administration = Array.AsReadOnly(new[]
+    {
+        OrganizationsManage, MembersManage, RolesManage
+    });
+
     public static readonly IReadOnlyList<string> All = Array.AsReadOnly(new[]
     {
         OrganizationsManage, MembersManage, RolesManage, PatientsRead, PatientsRegister,

@@ -1,3 +1,4 @@
+using NexMed360.Application.Access;
 using System.Reflection;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
@@ -15,16 +16,14 @@ namespace NexMed360.API.Old.Tests;
 public class PatientControllerCallerTests
 {
     [Theory]
-    [InlineData(UserRoles.PATIENT, false)]
-    [InlineData(UserRoles.PRACTITIONER, true)]
-    [InlineData("Patient,Practitioner", true)]
-    [InlineData("Patient,OrganizationMember", false)]
-    public async Task ReadActionsPassAuthenticatedIdentityAndPractitionerRoleRole(string roles, bool expectedIsPractitionerRole)
+    [InlineData(WorkspaceModes.Patient, false)]
+    [InlineData(WorkspaceModes.Work, true)]
+    public async Task ReadActionsPassAuthenticatedIdentityAndSelectedMode(string roles, bool expectedIsPractitionerRole)
     {
         var claims = new List<Claim> { new(ClaimTypes.NameIdentifier, "signed-in-user") };
         claims.AddRange(roles.Split(',').Select(role => new Claim(ClaimTypes.Role, role)));
         var service = new RecordingPatientService();
-        var controller = Controller(service, claims);
+        var controller = Controller(service, claims, roles);
         var requestedId = Guid.NewGuid().ToString();
 
         await controller.GetClinicalRecord(requestedId);
@@ -56,16 +55,17 @@ public class PatientControllerCallerTests
     [Theory]
     [InlineData(nameof(PatientController.GetClinicalRecord))]
     [InlineData(nameof(PatientController.GetClinicalRecords))]
-    public void ReadActionsKeepPatientAndPractitionerRoleAuthorization(string action)
+    public void ReadActionsRequireWorkspaceAndClinicalPermission(string action)
     {
         var method = typeof(PatientController).GetMethod(action)!;
         var authorization = Assert.Single(method.GetCustomAttributes<AuthorizeAttribute>());
-        var roles = authorization.Roles!.Split(',').Select(role => role.Trim()).Order().ToArray();
-
-        Assert.Equal(new[] { UserRoles.PRACTITIONER, UserRoles.PATIENT }.OrderBy(role => role), roles);
+        Assert.Null(authorization.Roles);
+        var workspace = method.GetCustomAttribute<WorkspaceAttribute>()!;
+        Assert.Equal(new[] { WorkspaceModes.Work, WorkspaceModes.Patient }, workspace.Modes);
+        Assert.Equal(Permissions.ClinicalRecordsRead, workspace.Permission);
     }
 
-    private static PatientController Controller(RecordingPatientService service, IEnumerable<Claim> claims) => new(service)
+    private static PatientController Controller(RecordingPatientService service, IEnumerable<Claim> claims, string mode = WorkspaceModes.Patient) => new(service, Workspace(mode))
     {
         ControllerContext = new ControllerContext
         {
@@ -76,8 +76,16 @@ public class PatientControllerCallerTests
         }
     };
 
+    private static WorkspaceAccess Workspace(string mode)
+    {
+        var access = new WorkspaceAccess();
+        access.Select(new() { Mode = mode });
+        return access;
+    }
+
     private sealed class RecordingPatientService : IPatientService
     {
+        public Task<Result<ViewPatientDto>> GetOwnPatient() => throw new NotSupportedException();
         public string? RequestedId { get; private set; }
         public string? RequesterUserId { get; private set; }
         public bool IsPractitionerRole { get; private set; }

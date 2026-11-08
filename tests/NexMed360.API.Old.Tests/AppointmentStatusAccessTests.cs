@@ -1,3 +1,4 @@
+using NexMed360.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using NexMed360Api.Common.ApplicationErrors;
@@ -23,7 +24,7 @@ public class AppointmentStatusAccessTests
         var id = await AppointmentReadAccessTests.Book(fixture);
         var caller = TestProfiles.UserId(await fixture.Context.PractitionerRoles.SingleAsync());
 
-        var result = await fixture.Service.ChangeStatus(id, status, caller, [UserRoles.PRACTITIONER]);
+        var result = await fixture.Service.ChangeStatus(id, status, caller, [Permissions.EncountersStart]);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(id, result.Data!.BookingReference);
@@ -43,7 +44,7 @@ public class AppointmentStatusAccessTests
         var id = await AppointmentReadAccessTests.Book(fixture);
         var caller = await AppointmentReadAccessTests.AddOrganizationMember(fixture, true);
 
-        var result = await fixture.Service.ChangeStatus(id, status, caller, [UserRoles.ORGANIZATION_MEMBER]);
+        var result = await fixture.Service.ChangeStatus(id, status, caller, [Permissions.AppointmentsManage]);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(status, result.Data!.Status);
@@ -56,7 +57,7 @@ public class AppointmentStatusAccessTests
         var id = await AppointmentReadAccessTests.Book(fixture);
         var caller = await AppointmentReadAccessTests.AddOrganizationMember(fixture, false);
 
-        var result = await fixture.Service.ChangeStatus(id, AppointmentStatus.Confirmed, caller, [UserRoles.ORGANIZATION_MEMBER]);
+        var result = await fixture.Service.ChangeStatus(id, AppointmentStatus.Confirmed, caller, [Permissions.AppointmentsManage]);
 
         Assert.False(result.IsSuccess);
         Assert.Null(result.Data);
@@ -83,7 +84,7 @@ public class AppointmentStatusAccessTests
         await TestProfiles.SaveAsync(fixture.Context);
         fixture.Context.ChangeTracker.Clear();
 
-        var result = await fixture.Service.ChangeStatus(id, AppointmentStatus.Completed, user.Id, [UserRoles.PRACTITIONER]);
+        var result = await fixture.Service.ChangeStatus(id, AppointmentStatus.Completed, user.Id, [Permissions.EncountersStart]);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(404, result.Error!.HttpStatus);
@@ -99,7 +100,7 @@ public class AppointmentStatusAccessTests
         var caller = TestProfiles.UserId(await fixture.Context.Patients.SingleAsync());
 
         var result = await fixture.Service.ChangeStatus(id, AppointmentStatus.Confirmed,
-            caller, [UserRoles.PATIENT, UserRoles.PRACTITIONER]);
+            caller, ["patient", Permissions.EncountersStart]);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(404, result.Error!.HttpStatus);
@@ -115,7 +116,7 @@ public class AppointmentStatusAccessTests
         var caller = await AppointmentReadAccessTests.AddOrganizationMember(fixture, true);
 
         var result = await fixture.Service.ChangeStatus(id, AppointmentStatus.InProgress,
-            caller, [UserRoles.ORGANIZATION_MEMBER, UserRoles.PRACTITIONER]);
+            caller, [Permissions.AppointmentsManage, Permissions.EncountersStart]);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(404, result.Error!.HttpStatus);
@@ -124,14 +125,14 @@ public class AppointmentStatusAccessTests
     }
 
     [Theory]
-    [InlineData(UserRoles.PATIENT, AppointmentStatus.Confirmed)]
+    [InlineData("patient", AppointmentStatus.Confirmed)]
     [InlineData(UserRoles.PLATFORM_ADMIN, AppointmentStatus.Completed)]
-    [InlineData(UserRoles.ORGANIZATION_MEMBER, AppointmentStatus.InProgress)]
+    [InlineData(Permissions.AppointmentsManage, AppointmentStatus.InProgress)]
     public async Task UnsupportedRoleIsRejectedBeforeStorageAccess(string role, AppointmentStatus status)
     {
         using var context = new ApplicationDbContext(new DbContextOptions<ApplicationDbContext>());
 
-        var result = await new AppointmentService(new AppointmentRepository(context), TestViews.For(context)).ChangeStatus(
+        var result = await new AppointmentService(new AppointmentRepository(context)).ChangeStatus(
             Guid.NewGuid().ToString(), status, "signed-in-user", [role]);
 
         Assert.False(result.IsSuccess);
@@ -147,8 +148,8 @@ public class AppointmentStatusAccessTests
     {
         using var context = new ApplicationDbContext(new DbContextOptions<ApplicationDbContext>());
 
-        var result = await new AppointmentService(new AppointmentRepository(context), TestViews.For(context)).ChangeStatus(
-            Guid.NewGuid().ToString(), AppointmentStatus.Confirmed, caller, [UserRoles.PRACTITIONER]);
+        var result = await new AppointmentService(new AppointmentRepository(context)).ChangeStatus(
+            Guid.NewGuid().ToString(), AppointmentStatus.Confirmed, caller, [Permissions.EncountersStart]);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(401, result.Error!.HttpStatus);
@@ -162,9 +163,9 @@ public class AppointmentStatusAccessTests
         var caller = TestProfiles.UserId(await fixture.Context.PractitionerRoles.SingleAsync());
 
         var missing = await fixture.Service.ChangeStatus(Guid.NewGuid().ToString(),
-            AppointmentStatus.Confirmed, caller, [UserRoles.PRACTITIONER]);
+            AppointmentStatus.Confirmed, caller, [Permissions.EncountersStart]);
         var malformed = await fixture.Service.ChangeStatus("invalid",
-            AppointmentStatus.Confirmed, caller, [UserRoles.PRACTITIONER]);
+            AppointmentStatus.Confirmed, caller, [Permissions.EncountersStart]);
 
         Assert.Equal(404, missing.Error!.HttpStatus);
         Assert.Equal(ErrorCode.APPT_NotFound, missing.Error.Code);
@@ -182,8 +183,8 @@ public class AppointmentStatusAccessTests
         fixture.Context.ChangeTracker.Clear();
         var caller = TestProfiles.UserId(await fixture.Context.PractitionerRoles.SingleAsync());
 
-        var own = await fixture.Service.ChangeStatus(id, AppointmentStatus.Confirmed, caller, [UserRoles.PRACTITIONER]);
-        var other = await fixture.Service.ChangeStatus(id, AppointmentStatus.Confirmed, "unrelated-practitionerRole", [UserRoles.PRACTITIONER]);
+        var own = await fixture.Service.ChangeStatus(id, AppointmentStatus.Confirmed, caller, [Permissions.EncountersStart]);
+        var other = await fixture.Service.ChangeStatus(id, AppointmentStatus.Confirmed, "unrelated-practitionerRole", [Permissions.EncountersStart]);
 
         Assert.Equal(410, own.Error!.HttpStatus);
         Assert.Equal(404, other.Error!.HttpStatus);
@@ -203,7 +204,7 @@ public class AppointmentStatusAccessTests
         var caller = TestProfiles.UserId(await fixture.Context.PractitionerRoles.SingleAsync());
         probe.SaveCount = 0;
 
-        var result = await fixture.Service.ChangeStatus(id, AppointmentStatus.Confirmed, caller, [UserRoles.PRACTITIONER]);
+        var result = await fixture.Service.ChangeStatus(id, AppointmentStatus.Confirmed, caller, [Permissions.EncountersStart]);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(1, probe.SaveCount);
@@ -226,7 +227,7 @@ public class AppointmentStatusAccessTests
         probe.FailWhenAppointmentModified = true;
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Service.ChangeStatus(
-            id, AppointmentStatus.Confirmed, caller, [UserRoles.PRACTITIONER]));
+            id, AppointmentStatus.Confirmed, caller, [Permissions.EncountersStart]));
 
         Assert.Equal(1, probe.SaveCount);
         fixture.Context.ChangeTracker.Clear();
@@ -242,7 +243,7 @@ public class AppointmentStatusAccessTests
         var cancellationId = await AddCancellationRequest(fixture);
 
         var result = await fixture.Service.ChangeStatus(id, AppointmentStatus.Confirmed,
-            "unrelated-practitionerRole", [UserRoles.PRACTITIONER]);
+            "unrelated-practitionerRole", [Permissions.EncountersStart]);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(404, result.Error!.HttpStatus);
@@ -261,7 +262,7 @@ public class AppointmentStatusAccessTests
         fixture.Context.ChangeTracker.Clear();
         var caller = TestProfiles.UserId(await fixture.Context.PractitionerRoles.SingleAsync());
 
-        var result = await fixture.Service.ChangeStatus(id, AppointmentStatus.Confirmed, caller, [UserRoles.PRACTITIONER]);
+        var result = await fixture.Service.ChangeStatus(id, AppointmentStatus.Confirmed, caller, [Permissions.EncountersStart]);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(AppointmentStatus.Confirmed, result.Data!.Status);

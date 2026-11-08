@@ -1,4 +1,5 @@
-﻿using Asp.Versioning;
+using NexMed360Api.Common.Auth;
+using Asp.Versioning;
 using NexMed360Api.Common;
 using NexMed360Api.Dtos.Overview;
 using NexMed360Api.Dtos.User;
@@ -53,6 +54,7 @@ public class UsersController : ControllerBase
     [HttpGet]
     [Route("GetOverview")]
     [Authorize]
+    [Workspace(WorkspaceModes.Work + "," + WorkspaceModes.Patient + "," + WorkspaceModes.Platform)]
     public async Task<ActionResult<Result<List<OverviewDto>>>> GetOverview()
     {
         var overview = await _userService.GetOverview(User.ToCallerContext());

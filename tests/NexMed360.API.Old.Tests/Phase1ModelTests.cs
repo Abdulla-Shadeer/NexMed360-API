@@ -1,3 +1,4 @@
+using NexMed360.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -37,11 +38,11 @@ public class Phase1ModelTests
         Assert.Equal(2, await context.PractitionerRoles.CountAsync(TestContext.Current.CancellationToken));
         var reusedPatient = await new PatientRepository(context).Add(new Patient { PersonId = person.Id });
         Assert.Equal(patient.Id, reusedPatient.Id);
-        var account = new NexMed360.Application.Shared.AccountSummary(user.Id, "Sam", "Example", null, null) { PersonId = person.Id };
-        var view = await TestViews.For(context).User(account);
-        Assert.Equal(2, view.PractitionerRoleProfiles.Count);
-        Assert.Equal(2, view.Memberships.Count);
-        Assert.Equal(patient.Id.ToString(), view.PatientProfile!.Id);
+        var choices = await new WorkspaceRepository(context).List(user.Id);
+        Assert.Equal(2, choices.Count(row => row.Key.StartsWith(WorkspaceModes.Work + ":") && row.Key.Split(':').Length == 3));
+        Assert.Equal(2, choices.Count(row => row.Key.StartsWith(WorkspaceModes.Work + ":") && row.Key.Split(':').Length == 2));
+        var ownPatient = await new WorkspaceRepository(context).Resolve(user.Id, WorkspaceModes.Patient);
+        Assert.Equal(patient.Id, ownPatient!.PatientId);
     }
 
     [Fact]
@@ -53,7 +54,7 @@ public class Phase1ModelTests
         context.AddRange(person, patient);
         await context.SaveChangesAsync(TestContext.Current.CancellationToken);
         context.ChangeTracker.Clear();
-        var view = await TestViews.For(context).Patient(patient);
+        var view = await new PatientRepository(context).View(patient);
         Assert.Equal("Pat", view!.FirstName);
         Assert.Equal("123", view.PhoneNumber);
         Assert.Empty(await context.Users.ToListAsync(TestContext.Current.CancellationToken));
@@ -105,7 +106,7 @@ public class Phase1ModelTests
         Assert.Equal(2, records.Count);
         Assert.Equal(2, records.Select(row => row.OrganizationId).Distinct().Count());
         Assert.Empty(await repository.GetForPatient(other.Id, user.Id, false));
-        var views = await TestViews.For(context).Records(records);
+        var views = await repository.Views(records);
         Assert.Equal(new[] { "First clinic", "Second clinic" }, views.Select(row => row.OrganizationName).Order());
     }
 

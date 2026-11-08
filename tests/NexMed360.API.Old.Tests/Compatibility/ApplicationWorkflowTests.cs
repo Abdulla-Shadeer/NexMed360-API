@@ -1,5 +1,5 @@
 using NexMed360.Application.Accounts.Internal;
-using NexMed360.Application.Shared;
+using NexMed360.Application.Accounts.Internal;
 using NexMed360Api.Entities;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -45,7 +45,7 @@ public class ApplicationWorkflowTests
     public async Task LoginReturnsTheSameTokenAndUserProfile()
     {
         var users = new Users();
-        var result = await new AuthService(new Identity(), users, TestViews.Empty()).LoginAsync(new LoginUserDto());
+        var result = await new AuthService(new Identity(), users).LoginAsync(new LoginUserDto());
         Assert.True(result.IsSuccess);
         Assert.Equal("synthetic-token", result.Data!.AccessToken);
         Assert.Same(users.ApplicationUser, result.Data.User);
@@ -56,7 +56,7 @@ public class ApplicationWorkflowTests
     public async Task FailedLoginDoesNotLoadAProfile()
     {
         var users = new Users();
-        var result = await new AuthService(new Identity { Reject = true }, users, TestViews.Empty()).LoginAsync(new LoginUserDto());
+        var result = await new AuthService(new Identity { Reject = true }, users).LoginAsync(new LoginUserDto());
         Assert.False(result.IsSuccess);
         Assert.Equal(401, result.Error!.HttpStatus);
         Assert.Null(users.RequestedUserId);
@@ -66,7 +66,7 @@ public class ApplicationWorkflowTests
     public async Task PatientRegistrationUsesTheIdentityIdAndCommitsBothWrites()
     {
         var auth = new Registration(); var data = new PatientProfiles(); var transactions = new Transactions();
-        var result = await new PatientService(auth, data, transactions, TestViews.Empty(), null!).CreatePatient(new CreatePatientDto());
+        var result = await new PatientService(auth, data, transactions, null!).CreatePatient(new CreatePatientDto());
         Assert.True(result.IsSuccess);
         Assert.Equal(UserRoles.PATIENT, auth.RegisteredRole);
         Assert.Equal(auth.ApplicationUser.Id, data.RegisteredUserId);
@@ -81,7 +81,7 @@ public class ApplicationWorkflowTests
     {
         var auth = new Registration { RejectRegistration = accountFailure };
         var data = new PatientProfiles(); var transactions = new Transactions();
-        var result = await new PatientService(auth, data, transactions, TestViews.Empty(), null!).CreatePatient(new CreatePatientDto());
+        var result = await new PatientService(auth, data, transactions, null!).CreatePatient(new CreatePatientDto());
         Assert.False(result.IsSuccess);
         if (accountFailure) Assert.Null(data.RegisteredUserId);
         Assert.False(transactions.Committed);
@@ -92,7 +92,7 @@ public class ApplicationWorkflowTests
     public async Task ProfileExceptionDisposesTheUncommittedRegistrationTransaction()
     {
         var transactions = new Transactions();
-        var service = new PatientService(new Registration(), new PatientProfiles { Throw = true }, transactions, TestViews.Empty(), null!);
+        var service = new PatientService(new Registration(), new PatientProfiles { Throw = true }, transactions, null!);
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreatePatient(new CreatePatientDto()));
         Assert.False(transactions.Committed);
         Assert.True(transactions.Disposed);
@@ -102,25 +102,20 @@ public class ApplicationWorkflowTests
     public async Task MappingFailureDisposesTheUncommittedRegistrationTransaction()
     {
         var transactions = new Transactions();
-        var service = new PatientService(new Registration(), new PatientProfiles(), transactions, new PortalViews(new FailedReads()), null!);
+        var service = new PatientService(new Registration(), new PatientProfiles { FailView = true }, transactions, null!);
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreatePatient(new CreatePatientDto()));
         Assert.False(transactions.Committed);
         Assert.True(transactions.Disposed);
     }
-    private sealed class FailedReads : IPortalReadStore
-    {
-        public Task<PortalReadData> Load(PortalReadRequest request) => throw new InvalidOperationException("Synthetic read projection failure");
-    }
-
     private sealed class Identity : IIdentityGateway
     {
         public bool Reject { get; init; }
         public Task<Result<AuthenticatedAccount>> AuthenticateAsync(string email, string password) => Task.FromResult(Reject
             ? Result<AuthenticatedAccount>.Failure(ErrorCode.SYS_Unauthorized)
             : Result<AuthenticatedAccount>.Success(new AuthenticatedAccount("existing-user-id", "synthetic-token")));
-        public Task<Result<AccountSummary>> RegisterUser(AccountRegistration dto, string role) => throw new NotSupportedException();
-        public Task<Result<AccountSummary>> GetUserAsync(string id) => throw new NotSupportedException();
-        public Task<Result<AccountSummary>> UpdateUser(AccountChanges dto, string? caller) => throw new NotSupportedException();
+        public Task<Result<ViewUserDto>> RegisterUser(RegisterUserDto dto, string role) => throw new NotSupportedException();
+        public Task<Result<ViewUserDto>> GetUserAsync(string id) => throw new NotSupportedException();
+        public Task<Result<ViewUserDto>> UpdateUser(UpdateUserDto dto, string? caller) => throw new NotSupportedException();
     }
     private sealed class Registration : IAuthService
     {
@@ -145,6 +140,10 @@ public class ApplicationWorkflowTests
     private sealed class PatientProfiles : IPatientRepository
     {
         public bool Throw { get; init; }
+        public bool FailView { get; init; }
+        public Task<ViewPatientDto?> View(Patient? row) => FailView
+            ? throw new InvalidOperationException("Synthetic response read failure")
+            : Task.FromResult<ViewPatientDto?>(new ViewPatientDto { Id = row!.Id.ToString() });
         public string? RegisteredUserId { get; private set; }
         public Task<Patient> Add(Patient patient)
         {

@@ -1,3 +1,4 @@
+using NexMed360Api.Dtos.practitionerSchedule;
 using NexMed360Api.Entities;
 using NexMed360Api.Entities.Enums;
 
@@ -25,4 +26,9 @@ public interface IPractitionerScheduleRepository
     Task<bool> CanDelete(Guid id);
     void Remove(PractitionerSchedule row);
     Task SaveChanges();
+    Task<List<ViewPractitionerScheduleDto>> Views(IEnumerable<PractitionerSchedule> rows);
+    Task<ViewPractitionerScheduleDto?> View(PractitionerSchedule? row);
+    Task<List<ViewSessionHistoryDto>> HistoryViews(IEnumerable<SessionHistory> rows);
+    Task<ViewSessionHistoryDto?> HistoryView(SessionHistory? row);
+
 }

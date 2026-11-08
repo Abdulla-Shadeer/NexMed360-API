@@ -1,9 +1,9 @@
-﻿using Asp.Versioning;
+using NexMed360.Application.Access;
+using Asp.Versioning;
 using NexMed360Api.Common;
 using NexMed360Api.Common.Auth;
 using NexMed360Api.Dtos.PractitionerRole;
 using NexMed360Api.Dtos.Organization;
-using NexMed360Api.Dtos.OrganizationMember;
 using NexMed360Api.Dtos.OrganizationMember;
 using NexMed360Api.Dtos.User;
 using NexMed360Api.Interfaces.Services;
@@ -21,15 +21,18 @@ public class OrganizationController : ControllerBase
 {
 
     private readonly IOrganizationService _organizationService;
+    private readonly WorkspaceAccess? _workspace;
 
-    public OrganizationController(IOrganizationService organizationService)
+    public OrganizationController(IOrganizationService organizationService, WorkspaceAccess? workspace = null)
     {
         _organizationService = organizationService;
+        _workspace = workspace;
     }
 
     [HttpPost]
     [Route("Add")]
-    [Authorize(Roles = UserRoles.PLATFORM_ADMIN)]
+    [Authorize]
+    [Workspace(WorkspaceModes.Platform)]
     public async Task<ActionResult<Result<ViewOrganizationDto>>> AddOrganization(CreateOrganizationDto dto)
     {
         return HandleCreationResult(await _organizationService.Add(dto));
@@ -37,7 +40,8 @@ public class OrganizationController : ControllerBase
 
     [HttpGet]
     [Route("GetAll")]
-    [Authorize(Roles = $"{UserRoles.PLATFORM_ADMIN}, {UserRoles.PATIENT}")]
+    [Authorize]
+    [Workspace(WorkspaceModes.Platform + "," + WorkspaceModes.Patient)]
     public async Task<ActionResult<Result<List<ViewOrganizationDto>>>> GetAll()
     {
 
@@ -52,7 +56,8 @@ public class OrganizationController : ControllerBase
 
     [HttpPost]
     [Route("AssignAdmin")]
-    [Authorize(Roles = UserRoles.PLATFORM_ADMIN)]
+    [Authorize]
+    [Workspace(WorkspaceModes.Platform)]
     public async Task<ActionResult<Result<ViewUserDto>>> AddAdmin(CreateOrganizationManagerDto dto)
     {
         return HandleCreationResult(await _organizationService.AssignAdmin(dto));
@@ -60,7 +65,8 @@ public class OrganizationController : ControllerBase
 
     [HttpPut]
     [Route("Update")]
-    [Authorize(Roles = $"{UserRoles.PLATFORM_ADMIN},{UserRoles.ORGANIZATION_MANAGER}")]
+    [Authorize]
+    [Workspace(WorkspaceModes.Work + "," + WorkspaceModes.Platform, Permissions.OrganizationsManage)]
     public async Task<ActionResult<Result<ViewOrganizationDto>>> UpdateOrganization(UpdateOrganizationDto updateDto)
     {
         var updateResult = await _organizationService.Update(updateDto);
@@ -75,9 +81,10 @@ public class OrganizationController : ControllerBase
     [HttpGet]
     [Route("FindById/{id}")]
     [Authorize]
+    [Workspace(WorkspaceModes.Platform + "," + WorkspaceModes.Work + "," + WorkspaceModes.Patient)]
     public async Task<ActionResult<Result<ViewOrganizationDto>>> FindById(string id)
     {
-        var searchResult = await _organizationService.FindById(id, User.IsInRole(UserRoles.PLATFORM_ADMIN));
+        var searchResult = await _organizationService.FindById(id, _workspace?.Mode == WorkspaceModes.Platform);
         if (searchResult.IsSuccess)
         {
             return Ok(searchResult);
@@ -88,7 +95,8 @@ public class OrganizationController : ControllerBase
 
     [HttpPost]
     [Route("AddOrganizationMember")]
-    [Authorize(Roles = UserRoles.ORGANIZATION_MANAGER)]
+    [Authorize]
+    [Workspace(WorkspaceModes.Work, Permissions.MembersManage)]
     public async Task<ActionResult<Result<ViewUserDto>>> AddOrganizationMember(CreateOrganizationMemberDto dto)
     {
         return HandleCreationResult(await _organizationService.AddOrganizationMember(dto));
@@ -96,7 +104,8 @@ public class OrganizationController : ControllerBase
 
     [HttpPost]
     [Route("AddPractitionerRole")]
-    [Authorize(Roles = UserRoles.ORGANIZATION_MANAGER)]
+    [Authorize]
+    [Workspace(WorkspaceModes.Work, Permissions.MembersManage)]
     public async Task<ActionResult<Result<ViewUserDto>>> AddPractitionerRole(CreatePractitionerRoleDto dto)
     {
         return HandleCreationResult(await _organizationService.AddPractitionerRole(dto));
@@ -104,7 +113,8 @@ public class OrganizationController : ControllerBase
 
     [HttpGet]
     [Route("GetMembers/{organizationId}")]
-    [Authorize(Roles = UserRoles.ORGANIZATION_MANAGER)]
+    [Authorize]
+    [Workspace(WorkspaceModes.Work, Permissions.MembersManage)]
     public async Task<ActionResult<Result<List<ViewUserDto>>>> GetMembers(string organizationId)
     {
         var getMembersResult = await _organizationService.GetMembers(organizationId, User.FindFirstValue(ClaimTypes.NameIdentifier)!);

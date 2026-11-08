@@ -1,3 +1,4 @@
+using NexMed360.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using NexMed360Api.Common.ApplicationErrors;
 using NexMed360Api.Common.Auth;
@@ -11,13 +12,13 @@ namespace NexMed360.API.Old.Tests;
 public class AppointmentReadAccessTests
 {
     [Theory]
-    [InlineData(UserRoles.PATIENT)]
-    [InlineData(UserRoles.PRACTITIONER)]
+    [InlineData("patient")]
+    [InlineData(Permissions.EncountersStart)]
     public async Task PatientAndAssignedPractitionerRoleCanReadTheAppointment(string role)
     {
         using var fixture = new BookingFixture();
         var id = await Book(fixture);
-        var caller = role == UserRoles.PATIENT
+        var caller = role == "patient"
             ? TestProfiles.UserId(await fixture.Context.Patients.SingleAsync())
             : TestProfiles.UserId(await fixture.Context.PractitionerRoles.SingleAsync());
         fixture.Context.ChangeTracker.Clear();
@@ -42,7 +43,7 @@ public class AppointmentReadAccessTests
         var id = await Book(fixture);
         var caller = await AddOrganizationMember(fixture, sameOrganization);
 
-        var result = await fixture.Service.Get(id, caller, [UserRoles.ORGANIZATION_MEMBER]);
+        var result = await fixture.Service.Get(id, caller, [Permissions.AppointmentsManage]);
 
         Assert.Equal(sameOrganization, result.IsSuccess);
         if (sameOrganization)
@@ -71,7 +72,7 @@ public class AppointmentReadAccessTests
         await TestProfiles.SaveAsync(fixture.Context);
         fixture.Context.ChangeTracker.Clear();
 
-        var result = await fixture.Service.Get(id, user.Id, [UserRoles.PRACTITIONER]);
+        var result = await fixture.Service.Get(id, user.Id, [Permissions.EncountersStart]);
 
         Assert.False(result.IsSuccess);
         Assert.Null(result.Data);
@@ -93,8 +94,8 @@ public class AppointmentReadAccessTests
         fixture.Context.ChangeTracker.Clear();
 
         // This caller created the booking but is not its patient, practitionerRole or organizationMember.
-        var denied = await fixture.Service.Get(id, fixture.RequesterId, [UserRoles.PATIENT]);
-        var missing = await fixture.Service.Get(Guid.NewGuid().ToString(), fixture.RequesterId, [UserRoles.PATIENT]);
+        var denied = await fixture.Service.Get(id, fixture.RequesterId, ["patient"]);
+        var missing = await fixture.Service.Get(Guid.NewGuid().ToString(), fixture.RequesterId, ["patient"]);
 
         Assert.False(denied.IsSuccess);
         Assert.Null(denied.Data);
@@ -104,7 +105,7 @@ public class AppointmentReadAccessTests
     }
 
     [Theory]
-    [InlineData(UserRoles.PATIENT)]
+    [InlineData("patient")]
     [InlineData(UserRoles.PLATFORM_ADMIN)]
     public async Task OrganizationMemberProfileWithoutTheOrganizationMemberTokenRoleDoesNotGrantOrganizationAccess(string tokenRole)
     {
@@ -126,7 +127,7 @@ public class AppointmentReadAccessTests
         var id = await Book(fixture);
         var caller = TestProfiles.UserId(await fixture.Context.PractitionerRoles.SingleAsync());
 
-        var result = await fixture.Service.Get(id, caller, [UserRoles.PATIENT]);
+        var result = await fixture.Service.Get(id, caller, ["patient"]);
 
         Assert.False(result.IsSuccess);
         Assert.Null(result.Data);
@@ -140,7 +141,7 @@ public class AppointmentReadAccessTests
         var id = await Book(fixture);
         var caller = await AddOrganizationMember(fixture, true);
 
-        var result = await fixture.Service.Get(id, caller, [UserRoles.PATIENT, UserRoles.ORGANIZATION_MEMBER]);
+        var result = await fixture.Service.Get(id, caller, ["patient", Permissions.AppointmentsManage]);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(id, result.Data!.BookingReference);
@@ -153,7 +154,7 @@ public class AppointmentReadAccessTests
         var id = await Book(fixture);
         var caller = TestProfiles.UserId(await fixture.Context.Patients.SingleAsync());
 
-        var wrongCase = await fixture.Service.Get(id, caller.ToUpperInvariant(), [UserRoles.PATIENT]);
+        var wrongCase = await fixture.Service.Get(id, caller.ToUpperInvariant(), ["patient"]);
         var noRoles = await fixture.Service.Get(id, caller, []);
 
         Assert.Equal(404, wrongCase.Error!.HttpStatus);
@@ -169,9 +170,9 @@ public class AppointmentReadAccessTests
     public async Task MissingIdentityIsRejectedBeforeStorageAccess(string? caller)
     {
         using var context = new ApplicationDbContext(new DbContextOptions<ApplicationDbContext>());
-        var service = new AppointmentService(new AppointmentRepository(context), TestViews.For(context));
+        var service = new AppointmentService(new AppointmentRepository(context));
 
-        var result = await service.Get(Guid.NewGuid().ToString(), caller, [UserRoles.PRACTITIONER]);
+        var result = await service.Get(Guid.NewGuid().ToString(), caller, [Permissions.EncountersStart]);
 
         Assert.False(result.IsSuccess);
         Assert.Null(result.Data);
@@ -182,9 +183,9 @@ public class AppointmentReadAccessTests
     public async Task MalformedIdKeepsTheExistingBadRequestResponseBeforeStorageAccess()
     {
         using var context = new ApplicationDbContext(new DbContextOptions<ApplicationDbContext>());
-        var service = new AppointmentService(new AppointmentRepository(context), TestViews.For(context));
+        var service = new AppointmentService(new AppointmentRepository(context));
 
-        var result = await service.Get("invalid", "signed-in-user", [UserRoles.PATIENT]);
+        var result = await service.Get("invalid", "signed-in-user", ["patient"]);
 
         Assert.False(result.IsSuccess);
         Assert.Null(result.Data);

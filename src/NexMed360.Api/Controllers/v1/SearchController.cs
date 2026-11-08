@@ -1,4 +1,5 @@
-﻿using Asp.Versioning;
+using NexMed360Api.Common.Auth;
+using Asp.Versioning;
 using NexMed360Api.Common;
 using NexMed360Api.Dtos.PractitionerRole;
 using NexMed360Api.Dtos.Search;
@@ -24,6 +25,7 @@ public class SearchController : ControllerBase
     [Route("Entity")]
     [HttpPost]
     [Authorize]
+    [Workspace(WorkspaceModes.Work + "," + WorkspaceModes.Patient + "," + WorkspaceModes.Platform)]
     public async Task<ActionResult<Result<object>>> EntitySearch(EntitySearchDto dto)
     {
         var res = await _searchService.EntitySearch(dto, User.ToCallerContext());
@@ -37,6 +39,7 @@ public class SearchController : ControllerBase
     [Route("PractitionerRole")]
     [HttpPost]
     [Authorize]
+    [Workspace(WorkspaceModes.Work + "," + WorkspaceModes.Patient)]
     public async Task<ActionResult<Result<List<ViewPractitionerRoleDto>>>> PractitionerRoleSearch(SearchPractitionerRoleDto dto)
     {
         var res = await _searchService.SearchPractitionerRole(dto);

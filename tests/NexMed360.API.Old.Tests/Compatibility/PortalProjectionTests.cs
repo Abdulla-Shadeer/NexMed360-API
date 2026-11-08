@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using NexMed360.Application.Shared;
+using NexMed360.Application.Accounts.Internal;
 using NexMed360.Infrastructure;
 using NexMed360Api.Common.Auth;
 using NexMed360Api.Data;
@@ -19,41 +19,15 @@ namespace NexMed360.API.Old.Tests.Compatibility;
 public class PortalProjectionTests
 {
     [Fact]
-    public async Task MembersContainStoredAccountRolesAndOrganizationDetailsForEachProfile()
+    public async Task MemberListReturnsOnlyBasicAccountDetailsFromTheRequestedOrganization()
     {
         using var fixture = await Fixture.Create();
         var result = await fixture.Call<IOrganizationService, NexMed360Api.Common.Result<List<ViewUserDto>>>(
             service => service.GetMembers(fixture.OrganizationId.ToString(), "admin"));
         Assert.True(result.IsSuccess);
         Assert.Equal(3, result.Data!.Count);
-        var practitionerRole = Assert.Single(result.Data, row => row.PractitionerRoleProfile != null);
-        AssertAccount(practitionerRole, "practitionerRole", "Doc", "201");
-        Assert.Equal(new[] { UserRoles.PRACTITIONER, UserRoles.PATIENT }.Order(), practitionerRole.Roles.Order());
-        var profile = practitionerRole.PractitionerRoleProfile!;
-        Assert.Equal(fixture.PractitionerRoleId.ToString(), profile.Id);
-        Assert.Equal(practitionerRole.Id, profile.UserId);
-        Assert.Equal("Doc", profile.FirstName);
-        Assert.Equal("Example", profile.LastName);
-        Assert.Equal("practitionerRole@example.test", profile.Email);
-        Assert.Equal("201", profile.PhoneNumber);
-        Assert.Equal("General medicine", profile.Specialty);
-        Assert.Equal(fixture.OrganizationId.ToString(), profile.OrganizationId);
-        Assert.Equal("Main organization", profile.OrganizationName);
-        // Membership results keep only the requested member profiles.
-        Assert.Null(practitionerRole.PatientProfile);
-        var organizationMember = Assert.Single(result.Data, row => row.Id == "organizationMember");
-        AssertAccount(organizationMember, "organizationMember", "Rec", "202");
-        Assert.Equal(new[] { UserRoles.ORGANIZATION_MEMBER }, organizationMember.Roles);
-        var reception = organizationMember.OrganizationMemberProfile!;
-        Assert.Equal(organizationMember.Id, reception.UserId);
-        Assert.Equal("Rec", reception.FirstName);
-        Assert.Equal("Example", reception.LastName);
-        Assert.Equal("organizationMember@example.test", reception.Email);
-        Assert.Equal("202", reception.PhoneNumber);
-        Assert.Equal("Main organization", reception.OrganizationName);
-        Assert.Equal(fixture.OrganizationId.ToString(), reception.OrganizationId);
-        Assert.Null(reception.Department);
-        Assert.Null(reception.Location);
+        AssertAccount(Assert.Single(result.Data, row => row.Id == "practitionerRole"), "practitionerRole", "Doc", "201");
+        AssertAccount(Assert.Single(result.Data, row => row.Id == "organizationMember"), "organizationMember", "Rec", "202");
         Assert.DoesNotContain(result.Data, row => row.Id == "other-practitionerRole");
     }
 
@@ -68,41 +42,18 @@ public class PortalProjectionTests
         Assert.Equal(401, result.Error!.HttpStatus);
     }
 
-    [Theory]
-    [InlineData("account")]
-    [InlineData("organization")]
-    [InlineData("assignedProfile")]
-    public async Task AdministratorDetailsAreLoadedInEveryExistingProfileProjection(string source)
-    {
-        using var fixture = await Fixture.Create();
-        var profile = source switch
-        {
-            "account" => (await fixture.Call<IUserService, NexMed360Api.Common.Result<ViewUserDto>>(service => service.GetUserAsync("admin"))).Data!.OrganizationManagerProfile!,
-            "organization" => (await fixture.Call<IOrganizationService, NexMed360Api.Common.Result<NexMed360Api.Dtos.Organization.ViewOrganizationDto>>(
-                service => service.FindById(fixture.OrganizationId.ToString(), true))).Data!.Admins!.Single().OrganizationManagerProfile!,
-            _ => (await fixture.Call<PortalViews, NexMed360Api.Dtos.OrganizationMember.ViewOrganizationManagerDto?>(views =>
-                views.Admin(new OrganizationMembership { OrganizationId = fixture.OrganizationId, UserId = "admin" })))!
-        };
-        Assert.Equal("admin", profile.UserId);
-        Assert.Equal("Admin", profile.FirstName);
-        Assert.Equal("Example", profile.LastName);
-        Assert.Equal("admin@example.test", profile.Email);
-        Assert.Equal("203", profile.PhoneNumber);
-        Assert.Equal("Main organization", profile.OrganizationName);
-    }
-
     [Fact]
-    public async Task OrganizationManagerListLoadsRolesWithoutExpandingItsExistingVisibility()
+    public async Task UserResponsesContainBasicDetailsAndAdministratorsUseTheirOwnEndpoint()
     {
         using var fixture = await Fixture.Create();
-        var visible = await fixture.Call<IOrganizationService, NexMed360Api.Common.Result<NexMed360Api.Dtos.Organization.ViewOrganizationDto>>(
-            service => service.FindById(fixture.OrganizationId.ToString(), true));
-        var admin = Assert.Single(visible.Data!.Admins!);
-        AssertAccount(admin, "admin", "Admin", "203");
-        Assert.Equal(new[] { UserRoles.ORGANIZATION_MANAGER }, admin.Roles);
-        var hidden = await fixture.Call<IOrganizationService, NexMed360Api.Common.Result<NexMed360Api.Dtos.Organization.ViewOrganizationDto>>(
-            service => service.FindById(fixture.OrganizationId.ToString(), false));
-        Assert.Empty(hidden.Data!.Admins!);
+        var user = (await fixture.Call<IUserService, NexMed360Api.Common.Result<ViewUserDto>>(service => service.GetUserAsync("admin"))).Data!;
+        AssertAccount(user, "admin", "Admin", "203");
+        Assert.Equal(new[] { "Email", "FirstName", "Id", "LastName", "PersonId", "PhoneNumber" }, typeof(ViewUserDto).GetProperties().Select(row => row.Name).Order());
+        var admins = await fixture.Call<NexMed360.Application.Access.IAccessRepository, NexMed360.Application.Access.OrganizationAdministratorsDto?>(repository => repository.OrganizationAdministrators(fixture.OrganizationId));
+        var admin = Assert.Single(admins!.Administrators);
+        Assert.Equal("Admin Example", admin.Name);
+        Assert.Equal("admin@example.test", admin.Email);
+        Assert.Equal("Main organization", admins.OrganizationName);
     }
 
     [Theory]
@@ -130,7 +81,7 @@ public class PortalProjectionTests
         Assert.Equal("Pat", patient.Data!.FirstName);
         Assert.Equal("patient@example.test", patient.Data.Email);
         var appointment = await fixture.Call<IAppointmentService, NexMed360Api.Common.Result<ViewAppointmentDto>>(
-            service => service.Get(fixture.AppointmentId.ToString(), "patient", [UserRoles.PATIENT]));
+            service => service.Get(fixture.AppointmentId.ToString(), "patient", ["patient"]));
         Assert.Equal("Pat Example", appointment.Data!.PatientName);
         Assert.Equal("Doc Example", appointment.Data.PractitionerName);
         Assert.Equal("Rec Example", appointment.Data.CreatedByUserName);
@@ -148,7 +99,7 @@ public class PortalProjectionTests
             service => service.Get(new FilterPractitionerScheduleDto { PractitionerRoleId = fixture.PractitionerRoleId.ToString() }));
         Assert.Equal("Main organization", Assert.Single(session.Data!).OrganizationName);
         // SearchPractitionerRole uses this same batch projection after its PostgreSQL search query.
-        var practitionerRoles = await fixture.Call<PortalViews, List<NexMed360Api.Dtos.PractitionerRole.ViewPractitionerRoleDto>>(views => views.PractitionerRoles(
+        var practitionerRoles = await fixture.Call<IPractitionerRoleRepository, List<NexMed360Api.Dtos.PractitionerRole.ViewPractitionerRoleDto>>(repository => repository.Views(
             [new PractitionerRole { Id = fixture.PractitionerRoleId, PractitionerId = TestProfiles.PractitionerId("practitionerRole"), OrganizationId = fixture.OrganizationId, Specialty = "General medicine" }]));
         Assert.Equal("Doc", Assert.Single(practitionerRoles).FirstName);
         Assert.Equal("Main organization", practitionerRoles[0].OrganizationName);

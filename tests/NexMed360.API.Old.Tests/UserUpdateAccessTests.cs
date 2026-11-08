@@ -1,3 +1,4 @@
+using NexMed360.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,7 +23,7 @@ public class UserUpdateAccessTests
     {
         // A query or mutation before authorization would fail: there is no provider.
         using var context = new ApplicationDbContext(new DbContextOptions<ApplicationDbContext>());
-        var service = new UserService(new IdentityGateway(null!, null!, null!, context, null!), null!, TestViews.For(context));
+        var service = new UserService(new UserRepository(context), null!);
 
         var result = await service.UpdateUser(
             new UpdateUserDto { Id = "target-user", Email = "target@example.test" }, requesterUserId);
@@ -41,7 +42,7 @@ public class UserUpdateAccessTests
     public async Task DifferentTargetIdIsRejectedBeforeAccessingAnyDependencies(string? targetId)
     {
         using var context = new ApplicationDbContext(new DbContextOptions<ApplicationDbContext>());
-        var service = new UserService(new IdentityGateway(null!, null!, null!, context, null!), null!, TestViews.For(context));
+        var service = new UserService(new UserRepository(context), null!);
 
         var result = await service.UpdateUser(
             new UpdateUserDto { Id = targetId!, Email = "already-used@example.test" }, "owner-user");
@@ -68,7 +69,7 @@ public class UserUpdateAccessTests
         Assert.Equal("Updated", result.Data.FirstName);
         Assert.Equal("Name", result.Data.LastName);
         Assert.Equal("2222222222", result.Data.PhoneNumber);
-        Assert.Contains(UserRoles.PLATFORM_ADMIN, result.Data.Roles);
+        Assert.Equal(TestProfiles.PersonId("owner-user").ToString(), result.Data.PersonId);
 
         fixture.Context.ChangeTracker.Clear();
         var owner = await fixture.Context.Users.SingleAsync(user => user.Id == "owner-user");
@@ -164,10 +165,7 @@ public class UserUpdateAccessTests
             });
             TestProfiles.Save(Context);
             Context.ChangeTracker.Clear();
-            Service = new UserService(new IdentityGateway(
-                _scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
-                _scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>(),
-                NullLogger<IdentityGateway>.Instance, Context, null!), null!, TestViews.For(Context));
+            Service = new UserService(new UserRepository(Context), null!);
         }
 
         private static ApplicationUser ApplicationUser(string id, string firstName, string email) => new()

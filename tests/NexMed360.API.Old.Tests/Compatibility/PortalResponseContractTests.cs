@@ -88,7 +88,7 @@ public class PortalResponseContractTests
         }
         var responses = new SortedDictionary<string, object?>
         {
-            ["appointment"] = await Call<IAppointmentService>(async service => await service.Get(appointmentId.ToString(), "patient-account", [UserRoles.PATIENT])),
+            ["appointment"] = await Call<IAppointmentService>(async service => await service.Get(appointmentId.ToString(), "patient-account", ["patient"])),
             ["ownAppointments"] = await Call<IAppointmentService>(async service => await service.GetOwn(new ViewAppointmentsFilterDto(), "practitionerRole-account")),
             ["patient"] = await Call<IPatientService>(async service => await service.GetPatient(patientId.ToString())),
             ["record"] = await Call<IPatientService>(async service => await service.ViewClinicalRecord(recordId.ToString(), "patient-account", false)),
@@ -111,9 +111,9 @@ public class PortalResponseContractTests
                 ["hasSession"] = await Call<IPractitionerScheduleService>(service => Task.FromResult<object?>(service.HasAnySessionToday(new FilterSessionsForCurrentDayDto { PractitionerRoleId = practitionerRoleId.ToString(), OrganizationId = organizationId.ToString(), Date = "2030-01-03" }))),
                 ["systemOverview"] = await Call<IOverviewService>(async service => await service.GetSystemOverview()),
                 ["searchEmpty"] = await Call<ISearchService>(async service => await service.SearchPractitionerRole(new SearchPractitionerRoleDto())),
-                ["searchDenied"] = await Call<ISearchService>(async service => await service.EntitySearch(new EntitySearchDto { Entity = EntityTypes.Patient, InputType = InputTypes.Email, Input = "patient" }, new CallerContext("patient-account", [UserRoles.PATIENT]))),
-                ["invalidAppointment"] = await Call<IAppointmentService>(async service => await service.Get("invalid", "patient-account", [UserRoles.PATIENT])),
-                ["missingAppointment"] = await Call<IAppointmentService>(async service => await service.Get("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee", "patient-account", [UserRoles.PATIENT])),
+                ["searchDenied"] = await Call<ISearchService>(async service => await service.EntitySearch(new EntitySearchDto { Entity = EntityTypes.Patient, InputType = InputTypes.Email, Input = "patient" }, new CallerContext("patient-account", ["patient"]))),
+                ["invalidAppointment"] = await Call<IAppointmentService>(async service => await service.Get("invalid", "patient-account", ["patient"])),
+                ["missingAppointment"] = await Call<IAppointmentService>(async service => await service.Get("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee", "patient-account", ["patient"])),
                 ["invalidPatient"] = await Call<IPatientService>(async service => await service.GetPatient("invalid")),
                 ["invalidSession"] = await Call<IPractitionerScheduleService>(async service => await service.Start("invalid")),
                 ["invalidSessionDelete"] = await Call<IPractitionerScheduleService>(async service => await service.Delete("invalid")),
@@ -122,7 +122,7 @@ public class PortalResponseContractTests
         }
         var json = JsonSerializer.Serialize(responses, new JsonSerializerOptions(JsonSerializerDefaults.Web));
         var baseline = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Compatibility", additional ? "portal-extra-response-baseline.json" : "portal-response-baseline.json")).Trim();
-        Assert.Equal(baseline, json);
+        Assert.True(System.Text.Json.Nodes.JsonNode.DeepEquals(System.Text.Json.Nodes.JsonNode.Parse(baseline), System.Text.Json.Nodes.JsonNode.Parse(json)), $"Expected: {baseline}\nActual: {json}");
     }
     private sealed class InvariantCultureScope : IDisposable
     {

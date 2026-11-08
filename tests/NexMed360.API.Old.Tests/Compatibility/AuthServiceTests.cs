@@ -30,7 +30,7 @@ public class AuthServiceTests
         Assert.Equal("Account", profile.LastName);
         Assert.Equal("account@example.test", profile.Email);
         Assert.Equal("0000000000", profile.PhoneNumber);
-        Assert.Equal(new[] { UserRoles.PATIENT }, profile.Roles);
+        Assert.True(Guid.TryParse(profile.PersonId, out _));
 
         var login = await auth.LoginAsync(new LoginUserDto { Email = profile.Email, Password = "SyntheticTest1!" });
         Assert.True(login.IsSuccess);
@@ -81,9 +81,9 @@ public class AuthServiceTests
         Assert.True(added.IsSuccess);
         Assert.Equal(original.Data!.Id, added.Data!.Id);
         Assert.Equal("Synthetic", added.Data.FirstName);
-        Assert.Equal(new[] { UserRoles.PRACTITIONER, UserRoles.PATIENT }.Order(), added.Data.Roles.Order());
-        Assert.Null(added.Data.PatientProfile);
-        Assert.Null(added.Data.PractitionerRoleProfile);
+        var manager = fixture.Services.GetRequiredService<UserManager<NexMed360Api.Entities.ApplicationUser>>();
+        var account = await manager.FindByIdAsync(added.Data.Id);
+        Assert.Equal(new[] { UserRoles.PRACTITIONER, UserRoles.PATIENT }.Order(), (await manager.GetRolesAsync(account!)).Order());
         Assert.Equal(1, await fixture.Services.GetRequiredService<ApplicationDbContext>().Users.CountAsync(TestContext.Current.CancellationToken));
         var duplicate = await auth.RegisterUser(Request(), UserRoles.PRACTITIONER);
         Assert.True(duplicate.IsSuccess);
@@ -100,6 +100,24 @@ public class AuthServiceTests
         Assert.False(result.IsSuccess);
         Assert.Equal(400, result.Error!.HttpStatus);
         Assert.False(await fixture.Services.GetRequiredService<ApplicationDbContext>().Users.AnyAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task UpdatingOwnEmailKeepsLoginLookupInSync()
+    {
+        using var fixture = new Fixture();
+        var auth = fixture.Services.GetRequiredService<IAuthService>();
+        var registered = await auth.RegisterUser(Request(), UserRoles.PATIENT);
+        var users = fixture.Services.GetRequiredService<IUserService>();
+        var id = registered.Data!.Id;
+        var unchanged = await users.UpdateUser(new UpdateUserDto { Id = id, Email = registered.Data.Email }, id);
+        Assert.True(unchanged.IsSuccess);
+        var changed = await users.UpdateUser(new UpdateUserDto { Id = id, Email = "new-address@example.test" }, id);
+        Assert.True(changed.IsSuccess);
+        var login = await auth.LoginAsync(new LoginUserDto { Email = "new-address@example.test", Password = "SyntheticTest1!" });
+        Assert.True(login.IsSuccess);
+        Assert.Equal(id, login.Data!.User.Id);
+        Assert.False((await auth.LoginAsync(new LoginUserDto { Email = "account@example.test", Password = "SyntheticTest1!" })).IsSuccess);
     }
 
     private static RegisterUserDto Request() => new()

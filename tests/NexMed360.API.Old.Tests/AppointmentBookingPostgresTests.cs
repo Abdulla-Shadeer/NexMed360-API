@@ -1,3 +1,4 @@
+using NexMed360.Infrastructure.Repositories;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using NexMed360.Infrastructure.Data;
@@ -137,13 +138,13 @@ public class AppointmentBookingPostgresTests
         fixture.Context.ChangeTracker.Clear();
         var dto = new CancellationRequestDto { AppointmentId = appointmentId.ToString(), Reason = "Synthetic reason" };
 
-        var requested = await fixture.Service.Cancel(dto, requesterId, [UserRoles.ORGANIZATION_MEMBER]);
+        var requested = await fixture.Service.Cancel(dto, requesterId, [Permissions.AppointmentsManage]);
         Assert.True(requested.IsSuccess);
         Assert.Equal(AppointmentStatus.CancelRequested, requested.Data!.Status);
         fixture.Context.ChangeTracker.Clear();
         Assert.False((await fixture.Context.SessionSlots.SingleAsync(value => value.Id == fixture.SlotId)).IsAvailable);
 
-        var confirmed = await fixture.Service.Cancel(dto, owner, [UserRoles.PATIENT]);
+        var confirmed = await fixture.Service.Cancel(dto, owner, ["patient"]);
         Assert.True(confirmed.IsSuccess);
         Assert.Equal(AppointmentStatus.Cancelled, confirmed.Data!.Status);
         fixture.Context.ChangeTracker.Clear();
@@ -191,14 +192,13 @@ public class AppointmentBookingPostgresTests
         using var scope = provider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var roles = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-        if (!await roles.RoleExistsAsync(UserRoles.PATIENT))
-            Assert.True((await roles.CreateAsync(new IdentityRole(UserRoles.PATIENT))).Succeeded);
+        if (!await roles.RoleExistsAsync("patient"))
+            Assert.True((await roles.CreateAsync(new IdentityRole("patient"))).Succeeded);
         var identity = new IdentityGateway(scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
-            roles, NullLogger<IdentityGateway>.Instance, context, null!);
-        var views = TestViews.For(context);
-        var users = new UserService(identity, null!, views);
-        var auth = new AuthService(identity, users, views);
-        var patients = new PatientService(auth, new PatientRepository(context), new RegistrationTransactions(context), TestViews.For(context), new ClinicalRecordRepository(context));
+            roles, NullLogger<IdentityGateway>.Instance, null!);
+        var users = new UserService(new UserRepository(context), null!);
+        var auth = new AuthService(identity, users);
+        var patients = new PatientService(auth, new PatientRepository(context), new RegistrationTransactions(context), new ClinicalRecordRepository(context));
         var email = $"rollback-{Guid.NewGuid():N}@example.test";
         var request = new CreatePatientDto
         {
@@ -250,7 +250,7 @@ public class AppointmentBookingPostgresTests
 
     private static AppointmentService Service(ApplicationDbContext context)
     {
-        return new AppointmentService(new AppointmentRepository(context), TestViews.For(context));
+        return new AppointmentService(new AppointmentRepository(context));
     }
 
     private static async Task<Appointment> AddHistory(
