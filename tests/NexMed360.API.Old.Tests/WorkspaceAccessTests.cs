@@ -80,6 +80,11 @@ public class WorkspaceAccessTests
         var response = Assert.IsType<OkObjectResult>(controller.Current().Result);
         var current = Assert.IsType<Result<WorkspaceDto>>(response.Value).Data!;
         Assert.Equal(f.A.Id, current.OrganizationId);
+        Assert.Equal(f.MemberA.Id, current.OrganizationMemberId);
+        var currentJson = System.Text.Json.JsonSerializer.SerializeToElement(current,
+            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+        Assert.Equal(f.MemberA.Id, currentJson.GetProperty("organizationMemberId").GetGuid());
+        Assert.False(currentJson.TryGetProperty("membershipId", out _));
         Assert.Equal(f.A.Name, current.OrganizationName);
         Assert.Equal(f.AssignmentA.Id, current.PractitionerRoleId);
         Assert.Contains(Permissions.ClinicalRecordsRead, current.Permissions);
@@ -262,8 +267,8 @@ public class WorkspaceAccessTests
         Assert.True(created.IsSuccess);
         var updated = await f.Service.SaveRole(created.Data!.Id, new("Clinician", [Permissions.ClinicalRecordsRead, Permissions.EncountersStart]));
         Assert.True(updated.IsSuccess);
-        var member = new OrganizationMembership { OrganizationId = f.A.Id, UserId = "other" };
-        f.Context.OrganizationMemberships.Add(member);
+        var member = new OrganizationMember { OrganizationId = f.A.Id, UserId = "other" };
+        f.Context.OrganizationMembers.Add(member);
         await f.Context.SaveChangesAsync();
         Assert.True((await f.Service.UpdateMember(member.Id, new(true, [created.Data.Id], null))).IsSuccess);
         var staffAccess = (await f.Scopes("other")).Single(row => row.Key == $"{WorkspaceModes.Work}:{f.A.Id}");
@@ -287,7 +292,7 @@ public class WorkspaceAccessTests
         var account = new NexMed360Api.Dtos.User.ViewUserDto { Id = "other", PersonId = f.Other.PersonId.ToString(), Email = "other@example.test" };
         var service = new OrganizationService(new OrganizationRepository(f.Context), new ExistingAccount(account),
             new NoopRegistrationTransaction(), new PractitionerRoleRepository(f.Context),
-            new OrganizationMembershipRepository(f.Context), f.Access);
+            new OrganizationMemberRepository(f.Context), f.Access);
         var result = await service.AddPractitionerRole(new NexMed360Api.Dtos.PractitionerRole.CreatePractitionerRoleDto
         {
             OrganizationId = f.A.Id.ToString(), RoleName = "Physician", Specialty = "General medicine",
@@ -326,7 +331,7 @@ public class WorkspaceAccessTests
         Assert.True((await f.Service.RemoveAdministrator(f.A.Id, f.MemberA.Id)).IsSuccess);
         f.Context.ChangeTracker.Clear();
         Assert.Empty((await f.Service.OrganizationAdministrators(f.A.Id)).Data!.Administrators);
-        Assert.False(await f.Context.MembershipAccessRoles.AnyAsync(link => link.MembershipId == f.MemberA.Id));
+        Assert.False(await f.Context.MemberRoleAssignments.AnyAsync(link => link.OrganizationMemberId == f.MemberA.Id));
         Assert.NotNull(await f.Context.AccessRoles.FindAsync(f.RoleA.Id));
         Assert.NotNull(await f.Context.Users.FindAsync("staff"));
         Assert.Contains(await f.Scopes("staff"), row => row.OrganizationId == f.B.Id);
@@ -338,8 +343,8 @@ public class WorkspaceAccessTests
     public async Task UpdatingOneAdministratorDoesNotChangeOtherMembersSharingTheirRole()
     {
         using var f = new Fixture();
-        var otherMember = new OrganizationMembership { UserId = "other", OrganizationId = f.A.Id };
-        f.Context.AddRange(otherMember, new MembershipAccessRole { OrganizationId = f.A.Id, MembershipId = otherMember.Id, AccessRoleId = f.RoleA.Id });
+        var otherMember = new OrganizationMember { UserId = "other", OrganizationId = f.A.Id };
+        f.Context.AddRange(otherMember, new MemberRoleAssignment { OrganizationId = f.A.Id, OrganizationMemberId = otherMember.Id, AccessRoleId = f.RoleA.Id });
         await f.Context.SaveChangesAsync();
         f.Access.Select(new() { Key = WorkspaceModes.Platform, Mode = WorkspaceModes.Platform });
         Assert.True((await f.Service.UpdateAdministrator(f.A.Id, f.MemberA.Id, new(true, Permissions.Administration.ToList()))).IsSuccess);
@@ -353,9 +358,9 @@ public class WorkspaceAccessTests
     public async Task AdministratorRoleCloningUsesAnUnusedNameAndReusesItsPrivateRoleOnLaterEdits()
     {
         using var f = new Fixture();
-        var otherMember = new OrganizationMembership { UserId = "other", OrganizationId = f.A.Id };
+        var otherMember = new OrganizationMember { UserId = "other", OrganizationId = f.A.Id };
         f.Context.AddRange(otherMember,
-            new MembershipAccessRole { OrganizationId = f.A.Id, MembershipId = otherMember.Id, AccessRoleId = f.RoleA.Id },
+            new MemberRoleAssignment { OrganizationId = f.A.Id, OrganizationMemberId = otherMember.Id, AccessRoleId = f.RoleA.Id },
             new AccessRole { OrganizationId = f.A.Id, Name = "Administrator - Staff Patient" });
         await f.Context.SaveChangesAsync();
         f.Access.Select(new() { Key = WorkspaceModes.Platform, Mode = WorkspaceModes.Platform });
@@ -380,7 +385,7 @@ public class WorkspaceAccessTests
     public async Task PlatformAdministratorManagementDoesNotChangeAnOrdinaryMember()
     {
         using var f = new Fixture();
-        var member = await f.Context.OrganizationMemberships.SingleAsync(row => row.OrganizationId == f.B.Id);
+        var member = await f.Context.OrganizationMembers.SingleAsync(row => row.OrganizationId == f.B.Id);
         f.Access.Select(new() { Key = WorkspaceModes.Platform, Mode = WorkspaceModes.Platform });
 
         var update = await f.Service.UpdateAdministrator(f.B.Id, member.Id, new(false, [Permissions.MembersManage]));
@@ -389,7 +394,7 @@ public class WorkspaceAccessTests
         Assert.Equal(404, update.Error!.HttpStatus);
         Assert.Equal(404, remove.Error!.HttpStatus);
         Assert.True(member.IsActive);
-        Assert.NotNull(await f.Context.OrganizationMemberships.FindAsync(member.Id));
+        Assert.NotNull(await f.Context.OrganizationMembers.FindAsync(member.Id));
     }
 
     [Fact]
@@ -433,21 +438,21 @@ public class WorkspaceAccessTests
     {
         using var f = new Fixture();
         var unused = new Organization { Name = "Unused organization", Phone = "300" };
-        var member = new OrganizationMembership { OrganizationId = unused.Id, UserId = "staff" };
+        var member = new OrganizationMember { OrganizationId = unused.Id, UserId = "staff" };
         var accessRole = new AccessRole { OrganizationId = unused.Id, Name = "Administrator", Permissions = Permissions.Administration.ToList() };
         var location = new Location { OrganizationId = unused.Id, Name = "Main site" };
         var assignment = new PractitionerRole { OrganizationId = unused.Id, PractitionerId = f.AssignmentA.PractitionerId, LocationId = location.Id };
         var schedule = new PractitionerSchedule { OrganizationId = unused.Id, PractitionerRoleId = assignment.Id };
         var slot = new SessionSlot { OrganizationId = unused.Id, SessionId = schedule.Id, Session = schedule, IsAvailable = true };
         f.Context.AddRange(unused, member, accessRole, location, assignment, slot,
-            new MembershipAccessRole { OrganizationId = unused.Id, MembershipId = member.Id, AccessRoleId = accessRole.Id });
+            new MemberRoleAssignment { OrganizationId = unused.Id, OrganizationMemberId = member.Id, AccessRoleId = accessRole.Id });
         await f.Context.SaveChangesAsync();
         f.Context.ChangeTracker.Clear();
         f.Access.Select(new() { Key = WorkspaceModes.Platform, Mode = WorkspaceModes.Platform });
         Assert.True((await f.Service.DeleteOrganization(unused.Id)).IsSuccess);
         Assert.Null(await f.Context.Organizations.FirstOrDefaultAsync(row => row.Id == unused.Id));
-        Assert.Empty(await f.Context.OrganizationMemberships.Where(row => row.OrganizationId == unused.Id).ToListAsync());
-        Assert.Empty(await f.Context.MembershipAccessRoles.Where(row => row.OrganizationId == unused.Id).ToListAsync());
+        Assert.Empty(await f.Context.OrganizationMembers.Where(row => row.OrganizationId == unused.Id).ToListAsync());
+        Assert.Empty(await f.Context.MemberRoleAssignments.Where(row => row.OrganizationId == unused.Id).ToListAsync());
         Assert.Empty(await f.Context.PractitionerRoles.IgnoreQueryFilters().Where(row => row.OrganizationId == unused.Id).ToListAsync());
         Assert.Empty(await f.Context.SessionSlots.IgnoreQueryFilters().Where(row => row.OrganizationId == unused.Id).ToListAsync());
         Assert.NotNull(await f.Context.Users.FindAsync("staff"));
@@ -461,7 +466,7 @@ public class WorkspaceAccessTests
         using var f = new Fixture();
         var key = $"{WorkspaceModes.Work}:{f.A.Id}:{f.AssignmentA.Id}";
         Assert.NotNull(await f.Workspaces.Resolve("staff", key));
-        var member = await f.Context.OrganizationMemberships.FindAsync(f.MemberA.Id);
+        var member = await f.Context.OrganizationMembers.FindAsync(f.MemberA.Id);
         member!.IsActive = false;
         await f.Context.SaveChangesAsync();
         Assert.Null(await f.Workspaces.Resolve("staff", key));
@@ -484,7 +489,7 @@ public class WorkspaceAccessTests
     public async Task LocationScopeIncludesChildrenAndExcludesOtherLocations()
     {
         using var f = new Fixture();
-        var member = await f.Context.OrganizationMemberships.FindAsync(f.MemberA.Id);
+        var member = await f.Context.OrganizationMembers.FindAsync(f.MemberA.Id);
         member!.LocationId = f.Root.Id;
         await f.Context.SaveChangesAsync();
         await f.Select(f.A);
@@ -596,7 +601,7 @@ public class WorkspaceAccessTests
         public PractitionerRole AssignmentA { get; }
         public PractitionerRole AssignmentB { get; }
         public PractitionerRole OutsideAssignment { get; }
-        public OrganizationMembership MemberA { get; }
+        public OrganizationMember MemberA { get; }
         public AccessRole RoleA { get; }
         public AccessRole RoleB { get; }
         public ClinicalRecord RecordB { get; }
@@ -624,13 +629,13 @@ public class WorkspaceAccessTests
             AssignmentB = new() { OrganizationId = B.Id, PractitionerId = practitioner.Id };
             OutsideAssignment = new() { OrganizationId = A.Id, PractitionerId = practitioner.Id, LocationId = Elsewhere.Id };
             MemberA = new() { UserId = "staff", OrganizationId = A.Id };
-            var memberB = new OrganizationMembership { UserId = "staff", OrganizationId = B.Id };
+            var memberB = new OrganizationMember { UserId = "staff", OrganizationId = B.Id };
             RoleA = new() { OrganizationId = A.Id, Name = "Custom team", Permissions = Permissions.All.ToList() };
             RoleB = new() { OrganizationId = B.Id, Name = "Administrator", Permissions = [Permissions.PatientsRead] };
             Context.AddRange(A, B, staff, other, Own, Other, Unregistered, practitioner, Root, Child, Elsewhere,
                 AssignmentA, AssignmentB, OutsideAssignment, MemberA, memberB, RoleA, RoleB,
-                new MembershipAccessRole { OrganizationId = A.Id, MembershipId = MemberA.Id, AccessRoleId = RoleA.Id },
-                new MembershipAccessRole { OrganizationId = B.Id, MembershipId = memberB.Id, AccessRoleId = RoleB.Id },
+                new MemberRoleAssignment { OrganizationId = A.Id, OrganizationMemberId = MemberA.Id, AccessRoleId = RoleA.Id },
+                new MemberRoleAssignment { OrganizationId = B.Id, OrganizationMemberId = memberB.Id, AccessRoleId = RoleB.Id },
                 new OrganizationPatient { OrganizationId = A.Id, PatientId = Own.Id },
                 new OrganizationPatient { OrganizationId = B.Id, PatientId = Own.Id },
                 new OrganizationPatient { OrganizationId = A.Id, PatientId = Other.Id });

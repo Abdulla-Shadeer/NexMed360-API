@@ -4,15 +4,17 @@ using NexMed360Api.Entities;
 
 namespace NexMed360.Infrastructure.Data.Configurations;
 
-internal sealed class MembershipAccessRoleConfiguration : IEntityTypeConfiguration<MembershipAccessRole>
+internal sealed class MemberRoleAssignmentConfiguration : IEntityTypeConfiguration<MemberRoleAssignment>
 {
-    public void Configure(EntityTypeBuilder<MembershipAccessRole> builder)
+    public void Configure(EntityTypeBuilder<MemberRoleAssignment> builder)
     {
+        // Keep existing storage names; only the code names change.
         EntityConfiguration.Organization(builder, "MembershipAccessRoles");
-        builder.HasOne<OrganizationMembership>().WithMany(member => member.RoleAssignments).HasForeignKey(row => new { row.MembershipId, row.OrganizationId })
+        builder.Property(row => row.OrganizationMemberId).HasColumnName("MembershipId");
+        builder.HasOne<OrganizationMember>().WithMany(member => member.RoleAssignments).HasForeignKey(row => new { row.OrganizationMemberId, row.OrganizationId })
             .HasPrincipalKey(row => new { row.Id, row.OrganizationId }).OnDelete(DeleteBehavior.Cascade);
         builder.HasOne<AccessRole>().WithMany().HasForeignKey(row => new { row.AccessRoleId, row.OrganizationId })
             .HasPrincipalKey(row => new { row.Id, row.OrganizationId }).OnDelete(DeleteBehavior.Restrict);
-        builder.HasIndex(row => new { row.MembershipId, row.AccessRoleId }).IsUnique();
+        builder.HasIndex(row => new { row.OrganizationMemberId, row.AccessRoleId }).IsUnique();
     }
 }

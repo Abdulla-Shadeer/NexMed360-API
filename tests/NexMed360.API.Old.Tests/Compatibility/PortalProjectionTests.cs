@@ -164,9 +164,9 @@ public class PortalProjectionTests
             record.Prescriptions!.Add(new Prescription { ClinicalRecord = record, ClinicalRecordId = record.Id, MedicineName = "Synthetic medicine", Dosage = "One", Duration = "7 days" });
             context.AddRange(organization, otherOrganization, practitionerRole, session, slot, record,
                 new Patient { Id = fixture.PatientId, PersonId = TestProfiles.PersonId("patient"), BirthDate = new DateOnly(2000, 1, 1), Gender = "Test" },
-                new OrganizationMembership { UserId = "admin", OrganizationId = organization.Id },
-                new OrganizationMembership { UserId = "other-admin", OrganizationId = otherOrganization.Id },
-                new OrganizationMembership { UserId = "organizationMember", OrganizationId = organization.Id,  },
+                new OrganizationMember { UserId = "admin", OrganizationId = organization.Id },
+                new OrganizationMember { UserId = "other-admin", OrganizationId = otherOrganization.Id },
+                new OrganizationMember { UserId = "organizationMember", OrganizationId = organization.Id,  },
                 new PractitionerRole { PractitionerId = TestProfiles.PractitionerId("other-practitionerRole"), OrganizationId = otherOrganization.Id, Specialty = "Other specialty" },
                 new Appointment { Id = fixture.AppointmentId, PatientId = fixture.PatientId, PractitionerRoleId = practitionerRole.Id,
                     OrganizationId = organization.Id, SessionSlotId = slot.Id, CreatedByUserId = "organizationMember", AppointmentDateTime = DateTime.Today.AddHours(9) },

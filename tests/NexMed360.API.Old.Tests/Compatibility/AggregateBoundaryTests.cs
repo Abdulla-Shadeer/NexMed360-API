@@ -16,8 +16,8 @@ public class AggregateBoundaryTests
             [typeof(PractitionerSchedule)] = typeof(PractitionerSchedule), [typeof(SessionSlot)] = typeof(PractitionerSchedule), [typeof(SessionHistory)] = typeof(PractitionerSchedule),
             [typeof(Patient)] = typeof(Patient), [typeof(VisitHistory)] = typeof(Patient),
             [typeof(PractitionerRole)] = typeof(PractitionerRole), [typeof(Organization)] = typeof(Organization),
-            [typeof(OrganizationMembership)] = typeof(OrganizationMembership),
-            [typeof(MembershipAccessRole)] = typeof(OrganizationMembership),
+            [typeof(OrganizationMember)] = typeof(OrganizationMember),
+            [typeof(MemberRoleAssignment)] = typeof(OrganizationMember),
             [typeof(AccessRole)] = typeof(AccessRole), [typeof(Person)] = typeof(Person),
             [typeof(Practitioner)] = typeof(Practitioner), [typeof(Location)] = typeof(Location),
             [typeof(OrganizationPatient)] = typeof(OrganizationPatient),
@@ -38,7 +38,7 @@ public class AggregateBoundaryTests
     [Fact]
     public void RepositoryContractsKeepPersistenceAndHttpTypesPrivate()
     {
-        foreach (var repository in new[] { typeof(IAppointmentRepository), typeof(IPatientRepository), typeof(IOrganizationRepository), typeof(IPractitionerScheduleRepository), typeof(IPractitionerRoleRepository), typeof(IOrganizationMembershipRepository), typeof(IClinicalRecordRepository), typeof(NexMed360.Application.Access.IWorkspaceRepository), typeof(NexMed360.Application.Access.IAccessRepository), typeof(NexMed360.Application.Accounts.IUserRepository), typeof(NexMed360.Application.Overview.IOverviewRepository), typeof(NexMed360.Application.Search.ISearchRepository) })
+        foreach (var repository in new[] { typeof(IAppointmentRepository), typeof(IPatientRepository), typeof(IOrganizationRepository), typeof(IPractitionerScheduleRepository), typeof(IPractitionerRoleRepository), typeof(IOrganizationMemberRepository), typeof(IClinicalRecordRepository), typeof(NexMed360.Application.Access.IWorkspaceRepository), typeof(NexMed360.Application.Access.IAccessRepository), typeof(NexMed360.Application.Accounts.IUserRepository), typeof(NexMed360.Application.Overview.IOverviewRepository), typeof(NexMed360.Application.Search.ISearchRepository) })
             foreach (var method in repository.GetMethods())
             {
                 Check(method.ReturnType);

@@ -33,7 +33,7 @@ public sealed class WorkspaceController(AccessService service, WorkspaceService 
     public async Task<ActionResult<Result<AccessRoleDto>>> UpdateRole(Guid id, SaveAccessRoleDto dto) => Handle(await service.SaveRole(id, dto));
 
     [HttpGet("Members"), Workspace(WorkspaceModes.Work, Permissions.MembersManage)]
-    public async Task<ActionResult<Result<List<MembershipDto>>>> Members() => Ok(Result<List<MembershipDto>>.Success(await service.Members()));
+    public async Task<ActionResult<Result<List<OrganizationMemberDto>>>> Members() => Ok(Result<List<OrganizationMemberDto>>.Success(await service.Members()));
 
     [HttpGet("MemberRoles"), Workspace(WorkspaceModes.Work, Permissions.MembersManage)]
     public async Task<ActionResult<Result<List<AccessRoleDto>>>> MemberRoles() => Ok(Result<List<AccessRoleDto>>.Success(await service.Roles()));
@@ -42,7 +42,7 @@ public sealed class WorkspaceController(AccessService service, WorkspaceService 
     public async Task<ActionResult<Result<List<LocationDto>>>> Locations() => Ok(Result<List<LocationDto>>.Success(await service.Locations()));
 
     [HttpPut("Members/{id:guid}"), Workspace(WorkspaceModes.Work, Permissions.MembersManage)]
-    public async Task<ActionResult<Result<MembershipDto>>> UpdateMember(Guid id, UpdateMembershipDto dto) => Handle(await service.UpdateMember(id, dto));
+    public async Task<ActionResult<Result<OrganizationMemberDto>>> UpdateMember(Guid id, UpdateOrganizationMemberDto dto) => Handle(await service.UpdateMember(id, dto));
 
     private ActionResult<Result<T>> Handle<T>(Result<T> result) => StatusCode(result.IsSuccess ? 200 : result.Error!.HttpStatus, result);
 }

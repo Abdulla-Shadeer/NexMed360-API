@@ -20,13 +20,13 @@ public sealed class WorkspaceRepository(ApplicationDbContext context) : IWorkspa
         if (user.IsPlatformAdmin) result.Add(new(WorkspaceModes.Platform, "Platform administration", WorkspaceModes.Platform));
 
         // Workspace choices must be found before a workspace filter can be selected.
-        var membershipQuery =
-            from member in context.OrganizationMemberships.IgnoreQueryFilters().AsNoTracking()
+        var memberQuery =
+            from member in context.OrganizationMembers.IgnoreQueryFilters().AsNoTracking()
             join organization in context.Organizations on member.OrganizationId equals organization.Id
             where member.UserId == userId && member.IsActive
             select new { Member = member, OrganizationName = organization.Name };
 
-        var memberships = await membershipQuery.ToListAsync();
+        var memberDetails = await memberQuery.ToListAsync();
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var assignmentQuery =
@@ -39,15 +39,15 @@ public sealed class WorkspaceRepository(ApplicationDbContext context) : IWorkspa
 
         var assignments = await assignmentQuery.ToListAsync();
 
-        foreach (var membership in memberships)
+        foreach (var details in memberDetails)
         {
-            var member = membership.Member;
-            result.Add(new($"{WorkspaceModes.Work}:{member.OrganizationId}", Name(membership.OrganizationName, null), WorkspaceModes.Work));
+            var member = details.Member;
+            result.Add(new($"{WorkspaceModes.Work}:{member.OrganizationId}", Name(details.OrganizationName, null), WorkspaceModes.Work));
             var locations = member.LocationId.HasValue ? await Locations(member.OrganizationId) : [];
             var scope = member.LocationId.HasValue ? Descendants(locations, member.LocationId.Value) : null;
             foreach (var assignment in assignments.Where(role => role.OrganizationId == member.OrganizationId
                 && (scope == null || role.LocationId.HasValue && scope.Contains(role.LocationId.Value))))
-                result.Add(new($"{WorkspaceModes.Work}:{member.OrganizationId}:{assignment.Id}", Name(membership.OrganizationName, assignment), WorkspaceModes.Work));
+                result.Add(new($"{WorkspaceModes.Work}:{member.OrganizationId}:{assignment.Id}", Name(details.OrganizationName, assignment), WorkspaceModes.Work));
         }
 
         return result;
@@ -77,7 +77,7 @@ public sealed class WorkspaceRepository(ApplicationDbContext context) : IWorkspa
         }
 
         // Resolve fresh grants across filters; every read is tied to this account and organization.
-        var member = await context.OrganizationMemberships.IgnoreQueryFilters().AsNoTracking()
+        var member = await context.OrganizationMembers.IgnoreQueryFilters().AsNoTracking()
             .FirstOrDefaultAsync(row => row.UserId == userId && row.OrganizationId == organizationId && row.IsActive);
         if (member == null) return null;
 
@@ -105,11 +105,11 @@ public sealed class WorkspaceRepository(ApplicationDbContext context) : IWorkspa
         }
 
         var grantQuery =
-            from link in context.MembershipAccessRoles.IgnoreQueryFilters()
+            from roleAssignment in context.MemberRoleAssignments.IgnoreQueryFilters()
             join role in context.AccessRoles.IgnoreQueryFilters()
-                on new { Id = link.AccessRoleId, link.OrganizationId }
+                on new { Id = roleAssignment.AccessRoleId, roleAssignment.OrganizationId }
                 equals new { role.Id, role.OrganizationId }
-            where link.MembershipId == member.Id && link.OrganizationId == organizationId
+            where roleAssignment.OrganizationMemberId == member.Id && roleAssignment.OrganizationId == organizationId
             select role.Permissions;
 
         var grants = await grantQuery.ToListAsync();
@@ -117,7 +117,7 @@ public sealed class WorkspaceRepository(ApplicationDbContext context) : IWorkspa
         return new()
         {
             Key = key, Name = Name(organization.Name, assignment), Mode = WorkspaceModes.Work, OrganizationId = organizationId,
-            OrganizationName = organization.Name, MembershipId = member.Id, PractitionerRoleId = assignment?.Id,
+            OrganizationName = organization.Name, OrganizationMemberId = member.Id, PractitionerRoleId = assignment?.Id,
             LocationIds = scope, Permissions = grants.SelectMany(permissions => permissions)
                 .Distinct().OrderBy(value => value).ToList()
         };

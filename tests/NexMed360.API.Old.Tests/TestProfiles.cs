@@ -63,23 +63,23 @@ internal static class TestProfiles
         foreach (var assignment in context.PractitionerRoles.Local.ToArray())
         {
             if (!Accounts.TryGetValue(assignment.PractitionerId, out var userId)) continue;
-            if (context.OrganizationMemberships.Local.Any(row => row.OrganizationId == assignment.OrganizationId && row.UserId == userId)
-                || context.OrganizationMemberships.Any(row => row.OrganizationId == assignment.OrganizationId && row.UserId == userId)) continue;
-            context.Add(new OrganizationMembership { Id = Key("membership:" + assignment.OrganizationId, userId), OrganizationId = assignment.OrganizationId, UserId = userId });
+            if (context.OrganizationMembers.Local.Any(row => row.OrganizationId == assignment.OrganizationId && row.UserId == userId)
+                || context.OrganizationMembers.Any(row => row.OrganizationId == assignment.OrganizationId && row.UserId == userId)) continue;
+            context.Add(new OrganizationMember { Id = Key("membership:" + assignment.OrganizationId, userId), OrganizationId = assignment.OrganizationId, UserId = userId });
         }
-        foreach (var membership in context.OrganizationMemberships.Local.ToArray())
+        foreach (var member in context.OrganizationMembers.Local.ToArray())
         {
             var managerRoleIds = context.Roles.Local.Where(row => row.Name == NexMed360Api.Common.Auth.UserRoles.ORGANIZATION_MANAGER).Select(row => row.Id).ToArray();
-            if (!context.UserRoles.Local.Any(row => row.UserId == membership.UserId && managerRoleIds.Contains(row.RoleId))) continue;
-            var role = context.AccessRoles.Local.FirstOrDefault(row => row.OrganizationId == membership.OrganizationId && row.Name == "Test manager");
+            if (!context.UserRoles.Local.Any(row => row.UserId == member.UserId && managerRoleIds.Contains(row.RoleId))) continue;
+            var role = context.AccessRoles.Local.FirstOrDefault(row => row.OrganizationId == member.OrganizationId && row.Name == "Test manager");
             if (role == null)
             {
-                role = new AccessRole { OrganizationId = membership.OrganizationId, Name = "Test manager", Permissions = [NexMed360Api.Common.Auth.Permissions.MembersManage] };
+                role = new AccessRole { OrganizationId = member.OrganizationId, Name = "Test manager", Permissions = [NexMed360Api.Common.Auth.Permissions.MembersManage] };
                 context.Add(role);
             }
-            if (!context.MembershipAccessRoles.Local.Any(row => row.MembershipId == membership.Id && row.AccessRoleId == role.Id)
-                && !context.MembershipAccessRoles.Any(row => row.MembershipId == membership.Id && row.AccessRoleId == role.Id))
-                context.Add(new MembershipAccessRole { OrganizationId = membership.OrganizationId, MembershipId = membership.Id, AccessRoleId = role.Id });
+            if (!context.MemberRoleAssignments.Local.Any(row => row.OrganizationMemberId == member.Id && row.AccessRoleId == role.Id)
+                && !context.MemberRoleAssignments.Any(row => row.OrganizationMemberId == member.Id && row.AccessRoleId == role.Id))
+                context.Add(new MemberRoleAssignment { OrganizationId = member.OrganizationId, OrganizationMemberId = member.Id, AccessRoleId = role.Id });
         }
         foreach (var slot in context.SessionSlots.Local)
             slot.OrganizationId = slot.Session?.OrganizationId ?? context.PractitionerSchedules.Local.First(row => row.Id == slot.SessionId).OrganizationId;

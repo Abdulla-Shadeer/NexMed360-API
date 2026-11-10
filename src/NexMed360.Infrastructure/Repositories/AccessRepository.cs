@@ -21,14 +21,14 @@ public sealed class AccessRepository(ApplicationDbContext context) : IAccessRepo
         await context.SaveChangesAsync();
     }
 
-    public Task<List<MembershipDto>> Members(Guid? organizationId = null)
+    public Task<List<OrganizationMemberDto>> Members(Guid? organizationId = null)
     {
         var members =
-            from member in context.OrganizationMemberships
+            from member in context.OrganizationMembers
             join user in context.Users on member.UserId equals user.Id
             join person in context.People on user.PersonId equals person.Id
             where !organizationId.HasValue || member.OrganizationId == organizationId
-            select new MembershipDto(
+            select new OrganizationMemberDto(
                 member.Id,
                 member.UserId,
                 person.FirstName + " " + person.LastName,
@@ -40,39 +40,39 @@ public sealed class AccessRepository(ApplicationDbContext context) : IAccessRepo
         return members.ToListAsync();
     }
 
-    public Task<OrganizationMembership?> FindMember(Guid id) => context.OrganizationMemberships.FirstOrDefaultAsync(row => row.Id == id);
+    public Task<OrganizationMember?> FindMember(Guid id) => context.OrganizationMembers.FirstOrDefaultAsync(row => row.Id == id);
 
     public Task<List<LocationDto>> Locations() => context.Locations.OrderBy(row => row.Name).Select(row => new LocationDto(row.Id, row.Name)).ToListAsync();
 
-    public async Task SaveMember(OrganizationMembership membership, IReadOnlyCollection<Guid> roleIds)
+    public async Task SaveMember(OrganizationMember member, IReadOnlyCollection<Guid> roleIds)
     {
-        await context.Entry(membership).Collection(member => member.RoleAssignments).LoadAsync();
-        var links = membership.RoleAssignments;
-        context.MembershipAccessRoles.RemoveRange(links.Where(row => !roleIds.Contains(row.AccessRoleId)));
+        await context.Entry(member).Collection(row => row.RoleAssignments).LoadAsync();
+        var roleAssignments = member.RoleAssignments;
+        context.MemberRoleAssignments.RemoveRange(roleAssignments.Where(row => !roleIds.Contains(row.AccessRoleId)));
 
-        foreach (var roleId in roleIds.Where(id => links.All(row => row.AccessRoleId != id)))
+        foreach (var roleId in roleIds.Where(id => roleAssignments.All(row => row.AccessRoleId != id)))
         {
-            membership.RoleAssignments.Add(new() { OrganizationId = membership.OrganizationId, MembershipId = membership.Id, AccessRoleId = roleId });
+            member.RoleAssignments.Add(new() { OrganizationId = member.OrganizationId, OrganizationMemberId = member.Id, AccessRoleId = roleId });
         }
 
         await context.SaveChangesAsync();
     }
 
-    public Task<List<AccessRole>> MemberRoles(Guid organizationId, Guid membershipId)
+    public Task<List<AccessRole>> MemberRoles(Guid organizationId, Guid organizationMemberId)
     {
         var roles =
-            from assignment in context.MembershipAccessRoles
+            from assignment in context.MemberRoleAssignments
             join role in context.AccessRoles
                 on new { Id = assignment.AccessRoleId, assignment.OrganizationId }
                 equals new { role.Id, role.OrganizationId }
-            where assignment.OrganizationId == organizationId && assignment.MembershipId == membershipId
+            where assignment.OrganizationId == organizationId && assignment.OrganizationMemberId == organizationMemberId
             select role;
 
         return roles.ToListAsync();
     }
 
-    public Task<bool> RoleIsShared(Guid roleId, Guid membershipId) => context.MembershipAccessRoles
-        .AnyAsync(assignment => assignment.AccessRoleId == roleId && assignment.MembershipId != membershipId);
+    public Task<bool> RoleIsShared(Guid roleId, Guid organizationMemberId) => context.MemberRoleAssignments
+        .AnyAsync(assignment => assignment.AccessRoleId == roleId && assignment.OrganizationMemberId != organizationMemberId);
 
     public Task<string> MemberName(string userId)
     {
@@ -85,17 +85,17 @@ public sealed class AccessRepository(ApplicationDbContext context) : IAccessRepo
         return names.FirstAsync();
     }
 
-    public async Task SaveAdministrator(OrganizationMembership member, AccessRole role, bool isNewRole)
+    public async Task SaveAdministrator(OrganizationMember member, AccessRole role, bool isNewRole)
     {
         if (isNewRole) context.AccessRoles.Add(role);
-        // Save the selected role and membership links together.
+        // Save the selected role and the member's role assignments together.
         await SaveMember(member, [role.Id]);
     }
 
-    public async Task RemoveMember(OrganizationMembership member)
+    public async Task RemoveMember(OrganizationMember member)
     {
         await context.Entry(member).Collection(row => row.RoleAssignments).LoadAsync();
-        context.OrganizationMemberships.Remove(member);
+        context.OrganizationMembers.Remove(member);
         await context.SaveChangesAsync();
     }
 
@@ -122,7 +122,7 @@ public sealed class AccessRepository(ApplicationDbContext context) : IAccessRepo
 
         context.PractitionerRoles.RemoveRange(await context.PractitionerRoles.IgnoreQueryFilters().Where(row => row.OrganizationId == organizationId).ToListAsync());
 
-        context.OrganizationMemberships.RemoveRange(await context.OrganizationMemberships
+        context.OrganizationMembers.RemoveRange(await context.OrganizationMembers
             .Include(member => member.RoleAssignments).Where(row => row.OrganizationId == organizationId).ToListAsync());
 
         context.AccessRoles.RemoveRange(await context.AccessRoles.Where(row => row.OrganizationId == organizationId).ToListAsync());

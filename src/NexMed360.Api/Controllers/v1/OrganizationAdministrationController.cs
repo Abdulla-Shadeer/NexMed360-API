@@ -15,13 +15,13 @@ public sealed class OrganizationAdministrationController(AccessService service) 
     public async Task<ActionResult<Result<OrganizationAdministratorsDto>>> Administrators(Guid organizationId) =>
         Handle(await service.OrganizationAdministrators(organizationId));
 
-    [HttpPut("{organizationId:guid}/Administrators/{membershipId:guid}"), Workspace(WorkspaceModes.Platform)]
-    public async Task<ActionResult<Result<string>>> UpdateAdministrator(Guid organizationId, Guid membershipId, UpdateOrganizationAdministratorDto dto) =>
-        Handle(await service.UpdateAdministrator(organizationId, membershipId, dto));
+    [HttpPut("{organizationId:guid}/Administrators/{organizationMemberId:guid}"), Workspace(WorkspaceModes.Platform)]
+    public async Task<ActionResult<Result<string>>> UpdateAdministrator(Guid organizationId, Guid organizationMemberId, UpdateOrganizationAdministratorDto dto) =>
+        Handle(await service.UpdateAdministrator(organizationId, organizationMemberId, dto));
 
-    [HttpDelete("{organizationId:guid}/Administrators/{membershipId:guid}"), Workspace(WorkspaceModes.Platform)]
-    public async Task<ActionResult<Result<string>>> RemoveAdministrator(Guid organizationId, Guid membershipId) =>
-        Handle(await service.RemoveAdministrator(organizationId, membershipId));
+    [HttpDelete("{organizationId:guid}/Administrators/{organizationMemberId:guid}"), Workspace(WorkspaceModes.Platform)]
+    public async Task<ActionResult<Result<string>>> RemoveAdministrator(Guid organizationId, Guid organizationMemberId) =>
+        Handle(await service.RemoveAdministrator(organizationId, organizationMemberId));
 
     [HttpDelete("{organizationId:guid}"), Workspace(WorkspaceModes.Platform)]
     public async Task<ActionResult<Result<string>>> DeleteOrganization(Guid organizationId) =>

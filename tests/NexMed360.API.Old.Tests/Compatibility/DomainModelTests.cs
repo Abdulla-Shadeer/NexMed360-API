@@ -11,7 +11,7 @@ public class DomainModelTests
     public void ClinicalModelsHaveNoIdentityNavigationsOrStorageAnnotations()
     {
         var models = new[] { typeof(Appointment), typeof(CancellationRequest), typeof(ClinicalRecord), typeof(Prescription),
-            typeof(Patient), typeof(PractitionerRole), typeof(Organization), typeof(OrganizationMembership), typeof(OrganizationMembership),
+            typeof(Patient), typeof(PractitionerRole), typeof(Organization), typeof(OrganizationMember), typeof(OrganizationMember),
             typeof(PractitionerSchedule), typeof(SessionSlot), typeof(SessionHistory), typeof(VisitHistory), typeof(Entity) };
         foreach (var model in models)
         {

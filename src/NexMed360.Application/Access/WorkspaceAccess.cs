@@ -32,7 +32,7 @@ public sealed class WorkspaceScope
     public string Name { get; set; } = "";
     public string Mode { get; set; } = "";
     public Guid? OrganizationId { get; set; }
-    public Guid? MembershipId { get; set; }
+    public Guid? OrganizationMemberId { get; set; }
     public Guid? PatientId { get; set; }
     public Guid? PractitionerRoleId { get; set; }
     public string? OrganizationName { get; set; }
@@ -41,8 +41,8 @@ public sealed class WorkspaceScope
 }
 
 public sealed record SaveAccessRoleDto(string Name, List<string> Permissions);
-public sealed record UpdateMembershipDto(bool IsActive, List<Guid> AccessRoleIds, Guid? LocationId);
+public sealed record UpdateOrganizationMemberDto(bool IsActive, List<Guid> AccessRoleIds, Guid? LocationId);
 public sealed record AccessRoleDto(Guid Id, string Name, List<string> Permissions);
-public sealed record MembershipDto(Guid Id, string UserId, string Name, string? Email, bool IsActive,
+public sealed record OrganizationMemberDto(Guid Id, string UserId, string Name, string? Email, bool IsActive,
     Guid? LocationId, List<Guid> AccessRoleIds);
 public sealed record LocationDto(Guid Id, string Name);

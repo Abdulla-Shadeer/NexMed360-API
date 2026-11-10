@@ -20,7 +20,7 @@ public class AppointmentRepository(ApplicationDbContext context) : IAppointmentR
         if (context.Access.IsSelected)
             return context.Appointments.FirstOrDefaultAsync(row => row.Id == id);
 
-        // Calls outside HTTP still need a matching patient, assignment, or membership.
+        // Calls outside HTTP still need a matching patient, practitioner assignment, or organization member.
         var patient = permissions.Contains(WorkspaceModes.Patient);
         var practitionerRole = permissions.Contains(Permissions.EncountersStart);
         var organizationMember = permissions.Contains(Permissions.AppointmentsManage);
@@ -38,7 +38,7 @@ public class AppointmentRepository(ApplicationDbContext context) : IAppointmentR
             where user.Id == callerId
             select role.Id;
 
-        var ownOrganizationIds = context.OrganizationMemberships
+        var ownOrganizationIds = context.OrganizationMembers
             .Where(member => member.UserId == callerId).Select(member => member.OrganizationId);
 
         return context.Appointments.FirstOrDefaultAsync(appointment => appointment.Id == id
@@ -99,7 +99,7 @@ public class AppointmentRepository(ApplicationDbContext context) : IAppointmentR
     public async Task<List<Appointment>> GetOrganizationAppointments(AppointmentFilter filter, string userId)
     {
         if (context.Access.Mode == WorkspaceModes.Work) return await Filter(context.Appointments, filter).ToListAsync();
-        var organizationId = await context.OrganizationMemberships.Where(row => row.UserId == userId).Select(row => row.OrganizationId).FirstOrDefaultAsync();
+        var organizationId = await context.OrganizationMembers.Where(row => row.UserId == userId).Select(row => row.OrganizationId).FirstOrDefaultAsync();
         return await Filter(context.Appointments.Where(row => row.OrganizationId == organizationId), filter).ToListAsync();
     }
     private static IQueryable<Appointment> Filter(IQueryable<Appointment> query, AppointmentFilter filter)

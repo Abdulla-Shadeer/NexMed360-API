@@ -208,10 +208,10 @@ public class AppointmentReadAccessTests
             Id = Guid.NewGuid(), Name = "Other organization", Street = "Test street", City = "Test city",
             District = "Test district", Phone = "0000000000", Grade = "Test"
         };
-        var user = new ApplicationUser { Id = "organizationMember-user", FirstName = "Synthetic", LastName = "OrganizationMembership" };
+        var user = new ApplicationUser { Id = "organizationMember-user", FirstName = "Synthetic", LastName = "OrganizationMember" };
         fixture.Context.Users.Add(user);
         if (fixture.Context.Entry(organization).State == EntityState.Detached) fixture.Context.Organizations.Add(organization);
-        fixture.Context.OrganizationMemberships.Add(new OrganizationMembership
+        fixture.Context.OrganizationMembers.Add(new OrganizationMember
         {
             Id = Guid.NewGuid(), UserId = user.Id, OrganizationId = organization.Id,
 

@@ -25,7 +25,7 @@ public class Phase1ModelTests
         context.AddRange(user, patient, practitioner, first, second);
         foreach (var organization in new[] { first, second })
         {
-            context.Add(new OrganizationMembership { OrganizationId = organization.Id, UserId = user.Id });
+            context.Add(new OrganizationMember { OrganizationId = organization.Id, UserId = user.Id });
             context.Add(new OrganizationPatient { OrganizationId = organization.Id, PatientId = patient.Id });
             context.Add(new PractitionerRole { OrganizationId = organization.Id, PractitionerId = practitioner.Id, RoleName = "Nurse" });
         }
@@ -131,11 +131,11 @@ public class Phase1ModelTests
     {
         using var context = new ApplicationDbContextFactory().CreateDbContext([]);
         var model = context.Model;
-        var assignment = model.FindEntityType(typeof(MembershipAccessRole))!;
-        var membership = assignment.GetForeignKeys().Single(key => key.PrincipalEntityType.ClrType == typeof(OrganizationMembership));
-        Assert.Equal(DeleteBehavior.Cascade, membership.DeleteBehavior);
+        var assignment = model.FindEntityType(typeof(MemberRoleAssignment))!;
+        var memberRelationship = assignment.GetForeignKeys().Single(key => key.PrincipalEntityType.ClrType == typeof(OrganizationMember));
+        Assert.Equal(DeleteBehavior.Cascade, memberRelationship.DeleteBehavior);
 
-        foreach (var type in new[] { typeof(OrganizationMembership), typeof(PractitionerRole), typeof(ClinicalRecord), typeof(EncounterParticipant) })
+        foreach (var type in new[] { typeof(OrganizationMember), typeof(PractitionerRole), typeof(ClinicalRecord), typeof(EncounterParticipant) })
         {
             var foreignKeys = model.FindEntityType(type)!.GetForeignKeys().Where(key =>
                 key.PrincipalEntityType.ClrType == typeof(ApplicationUser)
@@ -144,6 +144,18 @@ public class Phase1ModelTests
             Assert.NotEmpty(foreignKeys);
             Assert.All(foreignKeys, key => Assert.Equal(DeleteBehavior.Restrict, key.DeleteBehavior));
         }
+    }
+
+    [Fact]
+    public void RenamedMemberModelsKeepTheirExistingDatabaseMappings()
+    {
+        using var context = new ApplicationDbContextFactory().CreateDbContext([]);
+        var member = context.Model.FindEntityType(typeof(OrganizationMember))!;
+        var assignment = context.Model.FindEntityType(typeof(MemberRoleAssignment))!;
+        Assert.Equal("OrganizationMemberships", member.GetTableName());
+        Assert.Equal("MembershipAccessRoles", assignment.GetTableName());
+        var table = StoreObjectIdentifier.Table(assignment.GetTableName()!, assignment.GetSchema());
+        Assert.Equal("MembershipId", assignment.FindProperty(nameof(MemberRoleAssignment.OrganizationMemberId))!.GetColumnName(table));
     }
 
     private static ApplicationDbContext Context() => new(new DbContextOptionsBuilder<ApplicationDbContext>()

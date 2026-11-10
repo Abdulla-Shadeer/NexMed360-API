@@ -61,7 +61,7 @@ public class OverviewRepository(ApplicationDbContext context, IAppointmentReposi
 
     public async Task<OrganizationOverviewDto> GetOrganizationOverview(string userId, bool isAdmin)
     {
-        var organizationId = context.Access.OrganizationId ?? await context.OrganizationMemberships
+        var organizationId = context.Access.OrganizationId ?? await context.OrganizationMembers
             .Where(member => member.UserId == userId).Select(member => member.OrganizationId).FirstOrDefaultAsync();
 
         // total patients (based on appointments registered at the organization)
@@ -175,7 +175,7 @@ public class OverviewRepository(ApplicationDbContext context, IAppointmentReposi
         {
             TotalEHRs = await context.ClinicalRecords.IgnoreQueryFilters().CountAsync(),
             TotalOrganizations = await context.Organizations.CountAsync(),
-            TotalMedicalStaff = await context.OrganizationMemberships.CountAsync(),
+            TotalMedicalStaff = await context.OrganizationMembers.CountAsync(),
             TotalPatients = await context.Patients.IgnoreQueryFilters().CountAsync(),
             TotalUsers = await context.Users.CountAsync(),
         };

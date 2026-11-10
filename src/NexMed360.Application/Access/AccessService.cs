@@ -9,7 +9,7 @@ public sealed class AccessService(IAccessRepository repository, WorkspaceAccess 
 {
     public async Task<List<AccessRoleDto>> Roles() =>
         [.. (await repository.Roles()).Select(row => new AccessRoleDto(row.Id, row.Name, row.Permissions))];
-    public Task<List<MembershipDto>> Members() => repository.Members();
+    public Task<List<OrganizationMemberDto>> Members() => repository.Members();
     public Task<List<LocationDto>> Locations() => repository.Locations();
 
     public async Task<Result<AccessRoleDto>> SaveRole(Guid? id, SaveAccessRoleDto dto)
@@ -38,7 +38,7 @@ public sealed class AccessService(IAccessRepository repository, WorkspaceAccess 
         return new AccessRoleDto(role.Id, role.Name, role.Permissions);
     }
 
-    public async Task<Result<MembershipDto>> UpdateMember(Guid id, UpdateMembershipDto dto)
+    public async Task<Result<OrganizationMemberDto>> UpdateMember(Guid id, UpdateOrganizationMemberDto dto)
     {
         if (!access.Has(Permissions.MembersManage)) return Denied();
 
@@ -86,7 +86,7 @@ public sealed class AccessService(IAccessRepository repository, WorkspaceAccess 
         return new OrganizationAdministratorsDto(organizationId, organization.Name, administrators);
     }
 
-    public async Task<Result<string>> UpdateAdministrator(Guid organizationId, Guid membershipId, UpdateOrganizationAdministratorDto dto)
+    public async Task<Result<string>> UpdateAdministrator(Guid organizationId, Guid organizationMemberId, UpdateOrganizationAdministratorDto dto)
     {
         if (access.Mode != WorkspaceModes.Platform) return Denied();
 
@@ -94,17 +94,17 @@ public sealed class AccessService(IAccessRepository repository, WorkspaceAccess 
             || !dto.Permissions.Any(Permissions.Administration.Contains))
             return ApiError.From(ErrorCode.SYS_BadRequest, "Keep at least one organization administration permission and choose other permissions from the list.");
 
-        var member = await repository.FindMember(membershipId);
+        var member = await repository.FindMember(organizationMemberId);
         if (member == null || member.OrganizationId != organizationId) return AdministratorNotFound();
 
-        var roles = await repository.MemberRoles(organizationId, membershipId);
+        var roles = await repository.MemberRoles(organizationId, organizationMemberId);
         if (!roles.Any(IsAdministratorRole)) return AdministratorNotFound();
 
         AccessRole? privateRole = null;
         // Editing one administrator must not change a role used by other staff.
         foreach (var role in roles.Where(IsAdministratorRole))
         {
-            if (!await repository.RoleIsShared(role.Id, membershipId))
+            if (!await repository.RoleIsShared(role.Id, organizationMemberId))
             {
                 privateRole = role;
                 break;
@@ -121,14 +121,14 @@ public sealed class AccessService(IAccessRepository repository, WorkspaceAccess 
         return "Administrator access updated.";
     }
 
-    public async Task<Result<string>> RemoveAdministrator(Guid organizationId, Guid membershipId)
+    public async Task<Result<string>> RemoveAdministrator(Guid organizationId, Guid organizationMemberId)
     {
         if (access.Mode != WorkspaceModes.Platform) return Denied();
 
-        var member = await repository.FindMember(membershipId);
+        var member = await repository.FindMember(organizationMemberId);
         if (member == null || member.OrganizationId != organizationId) return AdministratorNotFound();
 
-        var roles = await repository.MemberRoles(organizationId, membershipId);
+        var roles = await repository.MemberRoles(organizationId, organizationMemberId);
         if (!roles.Any(IsAdministratorRole)) return AdministratorNotFound();
 
         await repository.RemoveMember(member);

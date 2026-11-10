@@ -5,24 +5,24 @@ using NexMed360Api.Interfaces.Services;
 
 namespace NexMed360.Infrastructure.Repositories;
 
-public class OrganizationMembershipRepository(ApplicationDbContext context) : IOrganizationMembershipRepository
+public class OrganizationMemberRepository(ApplicationDbContext context) : IOrganizationMemberRepository
 {
-    public Task<OrganizationMembership?> Find(Guid organizationId, string userId) =>
-        context.OrganizationMemberships.FirstOrDefaultAsync(row => row.OrganizationId == organizationId && row.UserId == userId);
+    public Task<OrganizationMember?> Find(Guid organizationId, string userId) =>
+        context.OrganizationMembers.FirstOrDefaultAsync(row => row.OrganizationId == organizationId && row.UserId == userId);
 
     public Task<AccessRole?> FindRole(Guid organizationId, string name) =>
         context.AccessRoles.FirstOrDefaultAsync(row => row.OrganizationId == organizationId && row.Name == name);
 
-    public async Task Save(OrganizationMembership member, AccessRole role, bool isNewMember, bool isNewRole)
+    public async Task Save(OrganizationMember member, AccessRole role, bool isNewMember, bool isNewRole)
     {
-        if (isNewMember) context.OrganizationMemberships.Add(member);
+        if (isNewMember) context.OrganizationMembers.Add(member);
         if (isNewRole) context.AccessRoles.Add(role);
 
-        if (!await context.MembershipAccessRoles.AnyAsync(row => row.MembershipId == member.Id && row.AccessRoleId == role.Id))
+        if (!await context.MemberRoleAssignments.AnyAsync(row => row.OrganizationMemberId == member.Id && row.AccessRoleId == role.Id))
         {
-            context.MembershipAccessRoles.Add(new MembershipAccessRole
+            context.MemberRoleAssignments.Add(new MemberRoleAssignment
             {
-                OrganizationId = member.OrganizationId, MembershipId = member.Id, AccessRoleId = role.Id
+                OrganizationId = member.OrganizationId, OrganizationMemberId = member.Id, AccessRoleId = role.Id
             });
         }
 

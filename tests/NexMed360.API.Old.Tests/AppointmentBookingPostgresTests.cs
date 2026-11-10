@@ -127,8 +127,8 @@ public class AppointmentBookingPostgresTests
         var slot = await fixture.Context.SessionSlots.Include(value => value.Session)
             .SingleAsync(value => value.Id == fixture.SlotId);
         var requesterId = "front-office-" + Guid.NewGuid().ToString("N");
-        fixture.Context.Users.Add(new ApplicationUser { Id = requesterId, FirstName = "Synthetic", LastName = "OrganizationMembership" });
-        fixture.Context.OrganizationMemberships.Add(new OrganizationMembership
+        fixture.Context.Users.Add(new ApplicationUser { Id = requesterId, FirstName = "Synthetic", LastName = "OrganizationMember" });
+        fixture.Context.OrganizationMembers.Add(new OrganizationMember
         {
             Id = Guid.NewGuid(), UserId = requesterId,
 

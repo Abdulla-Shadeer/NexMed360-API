@@ -14,7 +14,7 @@ The API runs from `src/NexMed360.Api` on .NET 10 and PostgreSQL.
 - `ApplicationUser` links to one `Person`. Names are stored on the person. A person can have both a patient and a practitioner profile.
 - A patient can exist without a login. `OrganizationPatient` holds a registration at an organization.
 - `Practitioner` is the shared professional identity. Each `PractitionerRole` describes an assignment at one organization and optional location, with professional role, specialty, services, and dates.
-- `OrganizationMembership` links an account to an organization. `AccessRole` stores a named permission group; `MembershipAccessRole` assigns it to a membership.
+- `OrganizationMember` links an account to an organization. `AccessRole` stores a named permission group; `MemberRoleAssignment` assigns it to an organization member.
 - `Location` represents a site, department, ward, room, bed, or another place. Parent locations belong to the same organization.
 - `Encounter` and participants are ready in the schema. Clinical records store their source organization, practitioner assignment, and optional encounter link. The existing appointment/session workflow remains until Phase 5.
 
@@ -123,8 +123,8 @@ Verified after this cleanup: 205 API tests passed, including 11 result conversio
 Platform mode provides these endpoints under `/api/v1/OrganizationAdministration`:
 
 - `GET {organizationId}/Administrators`: view administrators, active status, and effective organization permissions.
-- `PUT {organizationId}/Administrators/{membershipId}`: update organization access and permissions. Keep at least one administration permission. Editing one administrator does not change shared roles used by other staff.
-- `DELETE {organizationId}/Administrators/{membershipId}`: remove that administrator's staff membership and role links for this organization. Shared login accounts, patient/practitioner identities, clinical authorship, and other organization memberships are kept.
+- `PUT {organizationId}/Administrators/{organizationMemberId}`: update organization access and permissions. Keep at least one administration permission. Editing one administrator does not change shared roles used by other staff.
+- `DELETE {organizationId}/Administrators/{organizationMemberId}`: remove that administrator's staff membership and role links for this organization. Shared login accounts, patient/practitioner identities, clinical authorship, and other organization memberships are kept.
 - `DELETE {organizationId}`: delete an unused organization and its staff/scheduling setup. Patient registrations or care history return 409 instead of deleting historical records. A database foreign-key conflict also leaves the deletion unapplied.
 
 Administrators are identified by organization, staff, or access-role management permissions, not a job title. Work and patient modes cannot call platform management endpoints. Organization role definitions and staff assignments remain scoped to their organization and location rules.
@@ -136,3 +136,6 @@ Administration follow-up verified on 8 November 2026: 219 API tests passed, incl
 
 
 Latest combined Phase 2 cleanup verification: 219 API tests and 24 UI regressions passed; the full UI production build passed TypeScript and lint. Eleven PostgreSQL tests were skipped. No schema or package change was made. The application database and live browser workflows were not exercised. Account/member-list and workspace payloads are deliberately smaller; clinical response checks remain in place. The combined code review path and example request flow are in the workspace's `refactor-plan.md`.
+
+
+Member naming: `OrganizationMember` represents an account's staff access at an organization; `MemberRoleAssignment` links that member to an `AccessRole` permission group. Code, repository, DTO, and workspace fields use these names (`OrganizationMemberId` / `organizationMemberId`). EF explicitly retains the existing database table and column names, so no migration or stored-data change is required.

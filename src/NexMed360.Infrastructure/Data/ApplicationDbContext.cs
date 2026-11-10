@@ -27,7 +27,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     private void ApplyWorkspaceFilters(ModelBuilder builder)
     {
         Scope<AccessRole>(builder);
-        Scope<MembershipAccessRole>(builder);
+        Scope<MemberRoleAssignment>(builder);
 
         builder.Entity<OrganizationPatient>().HasQueryFilter(row => !Access.IsSelected
             || Access.Mode == WorkspaceModes.Work && row.OrganizationId == Access.OrganizationId);
@@ -41,7 +41,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         builder.Entity<EncounterParticipant>().HasQueryFilter(row => !Access.IsSelected
             || Encounters.Any(encounter => encounter.Id == row.EncounterId));
 
-        builder.Entity<OrganizationMembership>().HasQueryFilter(row => !Access.IsSelected || Access.Mode == WorkspaceModes.Platform
+        builder.Entity<OrganizationMember>().HasQueryFilter(row => !Access.IsSelected || Access.Mode == WorkspaceModes.Platform
             || Access.Mode == WorkspaceModes.Work && row.OrganizationId == Access.OrganizationId
                 && (!Access.HasLocationScope || row.LocationId.HasValue && Access.LocationIds.Contains(row.LocationId.Value)));
 
@@ -96,10 +96,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<PractitionerRole> PractitionerRoles => Set<PractitionerRole>();
     public DbSet<Organization> Organizations => Set<Organization>();
     public DbSet<Location> Locations => Set<Location>();
-    public DbSet<OrganizationMembership> OrganizationMemberships => Set<OrganizationMembership>();
+    public DbSet<OrganizationMember> OrganizationMembers => Set<OrganizationMember>();
     public DbSet<OrganizationPatient> OrganizationPatients => Set<OrganizationPatient>();
     public DbSet<AccessRole> AccessRoles => Set<AccessRole>();
-    public DbSet<MembershipAccessRole> MembershipAccessRoles => Set<MembershipAccessRole>();
+    public DbSet<MemberRoleAssignment> MemberRoleAssignments => Set<MemberRoleAssignment>();
     public DbSet<VisitHistory> VisitHistorys => Set<VisitHistory>();
     public DbSet<ClinicalRecord> ClinicalRecords => Set<ClinicalRecord>();
     public DbSet<Prescription> Prescriptions => Set<Prescription>();
@@ -132,7 +132,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 if (Access.Mode == WorkspaceModes.Work && entry.Entity.OrganizationId != Access.OrganizationId)
                     throw new UnauthorizedAccessException("This record belongs to another organization.");
 
-                if (Access.Mode == WorkspaceModes.Platform && entry.Entity is not OrganizationMembership and not AccessRole and not MembershipAccessRole and not Location
+                if (Access.Mode == WorkspaceModes.Platform && entry.Entity is not OrganizationMember and not AccessRole and not MemberRoleAssignment and not Location
                     && !(entry.State == EntityState.Deleted && entry.Entity is PractitionerRole or PractitionerSchedule or SessionSlot))
                     throw new UnauthorizedAccessException("Platform administration does not allow clinical changes.");
 

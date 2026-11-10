@@ -52,8 +52,8 @@ public class PortalResponseContractTests
             var organization = new Organization { Id = organizationId, Name = "Synthetic organization", Street = "One street", City = "City", District = "District", Phone = "100", Grade = "A" };
             var patient = new Patient { Id = patientId, PersonId = TestProfiles.PersonId("patient-account"), BirthDate = new DateOnly(2000, 1, 2), Gender = "Test" };
             var practitionerRole = new PractitionerRole { Id = practitionerRoleId, PractitionerId = TestProfiles.PractitionerId("practitionerRole-account"),  OrganizationId = organizationId, Specialty = "General medicine" };
-            var organizationMember = new OrganizationMembership { Id = Guid.Parse("44444444-4444-4444-4444-444444444444"), UserId = "reception-account",  OrganizationId = organizationId,  };
-            var admin = new OrganizationMembership { Id = Guid.Parse("55555555-5555-5555-5555-555555555555"), UserId = "admin-account",  OrganizationId = organizationId };
+            var organizationMember = new OrganizationMember { Id = Guid.Parse("44444444-4444-4444-4444-444444444444"), UserId = "reception-account",  OrganizationId = organizationId,  };
+            var admin = new OrganizationMember { Id = Guid.Parse("55555555-5555-5555-5555-555555555555"), UserId = "admin-account",  OrganizationId = organizationId };
             var users = new[]
             {
                 new ApplicationUser { Id = TestProfiles.UserId(patient), FirstName = "Pat", LastName = "Example", Email = "patient@example.test", PhoneNumber = "101", },

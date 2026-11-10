@@ -39,7 +39,7 @@ public class PractitionerScheduleRepository(ApplicationDbContext context) : IPra
     public Task<List<Guid>> ClosedSessionIds(DateOnly date) => context.PractitionerSchedules.Where(row => row.History.Any(history => history.Date == date
         && (history.SessionStatus == SessionStatus.Canceled || history.SessionStatus == SessionStatus.Ended))).Select(row => row.Id).ToListAsync();
     public Task<Guid> OrganizationMemberOrganization(string userId) => context.Access.OrganizationId.HasValue ? Task.FromResult(context.Access.OrganizationId.Value)
-        : context.OrganizationMemberships.Where(row => row.UserId == userId).Select(row => row.OrganizationId).FirstOrDefaultAsync();
+        : context.OrganizationMembers.Where(row => row.UserId == userId).Select(row => row.OrganizationId).FirstOrDefaultAsync();
     public Task<List<SessionHistory>> Ongoing(Guid organizationId, DateOnly date) => context.SessionHistories.Include(row => row.PractitionerSchedule)
         .Where(row => row.PractitionerSchedule.OrganizationId == organizationId && row.SessionStatus == SessionStatus.Started && row.Date == date).ToListAsync();
     public async Task<bool> CanDelete(Guid id) => !await context.SessionSlots.AnyAsync(row => row.SessionId == id)

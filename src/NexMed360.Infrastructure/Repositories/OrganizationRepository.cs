@@ -17,10 +17,10 @@ public class OrganizationRepository(ApplicationDbContext context) : IOrganizatio
     public Task<bool> HasPermission(Guid id, string userId, string permission)
     {
         var membersWithPermission =
-            from member in context.OrganizationMemberships
-            join assignment in context.MembershipAccessRoles
-                on new { MembershipId = member.Id, member.OrganizationId }
-                equals new { assignment.MembershipId, assignment.OrganizationId }
+            from member in context.OrganizationMembers
+            join assignment in context.MemberRoleAssignments
+                on new { OrganizationMemberId = member.Id, member.OrganizationId }
+                equals new { assignment.OrganizationMemberId, assignment.OrganizationId }
             join role in context.AccessRoles
                 on new { Id = assignment.AccessRoleId, assignment.OrganizationId }
                 equals new { role.Id, role.OrganizationId }
@@ -41,7 +41,7 @@ public class OrganizationRepository(ApplicationDbContext context) : IOrganizatio
     public Task<List<ViewUserDto>> MemberViews(Guid organizationId)
     {
         var members =
-            from member in context.OrganizationMemberships
+            from member in context.OrganizationMembers
             join user in context.Users on member.UserId equals user.Id
             join person in context.People on user.PersonId equals person.Id
             where member.OrganizationId == organizationId
