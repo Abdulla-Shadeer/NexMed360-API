@@ -7,8 +7,10 @@ namespace NexMed360.Infrastructure.Repositories;
 
 public class OrganizationMemberRepository(ApplicationDbContext context) : IOrganizationMemberRepository
 {
+    // The service must detect existing access outside its location scope before making changes.
     public Task<OrganizationMember?> Find(Guid organizationId, string userId) =>
-        context.OrganizationMembers.FirstOrDefaultAsync(row => row.OrganizationId == organizationId && row.UserId == userId);
+        context.OrganizationMembers.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(row => row.OrganizationId == organizationId && row.UserId == userId);
 
     public Task<AccessRole?> FindRole(Guid organizationId, string name) =>
         context.AccessRoles.FirstOrDefaultAsync(row => row.OrganizationId == organizationId && row.Name == name);
@@ -29,26 +31,6 @@ public class OrganizationMemberRepository(ApplicationDbContext context) : IOrgan
         await context.SaveChangesAsync();
     }
 
-    public async Task<Guid?> CreateLocation(Guid organizationId, string? name, string? department)
-    {
-        Location? parent = null;
-        if (!string.IsNullOrWhiteSpace(department))
-        {
-            parent = await context.Locations.FirstOrDefaultAsync(row => row.OrganizationId == organizationId && row.Name == department && row.Type == LocationType.Department);
-            if (parent == null)
-            {
-                parent = new Location { OrganizationId = organizationId, Name = department, Type = LocationType.Department };
-                context.Locations.Add(parent);
-            }
-        }
-        if (string.IsNullOrWhiteSpace(name)) { await context.SaveChangesAsync(); return parent?.Id; }
-        var location = await context.Locations.FirstOrDefaultAsync(row => row.OrganizationId == organizationId && row.Name == name && row.ParentId == (parent == null ? null : parent.Id));
-        if (location == null)
-        {
-            location = new Location { OrganizationId = organizationId, Name = name, ParentId = parent?.Id, Type = LocationType.Other };
-            context.Locations.Add(location);
-        }
-        await context.SaveChangesAsync();
-        return location.Id;
-    }
+    public Task<Location?> FindLocation(Guid organizationId, Guid locationId) => context.Locations
+        .FirstOrDefaultAsync(row => row.OrganizationId == organizationId && row.Id == locationId);
 }

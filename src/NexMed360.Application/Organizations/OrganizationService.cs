@@ -31,12 +31,13 @@ public class OrganizationService(IOrganizationRepository orgRepo, IAuthService a
         if (dto.Permissions == null || dto.Permissions.Any(permission => !Permissions.All.Contains(permission)))
             return ApiError.From(ErrorCode.SYS_BadRequest, "Choose permissions from the list.");
 
-        await AddMember(
+        var memberError = await AddMember(
             new OrganizationMember { OrganizationId = organizationId, UserId = registerationResult.Data!.Id },
             $"Administrator access ({registerationResult.Data.Id})",
             [Permissions.OrganizationsManage, Permissions.MembersManage, Permissions.RolesManage,
                 Permissions.SchedulesManage, .. dto.Permissions],
             updateExistingRole: true);
+        if (memberError != null) return memberError;
 
         await transaction.CommitAsync();
         return registerationResult;
@@ -51,16 +52,19 @@ public class OrganizationService(IOrganizationRepository orgRepo, IAuthService a
 
         if (!await orgRepo.Exists(organizationId)) return ErrorCode.HOS_NotFound;
 
+        var locationError = await ValidateStaffLocation(organizationId, dto.LocationId);
+        if (locationError != null) return locationError;
+
         await using var transaction = await transactions.BeginAsync();
 
         var registrationResult = await auth.RegisterUser(dto.PersonalInformation, UserRoles.ORGANIZATION_MEMBER);
         if (!registrationResult.IsSuccess) return registrationResult;
-        if (workspace?.HasLocationScope == true)
-            return ApiError.From(ErrorCode.SYS_Unauthorized, "Ask an organization administrator to add new members.", 403);
-        var locationId = await memberRepository.CreateLocation(organizationId, dto.Location, dto.Department);
-        await AddMember(
-            new OrganizationMember { OrganizationId = organizationId, UserId = registrationResult.Data!.Id, LocationId = locationId },
+
+        var memberError = await AddMember(
+            new OrganizationMember { OrganizationId = organizationId, UserId = registrationResult.Data!.Id, LocationId = dto.LocationId },
             "Front office", [Permissions.PatientsRead, Permissions.PatientsRegister, Permissions.AppointmentsManage]);
+        if (memberError != null) return memberError;
+
         await transaction.CommitAsync();
         return registrationResult;
     }
@@ -72,21 +76,23 @@ public class OrganizationService(IOrganizationRepository orgRepo, IAuthService a
 
         if (!await orgRepo.Exists(organizationId)) return ErrorCode.HOS_NotFound;
 
+        var locationError = await ValidateStaffLocation(organizationId, dto.LocationId);
+        if (locationError != null) return locationError;
+
         await using var transaction = await transactions.BeginAsync();
 
         var registrationResult = await auth.RegisterUser(dto.PersonalInformation, UserRoles.PRACTITIONER);
         if (!registrationResult.IsSuccess) return registrationResult;
 
-        if (workspace?.HasLocationScope == true)
-            return ApiError.From(ErrorCode.SYS_Unauthorized, "Ask an organization administrator to add practitioner assignments.", 403);
-
-        var practitioner = await practitionerRoles.FindOrAddPractitioner(Guid.Parse(registrationResult.Data!.PersonId));
-        await AddMember(new OrganizationMember { OrganizationId = organizationId, UserId = registrationResult.Data.Id },
+        var memberError = await AddMember(
+            new OrganizationMember { OrganizationId = organizationId, UserId = registrationResult.Data!.Id, LocationId = dto.LocationId },
             "Clinician", [Permissions.PatientsRead, Permissions.AppointmentsManage, Permissions.SchedulesManage,
                 Permissions.EncountersStart, Permissions.ClinicalRecordsRead, Permissions.ClinicalRecordsWrite, Permissions.PrescriptionsIssue]);
+        if (memberError != null) return memberError;
 
+        var practitioner = await practitionerRoles.FindOrAddPractitioner(Guid.Parse(registrationResult.Data.PersonId));
         await practitionerRoles.Add(
-            new PractitionerRole { OrganizationId = organizationId, PractitionerId = practitioner.Id, RoleName = dto.RoleName, Specialty = dto.Specialty ?? "" });
+            new PractitionerRole { OrganizationId = organizationId, PractitionerId = practitioner.Id, LocationId = dto.LocationId, RoleName = dto.RoleName, Specialty = dto.Specialty ?? "" });
 
         await transaction.CommitAsync();
         return registrationResult;
@@ -133,20 +139,64 @@ public class OrganizationService(IOrganizationRepository orgRepo, IAuthService a
     private static ApiError MemberManagementDenied() => ApiError.From(ErrorCode.SYS_Unauthorized,
         "You need permission to manage staff.", 403);
 
-    private async Task AddMember(OrganizationMember requested, string roleName,
+    private async Task<ApiError?> AddMember(OrganizationMember requested, string roleName,
         IReadOnlyCollection<string> permissions, bool updateExistingRole = false)
     {
         var member = await memberRepository.Find(requested.OrganizationId, requested.UserId);
         var isNewMember = member == null;
+        if (member != null && !updateExistingRole)
+        {
+            if (workspace?.HasLocationScope == true &&
+                (!member.LocationId.HasValue || !workspace.LocationIds.Contains(member.LocationId.Value)))
+                return ApiError.From(ErrorCode.SYS_Unauthorized, "This person's staff access is outside your location scope.", 403);
+
+            // Existing staff keep their scope. New assignments must fit inside it.
+            if (member.LocationId.HasValue &&
+                !await IsWithinMemberLocation(requested.OrganizationId, member.LocationId.Value, requested.LocationId))
+                return ApiError.From(ErrorCode.SYS_Unauthorized, "Choose a location within this person's existing staff access, or update their staff access first.", 403);
+        }
         member ??= requested;
 
         var role = await memberRepository.FindRole(requested.OrganizationId, roleName);
         var isNewRole = role == null;
+        if (isNewRole && workspace?.HasLocationScope == true)
+            return ApiError.From(ErrorCode.SYS_BadRequest, "Ask an organization administrator to set up this staff access role first.");
+
         role ??= new AccessRole { OrganizationId = requested.OrganizationId, Name = roleName };
 
         // Staff creation keeps shared role grants. Administrator assignment may replace existing grants.
         if (isNewRole || updateExistingRole) role.Permissions = permissions.Distinct().ToList();
 
         await memberRepository.Save(member, role, isNewMember, isNewRole);
+        return null;
+    }
+
+    private async Task<ApiError?> ValidateStaffLocation(Guid organizationId, Guid? locationId)
+    {
+        if (workspace?.HasLocationScope == true &&
+            (!locationId.HasValue || !workspace.LocationIds.Contains(locationId.Value)))
+            return ApiError.From(ErrorCode.SYS_Unauthorized, "Choose a location within your workspace.", 403);
+
+        if (!locationId.HasValue) return null;
+
+        var location = await memberRepository.FindLocation(organizationId, locationId.Value);
+        if (location == null || !location.IsActive)
+            return ApiError.From(ErrorCode.SYS_BadRequest, "Choose an active location in this organization.");
+
+        return null;
+    }
+
+    private async Task<bool> IsWithinMemberLocation(Guid organizationId, Guid memberLocationId, Guid? locationId)
+    {
+        var visited = new HashSet<Guid>();
+        // Follow parent locations; stop if the stored tree contains a cycle.
+        while (locationId.HasValue && visited.Add(locationId.Value))
+        {
+            if (locationId.Value == memberLocationId) return true;
+            var location = await memberRepository.FindLocation(organizationId, locationId.Value);
+            locationId = location?.ParentId;
+        }
+
+        return false;
     }
 }

@@ -42,7 +42,7 @@ public sealed class AccessRepository(ApplicationDbContext context) : IAccessRepo
 
     public Task<OrganizationMember?> FindMember(Guid id) => context.OrganizationMembers.FirstOrDefaultAsync(row => row.Id == id);
 
-    public Task<List<LocationDto>> Locations() => context.Locations.OrderBy(row => row.Name).Select(row => new LocationDto(row.Id, row.Name)).ToListAsync();
+    public Task<List<LocationDto>> Locations() => context.Locations.Where(row => row.IsActive).OrderBy(row => row.Name).Select(row => new LocationDto(row.Id, row.Name)).ToListAsync();
 
     public async Task SaveMember(OrganizationMember member, IReadOnlyCollection<Guid> roleIds)
     {

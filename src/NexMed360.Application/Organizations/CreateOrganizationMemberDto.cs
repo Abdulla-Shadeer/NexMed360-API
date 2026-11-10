@@ -8,8 +8,7 @@ namespace NexMed360Api.Dtos.OrganizationMember
         [Required]
         public RegisterUserDto PersonalInformation { get; set; }
 
-        public string Location { get; set; }
-        public string Department { get; set; }
+        public Guid? LocationId { get; set; }
 
         [Required]
         public string OrganizationId { get; set; }

@@ -304,6 +304,220 @@ public class WorkspaceAccessTests
         Assert.DoesNotContain((await f.Scopes("staff")).Single(row => row.Key == $"{WorkspaceModes.Work}:{f.A.Id}").Permissions, permission => permission == Permissions.ClinicalRecordsRead);
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task LocationManagersCanAddStaffAtTheirRootAndChildLocations(bool practitioner, bool child)
+    {
+        using var f = new Fixture();
+        await PrepareLocationManager(f);
+        var auth = StaffAccount(f);
+        var target = child ? f.Child.Id : f.Root.Id;
+        var roleCount = await f.Context.AccessRoles.CountAsync();
+
+        var result = await CreateStaff(f, auth, practitioner, target);
+
+        Assert.True(result.IsSuccess);
+        var member = await f.Context.OrganizationMembers.SingleAsync(row => row.UserId == "other");
+        Assert.Equal(target, member.LocationId);
+        Assert.Equal(roleCount, await f.Context.AccessRoles.CountAsync());
+        var role = await f.Context.AccessRoles.SingleAsync(row => row.Name == (practitioner ? "Clinician" : "Front office"));
+        Assert.Equal(new[] { Permissions.PatientsRead }, role.Permissions);
+        Assert.True(await f.Context.MemberRoleAssignments.AnyAsync(row => row.OrganizationMemberId == member.Id && row.AccessRoleId == role.Id));
+        Assert.Equal(1, auth.RegistrationCalls);
+        Assert.Equal(403, (await f.Service.SaveRole(null, new("Outside role", [Permissions.RolesManage]))).Error!.HttpStatus);
+
+        if (practitioner)
+        {
+            var assignment = await f.Context.PractitionerRoles.SingleAsync(row => f.Context.Practitioners.Any(
+                person => person.Id == row.PractitionerId && person.PersonId == f.Other.PersonId));
+            Assert.Equal(target, assignment.LocationId);
+            var scope = await f.Workspaces.Resolve("other", $"{WorkspaceModes.Work}:{f.A.Id}:{assignment.Id}");
+            Assert.Contains(target, scope!.LocationIds!);
+            Assert.DoesNotContain(f.Elsewhere.Id, scope.LocationIds!);
+        }
+    }
+
+    [Theory]
+    [InlineData(false, "missing")]
+    [InlineData(true, "missing")]
+    [InlineData(false, "outside")]
+    [InlineData(true, "outside")]
+    [InlineData(false, "foreign")]
+    [InlineData(true, "foreign")]
+    [InlineData(false, "inactive")]
+    [InlineData(true, "inactive")]
+    public async Task InvalidStaffLocationsAreRejectedBeforeAccountRegistration(bool practitioner, string target)
+    {
+        using var f = new Fixture();
+        var foreign = new Location { OrganizationId = f.B.Id, Name = "Other organization" };
+        f.Context.Locations.Add(foreign);
+        if (target == "inactive")
+        {
+            f.Child.IsActive = false;
+            f.Context.Locations.Update(f.Child);
+        }
+        await f.Context.SaveChangesAsync();
+        await PrepareLocationManager(f);
+        Guid? locationId = target switch
+        {
+            "missing" => null,
+            "outside" => f.Elsewhere.Id,
+            "foreign" => foreign.Id,
+            _ => f.Child.Id
+        };
+        var auth = StaffAccount(f);
+
+        var result = await CreateStaff(f, auth, practitioner, locationId);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(target == "inactive" ? 400 : 403, result.Error!.HttpStatus);
+        Assert.Equal(0, auth.RegistrationCalls);
+        Assert.False(await f.Context.OrganizationMembers.IgnoreQueryFilters().AnyAsync(row => row.UserId == "other"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LocationManagersCannotCreateSharedAccessRolesThroughStaffCreation(bool practitioner)
+    {
+        using var f = new Fixture();
+        await PrepareLocationManager(f, setupRoles: false);
+        var auth = StaffAccount(f);
+        var roleCount = await f.Context.AccessRoles.CountAsync();
+
+        var result = await CreateStaff(f, auth, practitioner, f.Child.Id);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(400, result.Error!.HttpStatus);
+        Assert.Equal(roleCount, await f.Context.AccessRoles.CountAsync());
+        Assert.False(await f.Context.OrganizationMembers.IgnoreQueryFilters().AnyAsync(row => row.UserId == "other"));
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task StaffCreationCannotChangeExistingAccessOutsideTheCallersLocation(bool practitioner, bool allLocations)
+    {
+        using var f = new Fixture();
+        var existing = new OrganizationMember { OrganizationId = f.A.Id, UserId = "other", LocationId = allLocations ? null : f.Elsewhere.Id };
+        f.Context.OrganizationMembers.Add(existing);
+        await f.Context.SaveChangesAsync();
+        await PrepareLocationManager(f);
+
+        var result = await CreateStaff(f, StaffAccount(f), practitioner, f.Child.Id);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(403, result.Error!.HttpStatus);
+        var members = await f.Context.OrganizationMembers.IgnoreQueryFilters().Where(row => row.UserId == "other").ToListAsync();
+        Assert.Equal(existing.Id, Assert.Single(members).Id);
+        Assert.Equal(existing.LocationId, members[0].LocationId);
+        Assert.False(await f.Context.MemberRoleAssignments.AnyAsync(row => row.OrganizationMemberId == existing.Id));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AddingStaffDoesNotWidenAnExistingMembersLocation(bool practitioner)
+    {
+        using var f = new Fixture();
+        var existing = new OrganizationMember { OrganizationId = f.A.Id, UserId = "other", LocationId = f.Child.Id };
+        f.Context.OrganizationMembers.Add(existing);
+        await f.Context.SaveChangesAsync();
+        await PrepareLocationManager(f);
+
+        var result = await CreateStaff(f, StaffAccount(f), practitioner, f.Root.Id);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(403, result.Error!.HttpStatus);
+        Assert.Equal(f.Child.Id, (await f.Context.OrganizationMembers.SingleAsync(row => row.Id == existing.Id)).LocationId);
+    }
+
+    [Fact]
+    public async Task APractitionerAssignmentCanUseAChildOfTheExistingMembersLocation()
+    {
+        using var f = new Fixture();
+        var existing = new OrganizationMember { OrganizationId = f.A.Id, UserId = "other", LocationId = f.Root.Id };
+        f.Context.OrganizationMembers.Add(existing);
+        await f.Context.SaveChangesAsync();
+        await PrepareLocationManager(f);
+
+        var result = await CreateStaff(f, StaffAccount(f), true, f.Child.Id);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(f.Root.Id, (await f.Context.OrganizationMembers.SingleAsync(row => row.Id == existing.Id)).LocationId);
+        var assignment = await f.Context.PractitionerRoles.SingleAsync(row => f.Context.Practitioners.Any(
+            person => person.Id == row.PractitionerId && person.PersonId == f.Other.PersonId));
+        Assert.Equal(f.Child.Id, assignment.LocationId);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UnrestrictedManagersCanCreateStaffWithAllLocationAccess(bool practitioner)
+    {
+        using var f = new Fixture();
+        await f.Select(f.A);
+
+        var result = await CreateStaff(f, StaffAccount(f), practitioner, null);
+
+        Assert.True(result.IsSuccess);
+        Assert.Null((await f.Context.OrganizationMembers.SingleAsync(row => row.UserId == "other")).LocationId);
+    }
+
+    [Fact]
+    public async Task UnrestrictedManagersCannotSelectALocationFromAnotherOrganization()
+    {
+        using var f = new Fixture();
+        var foreign = new Location { OrganizationId = f.B.Id, Name = "Other organization" };
+        f.Context.Locations.Add(foreign);
+        await f.Context.SaveChangesAsync();
+        await f.Select(f.A);
+        var auth = StaffAccount(f);
+
+        var result = await CreateStaff(f, auth, false, foreign.Id);
+
+        Assert.Equal(400, result.Error!.HttpStatus);
+        Assert.Equal(0, auth.RegistrationCalls);
+    }
+
+    private static async Task PrepareLocationManager(Fixture f, bool setupRoles = true)
+    {
+        f.RoleA.Permissions = [Permissions.MembersManage, Permissions.RolesManage];
+        f.MemberA.LocationId = f.Root.Id;
+        f.Context.Update(f.RoleA);
+        f.Context.Update(f.MemberA);
+        if (setupRoles)
+        {
+            f.Context.AccessRoles.AddRange(
+                new AccessRole { OrganizationId = f.A.Id, Name = "Front office", Permissions = [Permissions.PatientsRead] },
+                new AccessRole { OrganizationId = f.A.Id, Name = "Clinician", Permissions = [Permissions.PatientsRead] });
+        }
+        await f.Context.SaveChangesAsync();
+        f.Context.ChangeTracker.Clear();
+        await f.Select(f.A);
+    }
+
+    private static ExistingAccount StaffAccount(Fixture f) => new(new()
+    {
+        Id = "other", PersonId = f.Other.PersonId.ToString(), Email = "other@example.test"
+    });
+
+    private static Task<Result<NexMed360Api.Dtos.User.ViewUserDto>> CreateStaff(
+        Fixture f, ExistingAccount auth, bool practitioner, Guid? locationId)
+    {
+        var service = new OrganizationService(new OrganizationRepository(f.Context), auth,
+            new NoopRegistrationTransaction(), new PractitionerRoleRepository(f.Context),
+            new OrganizationMemberRepository(f.Context), f.Access);
+        return practitioner
+            ? service.AddPractitionerRole(new() { OrganizationId = f.A.Id.ToString(), RoleName = "Nurse", LocationId = locationId })
+            : service.AddOrganizationMember(new() { OrganizationId = f.A.Id.ToString(), LocationId = locationId });
+    }
+
     [Fact]
     public async Task ClinicalPermissionsDoNotAllowManagingStaffOrRoles()
     {
@@ -569,8 +783,12 @@ public class WorkspaceAccessTests
 
     private sealed class ExistingAccount(NexMed360Api.Dtos.User.ViewUserDto user) : NexMed360Api.Interfaces.Services.IAuthService
     {
-        public Task<Result<NexMed360Api.Dtos.User.ViewUserDto>> RegisterUser(NexMed360Api.Dtos.User.RegisterUserDto dto, string role) =>
-            Task.FromResult<Result<NexMed360Api.Dtos.User.ViewUserDto>>(user);
+        public int RegistrationCalls { get; private set; }
+        public Task<Result<NexMed360Api.Dtos.User.ViewUserDto>> RegisterUser(NexMed360Api.Dtos.User.RegisterUserDto dto, string role)
+        {
+            RegistrationCalls++;
+            return Task.FromResult<Result<NexMed360Api.Dtos.User.ViewUserDto>>(user);
+        }
         public Task<Result<NexMed360Api.Dtos.User.LoginResponseDto>> LoginAsync(NexMed360Api.Dtos.User.LoginUserDto dto) => throw new NotSupportedException();
     }
 
