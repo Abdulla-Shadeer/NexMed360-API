@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using NexMed360Api.Data;
-using NexMed360Api.Common.Auth;
 using NexMed360Api.Entities;
 using NexMed360Api.Interfaces.Services;
 
@@ -8,25 +7,26 @@ namespace NexMed360.Infrastructure.Repositories;
 
 public class OrganizationMembershipRepository(ApplicationDbContext context) : IOrganizationMembershipRepository
 {
-    public async Task<OrganizationMembership> Add(OrganizationMembership membership, string roleName, IReadOnlyCollection<string> permissions)
+    public Task<OrganizationMembership?> Find(Guid organizationId, string userId) =>
+        context.OrganizationMemberships.FirstOrDefaultAsync(row => row.OrganizationId == organizationId && row.UserId == userId);
+
+    public Task<AccessRole?> FindRole(Guid organizationId, string name) =>
+        context.AccessRoles.FirstOrDefaultAsync(row => row.OrganizationId == organizationId && row.Name == name);
+
+    public async Task Save(OrganizationMembership member, AccessRole role, bool isNewMember, bool isNewRole)
     {
-        var existing = await context.OrganizationMemberships.FirstOrDefaultAsync(row => row.OrganizationId == membership.OrganizationId && row.UserId == membership.UserId);
-        context.Access.RequireOrganization(membership.OrganizationId);
-        if (context.Access.IsSelected && context.Access.Mode != WorkspaceModes.Platform && !context.Access.Has(Permissions.MembersManage))
-            throw new UnauthorizedAccessException("You need permission to manage staff.");
-        if (existing == null) context.OrganizationMemberships.Add(membership);
-        else membership = existing;
-        var role = await context.AccessRoles.FirstOrDefaultAsync(row => row.OrganizationId == membership.OrganizationId && row.Name == roleName);
-        if (role == null)
+        if (isNewMember) context.OrganizationMemberships.Add(member);
+        if (isNewRole) context.AccessRoles.Add(role);
+
+        if (!await context.MembershipAccessRoles.AnyAsync(row => row.MembershipId == member.Id && row.AccessRoleId == role.Id))
         {
-            role = new AccessRole { OrganizationId = membership.OrganizationId, Name = roleName, Permissions = permissions.ToList() };
-            context.AccessRoles.Add(role);
+            context.MembershipAccessRoles.Add(new MembershipAccessRole
+            {
+                OrganizationId = member.OrganizationId, MembershipId = member.Id, AccessRoleId = role.Id
+            });
         }
-        if (context.Access.Mode == WorkspaceModes.Platform) role.Permissions = permissions.Distinct().ToList();
-        if (!await context.MembershipAccessRoles.AnyAsync(row => row.MembershipId == membership.Id && row.AccessRoleId == role.Id))
-            context.MembershipAccessRoles.Add(new MembershipAccessRole { OrganizationId = membership.OrganizationId, MembershipId = membership.Id, AccessRoleId = role.Id });
+
         await context.SaveChangesAsync();
-        return membership;
     }
 
     public async Task<Guid?> CreateLocation(Guid organizationId, string? name, string? department)

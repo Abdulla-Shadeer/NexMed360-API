@@ -14,9 +14,13 @@ public class OrganizationService(IOrganizationRepository orgRepo, IAuthService a
 {
     public async Task<Result<ViewUserDto>> AssignAdmin(CreateOrganizationManagerDto dto)
     {
+        if (workspace?.IsSelected == true && workspace.Mode != WorkspaceModes.Platform)
+            return ApiError.From(ErrorCode.SYS_Unauthorized, "Choose platform administration to assign an administrator.", 403);
+
         if (!Guid.TryParse(dto.OrganizationId, out var organizationId)) return ErrorCode.SYS_InvalidGuid;
 
         workspace?.RequireOrganization(organizationId);
+        if (!CanManageMembers()) return MemberManagementDenied();
 
         if (!await orgRepo.Exists(organizationId)) return ErrorCode.HOS_NotFound;
 
@@ -27,7 +31,12 @@ public class OrganizationService(IOrganizationRepository orgRepo, IAuthService a
         if (dto.Permissions == null || dto.Permissions.Any(permission => !Permissions.All.Contains(permission)))
             return ApiError.From(ErrorCode.SYS_BadRequest, "Choose permissions from the list.");
 
-        await memberships.Add(new OrganizationMembership { OrganizationId = organizationId, UserId = registerationResult.Data!.Id }, $"Administrator access ({registerationResult.Data.Id})", [Permissions.OrganizationsManage, Permissions.MembersManage, Permissions.RolesManage, Permissions.SchedulesManage, .. dto.Permissions]);
+        await AddMembership(
+            new OrganizationMembership { OrganizationId = organizationId, UserId = registerationResult.Data!.Id },
+            $"Administrator access ({registerationResult.Data.Id})",
+            [Permissions.OrganizationsManage, Permissions.MembersManage, Permissions.RolesManage,
+                Permissions.SchedulesManage, .. dto.Permissions],
+            updateExistingRole: true);
 
         await transaction.CommitAsync();
         return registerationResult;
@@ -38,6 +47,7 @@ public class OrganizationService(IOrganizationRepository orgRepo, IAuthService a
         if (!Guid.TryParse(dto.OrganizationId, out var organizationId)) return ErrorCode.SYS_InvalidGuid;
 
         workspace?.RequireOrganization(organizationId);
+        if (!CanManageMembers()) return MemberManagementDenied();
 
         if (!await orgRepo.Exists(organizationId)) return ErrorCode.HOS_NotFound;
 
@@ -48,7 +58,7 @@ public class OrganizationService(IOrganizationRepository orgRepo, IAuthService a
         if (workspace?.HasLocationScope == true)
             return ApiError.From(ErrorCode.SYS_Unauthorized, "Ask an organization administrator to add new members.", 403);
         var locationId = await memberships.CreateLocation(organizationId, dto.Location, dto.Department);
-        await memberships.Add(
+        await AddMembership(
             new OrganizationMembership { OrganizationId = organizationId, UserId = registrationResult.Data!.Id, LocationId = locationId },
             "Front office", [Permissions.PatientsRead, Permissions.PatientsRegister, Permissions.AppointmentsManage]);
         await transaction.CommitAsync();
@@ -58,6 +68,7 @@ public class OrganizationService(IOrganizationRepository orgRepo, IAuthService a
     {
         if (!Guid.TryParse(dto.OrganizationId, out var organizationId)) return ErrorCode.SYS_InvalidGuid;
         workspace?.RequireOrganization(organizationId);
+        if (!CanManageMembers()) return MemberManagementDenied();
 
         if (!await orgRepo.Exists(organizationId)) return ErrorCode.HOS_NotFound;
 
@@ -70,7 +81,7 @@ public class OrganizationService(IOrganizationRepository orgRepo, IAuthService a
             return ApiError.From(ErrorCode.SYS_Unauthorized, "Ask an organization administrator to add practitioner assignments.", 403);
 
         var practitioner = await practitionerRoles.FindOrAddPractitioner(Guid.Parse(registrationResult.Data!.PersonId));
-        await memberships.Add(new OrganizationMembership { OrganizationId = organizationId, UserId = registrationResult.Data.Id },
+        await AddMembership(new OrganizationMembership { OrganizationId = organizationId, UserId = registrationResult.Data.Id },
             "Clinician", [Permissions.PatientsRead, Permissions.AppointmentsManage, Permissions.SchedulesManage,
                 Permissions.EncountersStart, Permissions.ClinicalRecordsRead, Permissions.ClinicalRecordsWrite, Permissions.PrescriptionsIssue]);
 
@@ -111,8 +122,31 @@ public class OrganizationService(IOrganizationRepository orgRepo, IAuthService a
         workspace?.RequireOrganization(organizationId);
         if (!await orgRepo.Exists(organizationId)) return ApiError.From(ErrorCode.HOS_NotFound, $"Organization with ID {id} not found!");
 
-        if (!await orgRepo.IsAdmin(organizationId, userId)) return ApiError.From(ErrorCode.SYS_Unauthorized, "Access denied, only authorized members of this organization can view its members.");
+        if (!await orgRepo.HasPermission(organizationId, userId, Permissions.MembersManage)) return ApiError.From(ErrorCode.SYS_Unauthorized, "Access denied, only authorized members of this organization can view its members.");
 
         return await orgRepo.MemberViews(organizationId);
+    }
+
+    private bool CanManageMembers() => workspace?.IsSelected != true
+        || workspace.Mode == WorkspaceModes.Platform || workspace.Has(Permissions.MembersManage);
+
+    private static ApiError MemberManagementDenied() => ApiError.From(ErrorCode.SYS_Unauthorized,
+        "You need permission to manage staff.", 403);
+
+    private async Task AddMembership(OrganizationMembership requested, string roleName,
+        IReadOnlyCollection<string> permissions, bool updateExistingRole = false)
+    {
+        var member = await memberships.Find(requested.OrganizationId, requested.UserId);
+        var isNewMember = member == null;
+        member ??= requested;
+
+        var role = await memberships.FindRole(requested.OrganizationId, roleName);
+        var isNewRole = role == null;
+        role ??= new AccessRole { OrganizationId = requested.OrganizationId, Name = roleName };
+
+        // Staff creation keeps shared role grants. Administrator assignment may replace existing grants.
+        if (isNewRole || updateExistingRole) role.Permissions = permissions.Distinct().ToList();
+
+        await memberships.Save(member, role, isNewMember, isNewRole);
     }
 }

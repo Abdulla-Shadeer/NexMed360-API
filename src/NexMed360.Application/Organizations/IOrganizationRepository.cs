@@ -11,7 +11,7 @@ public interface IOrganizationRepository
     Task<Organization> Add(Organization organization);
     Task<Organization> Save(Organization organization);
     Task<List<Organization>> GetAll();
-    Task<bool> IsAdmin(Guid organizationId, string userId);
+    Task<bool> HasPermission(Guid organizationId, string userId, string permission);
     Task<ViewOrganizationDto?> View(Organization? row);
     Task<List<ViewOrganizationDto>> Views(IEnumerable<Organization> rows);
     Task<List<ViewUserDto>> MemberViews(Guid organizationId);

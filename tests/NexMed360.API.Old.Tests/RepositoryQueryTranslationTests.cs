@@ -13,7 +13,8 @@ public class RepositoryQueryTranslationTests
 {
     [Theory]
     [InlineData("Members")]
-    [InlineData("IsAdmin")]
+    [InlineData("HasPermission")]
+    [InlineData("MemberRoles")]
     [InlineData("Appointment")]
     [InlineData("ClinicalRecord")]
     [InlineData("PractitionerRoles")]
@@ -30,7 +31,8 @@ public class RepositoryQueryTranslationTests
         Task RunQuery() => query switch
         {
             "Members" => new AccessRepository(context).Members(),
-            "IsAdmin" => new OrganizationRepository(context).IsAdmin(id, "staff"),
+            "HasPermission" => new OrganizationRepository(context).HasPermission(id, "staff", Permissions.MembersManage),
+            "MemberRoles" => new AccessRepository(context).MemberRoles(id, Guid.NewGuid()),
             "Appointment" => new AppointmentRepository(context).FindReadable(id, "staff", [Permissions.EncountersStart]),
             "ClinicalRecord" => new ClinicalRecordRepository(context).FindReadable(id, "patient", false),
             "PractitionerRoles" => new PractitionerRoleRepository(context).Views([new PractitionerRole { Id = id }]),

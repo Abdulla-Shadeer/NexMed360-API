@@ -350,6 +350,49 @@ public class WorkspaceAccessTests
     }
 
     [Fact]
+    public async Task AdministratorRoleCloningUsesAnUnusedNameAndReusesItsPrivateRoleOnLaterEdits()
+    {
+        using var f = new Fixture();
+        var otherMember = new OrganizationMembership { UserId = "other", OrganizationId = f.A.Id };
+        f.Context.AddRange(otherMember,
+            new MembershipAccessRole { OrganizationId = f.A.Id, MembershipId = otherMember.Id, AccessRoleId = f.RoleA.Id },
+            new AccessRole { OrganizationId = f.A.Id, Name = "Administrator - Staff Patient" });
+        await f.Context.SaveChangesAsync();
+        f.Access.Select(new() { Key = WorkspaceModes.Platform, Mode = WorkspaceModes.Platform });
+
+        Assert.True((await f.Service.UpdateAdministrator(f.A.Id, f.MemberA.Id,
+            new(true, [Permissions.MembersManage]))).IsSuccess);
+        var repository = new AccessRepository(f.Context);
+        var privateRole = Assert.Single(await repository.MemberRoles(f.A.Id, f.MemberA.Id));
+        Assert.Equal("Administrator - Staff Patient (2)", privateRole.Name);
+        var count = await f.Context.AccessRoles.CountAsync();
+
+        Assert.True((await f.Service.UpdateAdministrator(f.A.Id, f.MemberA.Id,
+            new(false, [Permissions.RolesManage]))).IsSuccess);
+        var updatedRole = Assert.Single(await repository.MemberRoles(f.A.Id, f.MemberA.Id));
+        Assert.Equal(privateRole.Id, updatedRole.Id);
+        Assert.Equal(count, await f.Context.AccessRoles.CountAsync());
+        Assert.Equal(new[] { Permissions.RolesManage }, updatedRole.Permissions);
+        Assert.Contains(Permissions.ClinicalRecordsRead, f.RoleA.Permissions);
+    }
+
+    [Fact]
+    public async Task PlatformAdministratorManagementDoesNotChangeAnOrdinaryMember()
+    {
+        using var f = new Fixture();
+        var member = await f.Context.OrganizationMemberships.SingleAsync(row => row.OrganizationId == f.B.Id);
+        f.Access.Select(new() { Key = WorkspaceModes.Platform, Mode = WorkspaceModes.Platform });
+
+        var update = await f.Service.UpdateAdministrator(f.B.Id, member.Id, new(false, [Permissions.MembersManage]));
+        var remove = await f.Service.RemoveAdministrator(f.B.Id, member.Id);
+
+        Assert.Equal(404, update.Error!.HttpStatus);
+        Assert.Equal(404, remove.Error!.HttpStatus);
+        Assert.True(member.IsActive);
+        Assert.NotNull(await f.Context.OrganizationMemberships.FindAsync(member.Id));
+    }
+
+    [Fact]
     public async Task OrganizationAdministratorsCannotUsePlatformManagementEndpoints()
     {
         using var f = new Fixture();

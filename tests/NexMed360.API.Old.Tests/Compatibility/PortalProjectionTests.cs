@@ -49,8 +49,16 @@ public class PortalProjectionTests
         var user = (await fixture.Call<IUserService, NexMed360Api.Common.Result<ViewUserDto>>(service => service.GetUserAsync("admin"))).Data!;
         AssertAccount(user, "admin", "Admin", "203");
         Assert.Equal(new[] { "Email", "FirstName", "Id", "LastName", "PersonId", "PhoneNumber" }, typeof(ViewUserDto).GetProperties().Select(row => row.Name).Order());
-        var admins = await fixture.Call<NexMed360.Application.Access.IAccessRepository, NexMed360.Application.Access.OrganizationAdministratorsDto?>(repository => repository.OrganizationAdministrators(fixture.OrganizationId));
-        var admin = Assert.Single(admins!.Administrators);
+        var result = await fixture.Call<NexMed360.Application.Access.IAccessRepository,
+            NexMed360Api.Common.Result<NexMed360.Application.Access.OrganizationAdministratorsDto>>(repository =>
+        {
+            var access = new NexMed360.Application.Access.WorkspaceAccess();
+            access.Select(new() { Mode = WorkspaceModes.Platform });
+            return new NexMed360.Application.Access.AccessService(repository, access).OrganizationAdministrators(fixture.OrganizationId);
+        });
+        Assert.True(result.IsSuccess);
+        var admins = result.Data!;
+        var admin = Assert.Single(admins.Administrators);
         Assert.Equal("Admin Example", admin.Name);
         Assert.Equal("admin@example.test", admin.Email);
         Assert.Equal("Main organization", admins.OrganizationName);

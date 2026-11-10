@@ -27,7 +27,7 @@ public sealed class AccessService(IAccessRepository repository, WorkspaceAccess 
 
         if (role == null) return ApiError.From(ErrorCode.SYS_BadRequest, "Role not found.", 404);
 
-        if (await repository.RoleNameExists(name, id))
+        if (await repository.RoleNameExists(access.OrganizationId!.Value, name, id))
             return ApiError.From(ErrorCode.SYS_BadRequest, "This role name is already in use.");
 
         role.Name = name;
@@ -66,9 +66,24 @@ public sealed class AccessService(IAccessRepository repository, WorkspaceAccess 
     public async Task<Result<OrganizationAdministratorsDto>> OrganizationAdministrators(Guid organizationId)
     {
         if (access.Mode != WorkspaceModes.Platform) return Denied();
-        var result = await repository.OrganizationAdministrators(organizationId);
-        if (result == null) return ErrorCode.HOS_NotFound;
-        return result;
+        var organization = await repository.FindOrganization(organizationId);
+        if (organization == null) return ErrorCode.HOS_NotFound;
+
+        var members = await repository.Members(organizationId);
+        var roles = await repository.Roles(organizationId);
+        var administrators = new List<OrganizationAdministratorDto>();
+
+        foreach (var member in members)
+        {
+            var permissions = roles.Where(role => member.AccessRoleIds.Contains(role.Id))
+                .SelectMany(role => role.Permissions).Distinct().OrderBy(value => value).ToList();
+
+            // Administrative grants identify administrators; a job title does not.
+            if (permissions.Any(Permissions.Administration.Contains))
+                administrators.Add(new(member.Id, member.Name, member.Email, member.IsActive, permissions));
+        }
+
+        return new OrganizationAdministratorsDto(organizationId, organization.Name, administrators);
     }
 
     public async Task<Result<string>> UpdateAdministrator(Guid organizationId, Guid membershipId, UpdateOrganizationAdministratorDto dto)
@@ -79,8 +94,29 @@ public sealed class AccessService(IAccessRepository repository, WorkspaceAccess 
             || !dto.Permissions.Any(Permissions.Administration.Contains))
             return ApiError.From(ErrorCode.SYS_BadRequest, "Keep at least one organization administration permission and choose other permissions from the list.");
 
-        if (!await repository.UpdateAdministrator(organizationId, membershipId, dto))
-            return ApiError.From(ErrorCode.SYS_BadRequest, "Organization administrator not found.", 404);
+        var member = await repository.FindMember(membershipId);
+        if (member == null || member.OrganizationId != organizationId) return AdministratorNotFound();
+
+        var roles = await repository.MemberRoles(organizationId, membershipId);
+        if (!roles.Any(IsAdministratorRole)) return AdministratorNotFound();
+
+        AccessRole? privateRole = null;
+        // Editing one administrator must not change a role used by other staff.
+        foreach (var role in roles.Where(IsAdministratorRole))
+        {
+            if (!await repository.RoleIsShared(role.Id, membershipId))
+            {
+                privateRole = role;
+                break;
+            }
+        }
+
+        var isNewRole = privateRole == null;
+        privateRole ??= await CreateAdministratorRole(organizationId, member.UserId);
+        privateRole.Permissions = dto.Permissions.Distinct().ToList();
+        member.IsActive = dto.IsActive;
+
+        await repository.SaveAdministrator(member, privateRole, isNewRole);
 
         return "Administrator access updated.";
     }
@@ -89,8 +125,13 @@ public sealed class AccessService(IAccessRepository repository, WorkspaceAccess 
     {
         if (access.Mode != WorkspaceModes.Platform) return Denied();
 
-        if (!await repository.RemoveAdministrator(organizationId, membershipId))
-            return ApiError.From(ErrorCode.SYS_BadRequest, "Organization administrator not found.", 404);
+        var member = await repository.FindMember(membershipId);
+        if (member == null || member.OrganizationId != organizationId) return AdministratorNotFound();
+
+        var roles = await repository.MemberRoles(organizationId, membershipId);
+        if (!roles.Any(IsAdministratorRole)) return AdministratorNotFound();
+
+        await repository.RemoveMember(member);
 
         return "Administrator removed from this organization. The shared account has been kept.";
     }
@@ -99,13 +140,36 @@ public sealed class AccessService(IAccessRepository repository, WorkspaceAccess 
     {
         if (access.Mode != WorkspaceModes.Platform) return Denied();
 
-        return await repository.DeleteOrganization(organizationId) switch
-        {
-            OrganizationDeletionOutcome.Deleted => "Organization deleted.",
-            OrganizationDeletionOutcome.NotFound => ErrorCode.HOS_NotFound,
-            _ => ApiError.From(ErrorCode.SYS_BadRequest, "This organization has patient registrations or care history and cannot be deleted.", 409)
-        };
+        var organization = await repository.FindOrganization(organizationId);
+        if (organization == null) return ErrorCode.HOS_NotFound;
+
+        if (await repository.HasPatientHistory(organizationId)) return OrganizationHasHistory();
+
+        // A foreign-key restriction can still stop deletion if history was added meanwhile.
+        if (!await repository.DeleteOrganization(organization)) return OrganizationHasHistory();
+        return "Organization deleted.";
     }
+
+    private async Task<AccessRole> CreateAdministratorRole(Guid organizationId, string userId)
+    {
+        var baseName = $"Administrator - {await repository.MemberName(userId)}";
+        if (baseName.Length > 85) baseName = baseName[..85];
+
+        var name = baseName;
+        var suffix = 2;
+        while (await repository.RoleNameExists(organizationId, name))
+            name = $"{baseName} ({suffix++})";
+
+        return new AccessRole { OrganizationId = organizationId, Name = name };
+    }
+
+    private static bool IsAdministratorRole(AccessRole role) => role.Permissions.Any(Permissions.Administration.Contains);
+
+    private static ApiError AdministratorNotFound() => ApiError.From(ErrorCode.SYS_BadRequest,
+        "Organization administrator not found.", 404);
+
+    private static ApiError OrganizationHasHistory() => ApiError.From(ErrorCode.SYS_BadRequest,
+        "This organization has patient registrations or care history and cannot be deleted.", 409);
 
     private static ApiError Denied() => ApiError.From(ErrorCode.SYS_Unauthorized,
         "You do not have permission to manage this access in the current workspace.", 403);

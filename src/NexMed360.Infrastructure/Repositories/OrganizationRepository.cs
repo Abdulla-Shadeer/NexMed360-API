@@ -1,7 +1,6 @@
 using NexMed360Api.Dtos.Organization;
 using NexMed360Api.Dtos.User;
 using Microsoft.EntityFrameworkCore;
-using NexMed360Api.Common.Auth;
 using NexMed360Api.Data;
 using NexMed360Api.Entities;
 using NexMed360Api.Interfaces.Services;
@@ -15,9 +14,9 @@ public class OrganizationRepository(ApplicationDbContext context) : IOrganizatio
     public async Task<Organization> Add(Organization row) { context.Organizations.Add(row); await context.SaveChangesAsync(); return row; }
     public async Task<Organization> Save(Organization row) { await context.SaveChangesAsync(); return row; }
     public Task<List<Organization>> GetAll() => context.Organizations.ToListAsync();
-    public Task<bool> IsAdmin(Guid id, string userId)
+    public Task<bool> HasPermission(Guid id, string userId, string permission)
     {
-        var administrators =
+        var membersWithPermission =
             from member in context.OrganizationMemberships
             join assignment in context.MembershipAccessRoles
                 on new { MembershipId = member.Id, member.OrganizationId }
@@ -26,10 +25,10 @@ public class OrganizationRepository(ApplicationDbContext context) : IOrganizatio
                 on new { Id = assignment.AccessRoleId, assignment.OrganizationId }
                 equals new { role.Id, role.OrganizationId }
             where member.OrganizationId == id && member.UserId == userId && member.IsActive
-                && role.Permissions.Contains(Permissions.MembersManage)
+                && role.Permissions.Contains(permission)
             select member.Id;
 
-        return administrators.AnyAsync();
+        return membersWithPermission.AnyAsync();
     }
 
     public Task<ViewOrganizationDto?> View(Organization? row) => Task.FromResult(row == null ? null : Map(row));

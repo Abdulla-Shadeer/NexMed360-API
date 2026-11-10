@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+﻿using NexMed360.Domain.Rules;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using NexMed360Api.Entities;
 using NexMed360.Application.Access;
@@ -139,12 +140,14 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                     throw new UnauthorizedAccessException("Patient mode does not allow this change.");
             }
 
-            if (entry.State is EntityState.Added or EntityState.Modified && entry.Entity.OrganizationId == Guid.Empty)
-                throw new InvalidOperationException("Choose an organization before saving this record.");
+            if (entry.State is EntityState.Added or EntityState.Modified)
+            {
+                Guid? originalOrganizationId = entry.State == EntityState.Modified
+                    ? (Guid)entry.Property(nameof(IOrganizationOwned.OrganizationId)).OriginalValue!
+                    : null;
 
-            if (entry.State == EntityState.Modified && entry.Property(nameof(IOrganizationOwned.OrganizationId)).IsModified
-                && !Equals(entry.Property(nameof(IOrganizationOwned.OrganizationId)).OriginalValue, entry.Entity.OrganizationId))
-                throw new InvalidOperationException("A saved record cannot be moved to another organization.");
+                OrganizationRules.ValidateOwnership(entry.Entity.OrganizationId, originalOrganizationId);
+            }
         }
     }
 }

@@ -1,6 +1,5 @@
 using NexMed360.Application.Accounts;
 using NexMed360.Application.Access;
-using NexMed360.Application.Accounts.Internal;
 using NexMed360Api.Common;
 using NexMed360Api.Common.Auth;
 using NexMed360Api.Common.ApplicationErrors;
@@ -14,14 +13,25 @@ namespace NexMed360Api.Services;
 public class UserService(IUserRepository users, IOverviewService overviewService, WorkspaceAccess? workspace = null) : IUserService
 {
     private readonly IOverviewService _overviewService = overviewService;
-    public Task<Result<ViewUserDto>> GetUserAsync(string id) => users.GetUserAsync(id);
+    public async Task<Result<ViewUserDto>> GetUserAsync(string id)
+    {
+        var user = await users.GetUserAsync(id);
+        if (user == null) return ApiError.From(ErrorCode.SYS_Unauthorized, $"Account with ID {id} not found.");
+        return user;
+    }
     public async Task<Result<ViewUserDto>> UpdateUser(UpdateUserDto dto, string? requesterUserId)
     {
         if (string.IsNullOrWhiteSpace(requesterUserId))
             return ErrorCode.SYS_Unauthorized;
         if (!AccountRules.IsSelf(dto.Id, requesterUserId))
             return ApiError.From(ErrorCode.SYS_Unauthorized, "You can update only your own account.", 403);
-        return await users.UpdateUser(dto, requesterUserId);
+
+        if (dto.Email != null && await users.EmailExists(dto.Email, requesterUserId))
+            return ApiError.From(ErrorCode.SYS_DuplicateEntry, $"This email '{dto.Email}' is already used by someone.");
+
+        var user = await users.UpdateUser(dto);
+        if (user == null) return ErrorCode.USR_NotFound;
+        return user;
     }
 
     public async Task<Result<List<OverviewDto>>> GetOverview(CallerContext user)
