@@ -27,7 +27,9 @@ public class PractitionerRoleRepository(ApplicationDbContext context) : IPractit
     public Task<List<ViewPractitionerRoleDto>> Views(IEnumerable<PractitionerRole> source)
     {
         var ids = source.Select(row => row.Id).ToArray();
-        return (from role in context.PractitionerRoles
+
+        var roles =
+            from role in context.PractitionerRoles
             join practitioner in context.Practitioners on role.PractitionerId equals practitioner.Id
             join person in context.People on practitioner.PersonId equals person.Id
             join organization in context.Organizations on role.OrganizationId equals organization.Id
@@ -36,9 +38,12 @@ public class PractitionerRoleRepository(ApplicationDbContext context) : IPractit
             {
                 Id = role.Id.ToString(), PractitionerId = role.PractitionerId.ToString(), RoleName = role.RoleName, Specialty = role.Specialty,
                 UserId = context.Users.Where(user => user.PersonId == person.Id).Select(user => user.Id).FirstOrDefault() ?? "",
-                FirstName = person.FirstName, LastName = person.LastName, Email = person.Email!, PhoneNumber = person.PhoneNumber!,
+                FirstName = person.FirstName, LastName = person.LastName,
+                Email = person.Email!, PhoneNumber = person.PhoneNumber!,
                 OrganizationId = organization.Id.ToString(), OrganizationName = organization.Name
-            }).ToListAsync();
+            };
+
+        return roles.ToListAsync();
     }
 
 }

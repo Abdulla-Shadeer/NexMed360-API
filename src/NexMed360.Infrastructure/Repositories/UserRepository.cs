@@ -14,11 +14,22 @@ public sealed class UserRepository(ApplicationDbContext context) : IUserReposito
 {
     public async Task<Result<ViewUserDto>> GetUserAsync(string userId)
     {
-        var user = await context.Users.AsNoTracking().Where(row => row.Id == userId && row.IsActive)
-            .Select(row => new ViewUserDto { Id = row.Id, FirstName = row.Person.FirstName, LastName = row.Person.LastName, Email = row.Email, PhoneNumber = row.PhoneNumber, PersonId = row.PersonId.ToString() }).FirstOrDefaultAsync();
+        var accounts =
+            from account in context.Users.AsNoTracking()
+            join person in context.People on account.PersonId equals person.Id
+            where account.Id == userId && account.IsActive
+            select new ViewUserDto
+            {
+                Id = account.Id, PersonId = person.Id.ToString(),
+                FirstName = person.FirstName, LastName = person.LastName,
+                Email = account.Email, PhoneNumber = account.PhoneNumber
+            };
+
+        var user = await accounts.FirstOrDefaultAsync();
         if (user == null) return ApiError.From(ErrorCode.SYS_Unauthorized, $"Account with ID {userId} not found.");
         return user;
     }
+
     public async Task<Result<ViewUserDto>> UpdateUser(UpdateUserDto updateDto, string? requesterUserId)
     {
         if (string.IsNullOrWhiteSpace(requesterUserId))

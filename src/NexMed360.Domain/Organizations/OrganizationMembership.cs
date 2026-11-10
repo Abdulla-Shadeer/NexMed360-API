@@ -6,4 +6,5 @@ public class OrganizationMembership : Entity, IOrganizationOwned
     public string UserId { get; set; } = "";
     public Guid? LocationId { get; set; }
     public bool IsActive { get; set; } = true;
+    public List<MembershipAccessRole> RoleAssignments { get; set; } = [];
 }

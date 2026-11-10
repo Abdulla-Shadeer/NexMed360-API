@@ -15,9 +15,14 @@ public class OverviewRepository(ApplicationDbContext context, IAppointmentReposi
 {
     public async Task<PractitionerRoleOverviewDto> GetPractitionerRoleOverview(string userId)
     {
-        var practitionerRoleId = context.Access.PractitionerRoleId ?? await context.PractitionerRoles.Where(role => context.Practitioners.Any(practitioner => practitioner.Id == role.PractitionerId && context.Users.Any(user => user.Id == userId && user.PersonId == practitioner.PersonId)))
-            .Select(doc => doc.Id)
-            .FirstOrDefaultAsync();
+        var ownRoleIds =
+            from role in context.PractitionerRoles
+            join practitioner in context.Practitioners on role.PractitionerId equals practitioner.Id
+            join user in context.Users on practitioner.PersonId equals user.PersonId
+            where user.Id == userId
+            select role.Id;
+
+        var practitionerRoleId = context.Access.PractitionerRoleId ?? await ownRoleIds.FirstOrDefaultAsync();
 
         var practitionerRoleAppointments = context.Appointments
             .Where(appt => appt.PractitionerRoleId == practitionerRoleId)
@@ -118,9 +123,13 @@ public class OverviewRepository(ApplicationDbContext context, IAppointmentReposi
 
     public async Task<PatientOverviewDto> GetPatientOverview(string userId)
     {
-        var patientId = await context.Patients.Where(patient => context.Users.Any(user => user.Id == userId && user.PersonId == patient.PersonId))
-            .Select(p => p.Id)
-            .FirstOrDefaultAsync();
+        var ownPatientIds =
+            from patient in context.Patients
+            join user in context.Users on patient.PersonId equals user.PersonId
+            where user.Id == userId
+            select patient.Id;
+
+        var patientId = await ownPatientIds.FirstOrDefaultAsync();
 
         var filterDates = GetFilterDates();
 

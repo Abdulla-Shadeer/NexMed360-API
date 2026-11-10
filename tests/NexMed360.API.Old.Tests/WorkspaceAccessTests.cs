@@ -224,6 +224,32 @@ public class WorkspaceAccessTests
     }
 
     [Fact]
+    public async Task ReplacingAndClearingMemberRolesKeepsRoleDefinitionsAndOtherOrganizations()
+    {
+        using var f = new Fixture();
+        await f.Select(f.A);
+        var created = await f.Service.SaveRole(null, new("Records assistant", [Permissions.PatientsRead]));
+        var roleId = created.Data!.Id;
+
+        // Reload between updates so saved relationships, rather than tracked objects, are checked.
+        foreach (var roleIds in new Guid[][] { [f.RoleA.Id, roleId], [roleId], [] })
+        {
+            f.Context.ChangeTracker.Clear();
+            var updated = await f.Service.UpdateMember(f.MemberA.Id, new(true, roleIds.ToList(), null));
+            Assert.True(updated.IsSuccess);
+            f.Context.ChangeTracker.Clear();
+
+            var member = Assert.Single(await f.Service.Members());
+            Assert.Equal(roleIds.Order(), member.AccessRoleIds.Order());
+        }
+
+        Assert.Equal(2, await f.Context.AccessRoles.CountAsync(TestContext.Current.CancellationToken));
+        Assert.Empty((await f.Workspaces.Resolve("staff", $"{WorkspaceModes.Work}:{f.A.Id}"))!.Permissions);
+        var otherWorkspace = await f.Workspaces.Resolve("staff", $"{WorkspaceModes.Work}:{f.B.Id}");
+        Assert.Equal(new[] { Permissions.PatientsRead }, otherWorkspace!.Permissions);
+    }
+
+    [Fact]
     public async Task RoleAdministratorsCanAssignClinicalGrantsWithoutReceivingThem()
     {
         using var f = new Fixture();
@@ -298,7 +324,10 @@ public class WorkspaceAccessTests
         Assert.DoesNotContain(Permissions.ClinicalRecordsRead, admin.Permissions);
         Assert.DoesNotContain(await f.Scopes("staff"), row => row.OrganizationId == f.A.Id);
         Assert.True((await f.Service.RemoveAdministrator(f.A.Id, f.MemberA.Id)).IsSuccess);
+        f.Context.ChangeTracker.Clear();
         Assert.Empty((await f.Service.OrganizationAdministrators(f.A.Id)).Data!.Administrators);
+        Assert.False(await f.Context.MembershipAccessRoles.AnyAsync(link => link.MembershipId == f.MemberA.Id));
+        Assert.NotNull(await f.Context.AccessRoles.FindAsync(f.RoleA.Id));
         Assert.NotNull(await f.Context.Users.FindAsync("staff"));
         Assert.Contains(await f.Scopes("staff"), row => row.OrganizationId == f.B.Id);
         Assert.Contains(await f.Scopes("staff"), row => row.Mode == WorkspaceModes.Patient);
@@ -375,6 +404,7 @@ public class WorkspaceAccessTests
         Assert.True((await f.Service.DeleteOrganization(unused.Id)).IsSuccess);
         Assert.Null(await f.Context.Organizations.FirstOrDefaultAsync(row => row.Id == unused.Id));
         Assert.Empty(await f.Context.OrganizationMemberships.Where(row => row.OrganizationId == unused.Id).ToListAsync());
+        Assert.Empty(await f.Context.MembershipAccessRoles.Where(row => row.OrganizationId == unused.Id).ToListAsync());
         Assert.Empty(await f.Context.PractitionerRoles.IgnoreQueryFilters().Where(row => row.OrganizationId == unused.Id).ToListAsync());
         Assert.Empty(await f.Context.SessionSlots.IgnoreQueryFilters().Where(row => row.OrganizationId == unused.Id).ToListAsync());
         Assert.NotNull(await f.Context.Users.FindAsync("staff"));
@@ -393,12 +423,12 @@ public class WorkspaceAccessTests
         await f.Context.SaveChangesAsync();
         Assert.Null(await f.Workspaces.Resolve("staff", key));
         member.IsActive = true;
-        f.Context.AccessRoles.Update(f.RoleA);
-        f.RoleA.Permissions = [];
+        var role = await f.Context.AccessRoles.FindAsync(f.RoleA.Id);
+        role!.Permissions = [];
         await f.Context.SaveChangesAsync();
         Assert.Empty((await f.Workspaces.Resolve("staff", key))!.Permissions);
-        f.Context.PractitionerRoles.Update(f.AssignmentA);
-        f.AssignmentA.EndDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1);
+        var assignment = await f.Context.PractitionerRoles.FindAsync(f.AssignmentA.Id);
+        assignment!.EndDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1);
         await f.Context.SaveChangesAsync();
         Assert.Null(await f.Workspaces.Resolve("staff", key));
         var user = await f.Context.Users.FindAsync("staff");

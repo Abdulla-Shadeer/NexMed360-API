@@ -16,13 +16,19 @@ public class AggregateBoundaryTests
             [typeof(PractitionerSchedule)] = typeof(PractitionerSchedule), [typeof(SessionSlot)] = typeof(PractitionerSchedule), [typeof(SessionHistory)] = typeof(PractitionerSchedule),
             [typeof(Patient)] = typeof(Patient), [typeof(VisitHistory)] = typeof(Patient),
             [typeof(PractitionerRole)] = typeof(PractitionerRole), [typeof(Organization)] = typeof(Organization),
-            [typeof(OrganizationMembership)] = typeof(OrganizationMembership)
+            [typeof(OrganizationMembership)] = typeof(OrganizationMembership),
+            [typeof(MembershipAccessRole)] = typeof(OrganizationMembership),
+            [typeof(AccessRole)] = typeof(AccessRole), [typeof(Person)] = typeof(Person),
+            [typeof(Practitioner)] = typeof(Practitioner), [typeof(Location)] = typeof(Location),
+            [typeof(OrganizationPatient)] = typeof(OrganizationPatient),
+            [typeof(Encounter)] = typeof(Encounter), [typeof(EncounterParticipant)] = typeof(Encounter)
         };
         foreach (var (model, owner) in owners)
             foreach (var property in model.GetProperties())
             {
                 var related = property.PropertyType.IsGenericType ? property.PropertyType.GetGenericArguments().SingleOrDefault() : property.PropertyType;
                 if (related != null && owners.TryGetValue(related, out var relatedOwner)) Assert.Equal(owner, relatedOwner);
+                if (related != null) Check(related);
             }
         Assert.Null(typeof(Organization).GetProperty("PractitionerRoles"));
         Assert.Null(typeof(PractitionerRole).GetProperty("Organization"));

@@ -20,6 +20,8 @@ The API runs from `src/NexMed360.Api` on .NET 10 and PostgreSQL.
 
 Organization-owned rows require `OrganizationId`. Composite foreign keys keep related organization-owned records in the same organization. Saved records cannot change their organization. Independent clinical references use restricted deletion; dependent children are deleted with their parent.
 
+Domain navigation properties stay within an aggregate and its own children, such as a membership's role assignments. Separate aggregate roots reference each other by ID. Repositories use explicit LINQ query-syntax joins and DTO projections for related data; relationship constraints remain in Infrastructure configurations. Identity account types remain outside Domain.
+
 Patient self-history resolves the patient through their account/person link and includes their visible local records across organizations. It does not discover records in external systems.
 
 ## Current scope

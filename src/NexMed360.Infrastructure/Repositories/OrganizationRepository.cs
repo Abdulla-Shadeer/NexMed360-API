@@ -15,8 +15,22 @@ public class OrganizationRepository(ApplicationDbContext context) : IOrganizatio
     public async Task<Organization> Add(Organization row) { context.Organizations.Add(row); await context.SaveChangesAsync(); return row; }
     public async Task<Organization> Save(Organization row) { await context.SaveChangesAsync(); return row; }
     public Task<List<Organization>> GetAll() => context.Organizations.ToListAsync();
-    public Task<bool> IsAdmin(Guid id, string userId) => context.OrganizationMemberships.AnyAsync(member => member.OrganizationId == id && member.UserId == userId && member.IsActive
-        && context.MembershipAccessRoles.Any(link => link.MembershipId == member.Id && context.AccessRoles.Any(role => role.Id == link.AccessRoleId && role.Permissions.Contains(Permissions.MembersManage))));
+    public Task<bool> IsAdmin(Guid id, string userId)
+    {
+        var administrators =
+            from member in context.OrganizationMemberships
+            join assignment in context.MembershipAccessRoles
+                on new { MembershipId = member.Id, member.OrganizationId }
+                equals new { assignment.MembershipId, assignment.OrganizationId }
+            join role in context.AccessRoles
+                on new { Id = assignment.AccessRoleId, assignment.OrganizationId }
+                equals new { role.Id, role.OrganizationId }
+            where member.OrganizationId == id && member.UserId == userId && member.IsActive
+                && role.Permissions.Contains(Permissions.MembersManage)
+            select member.Id;
+
+        return administrators.AnyAsync();
+    }
 
     public Task<ViewOrganizationDto?> View(Organization? row) => Task.FromResult(row == null ? null : Map(row));
     public Task<List<ViewOrganizationDto>> Views(IEnumerable<Organization> rows) => Task.FromResult(rows.Select(Map).ToList());
@@ -25,12 +39,20 @@ public class OrganizationRepository(ApplicationDbContext context) : IOrganizatio
         Id = row.Id.ToString(), Name = row.Name, Type = row.Type, Street = row.Street, City = row.City,
         District = row.District, Phone = row.Phone, Grade = row.Grade
     };
-    public Task<List<ViewUserDto>> MemberViews(Guid organizationId) =>
-        (from member in context.OrganizationMemberships join user in context.Users on member.UserId equals user.Id
-         where member.OrganizationId == organizationId select new ViewUserDto
-         {
-             Id = user.Id, PersonId = user.PersonId.ToString(), FirstName = user.Person.FirstName, LastName = user.Person.LastName,
-             Email = user.Email, PhoneNumber = user.PhoneNumber
-         }).ToListAsync();
+    public Task<List<ViewUserDto>> MemberViews(Guid organizationId)
+    {
+        var members =
+            from member in context.OrganizationMemberships
+            join user in context.Users on member.UserId equals user.Id
+            join person in context.People on user.PersonId equals person.Id
+            where member.OrganizationId == organizationId
+            select new ViewUserDto
+            {
+                Id = user.Id, PersonId = person.Id.ToString(), FirstName = person.FirstName, LastName = person.LastName,
+                Email = user.Email, PhoneNumber = user.PhoneNumber
+            };
+
+        return members.ToListAsync();
+    }
 
 }

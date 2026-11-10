@@ -7,9 +7,27 @@ namespace NexMed360.Infrastructure.Repositories;
 
 public class ClinicalRecordRepository(ApplicationDbContext context) : IClinicalRecordRepository
 {
-    public async Task<ClinicalRecord> Add(ClinicalRecord record) { await context.ClinicalRecords.AddAsync(record); await context.SaveChangesAsync(); return record; }
-    private IQueryable<ClinicalRecord> Readable(string callerId, bool isPractitionerRole) => context.ClinicalRecords
-        .Where(row => (isPractitionerRole || row.IsPatientVisible) && (isPractitionerRole || context.Patients.Any(patient => patient.Id == row.PatientId && context.Users.Any(user => user.Id == callerId && user.PersonId == patient.PersonId)))).Include(row => row.Prescriptions);
+    public async Task<ClinicalRecord> Add(ClinicalRecord record)
+    {
+        await context.ClinicalRecords.AddAsync(record);
+        await context.SaveChangesAsync();
+        return record;
+    }
+
+    private IQueryable<ClinicalRecord> Readable(string callerId, bool isPractitionerRole)
+    {
+        var ownPatientIds =
+            from patient in context.Patients
+            join user in context.Users on patient.PersonId equals user.PersonId
+            where user.Id == callerId
+            select patient.Id;
+
+        return context.ClinicalRecords
+            .Where(record => (isPractitionerRole || record.IsPatientVisible)
+                && (isPractitionerRole || ownPatientIds.Contains(record.PatientId)))
+            .Include(record => record.Prescriptions);
+    }
+
     public Task<ClinicalRecord?> FindReadable(Guid id, string callerId, bool isPractitionerRole) => Readable(callerId, isPractitionerRole).FirstOrDefaultAsync(row => row.Id == id);
     public Task<List<ClinicalRecord>> GetForPatient(Guid patientId, string callerId, bool isPractitionerRole) => Readable(callerId, isPractitionerRole).Where(row => row.PatientId == patientId).ToListAsync();
 
@@ -17,14 +35,27 @@ public class ClinicalRecordRepository(ApplicationDbContext context) : IClinicalR
     {
         var rows = source.ToList();
         var patientIds = rows.Select(row => row.PatientId).Distinct().ToArray();
-        var patients = await (from patient in context.Patients join person in context.People on patient.PersonId equals person.Id
-            where patientIds.Contains(patient.Id) select new { patient.Id, Name = person.FirstName + " " + person.LastName }).ToDictionaryAsync(row => row.Id, row => row.Name);
+        var patientQuery =
+            from patient in context.Patients
+            join person in context.People on patient.PersonId equals person.Id
+            where patientIds.Contains(patient.Id)
+            select new { patient.Id, Name = person.FirstName + " " + person.LastName };
+
+        var patients = await patientQuery.ToDictionaryAsync(patient => patient.Id, patient => patient.Name);
+
         var roleIds = rows.Select(row => row.PractitionerRoleId).Distinct().ToArray();
-        var practitioners = await (from role in context.PractitionerRoles join practitioner in context.Practitioners on role.PractitionerId equals practitioner.Id
+        var practitionerQuery =
+            from role in context.PractitionerRoles
+            join practitioner in context.Practitioners on role.PractitionerId equals practitioner.Id
             join person in context.People on practitioner.PersonId equals person.Id
-            where roleIds.Contains(role.Id) select new { role.Id, Name = person.FirstName + " " + person.LastName }).ToDictionaryAsync(row => row.Id, row => row.Name);
+            where roleIds.Contains(role.Id)
+            select new { role.Id, Name = person.FirstName + " " + person.LastName };
+
+        var practitioners = await practitionerQuery.ToDictionaryAsync(practitioner => practitioner.Id, practitioner => practitioner.Name);
+
         var organizationIds = rows.Select(row => row.OrganizationId).Distinct().ToArray();
         var organizations = await context.Organizations.Where(row => organizationIds.Contains(row.Id)).ToDictionaryAsync(row => row.Id, row => row.Name);
+
         return rows.Select(row => new ViewClinicalRecordDto
         {
             Id = row.Id.ToString(), PatientName = patients.GetValueOrDefault(row.PatientId)!,

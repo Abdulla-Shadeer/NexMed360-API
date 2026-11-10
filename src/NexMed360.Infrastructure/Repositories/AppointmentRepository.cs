@@ -11,34 +11,58 @@ namespace NexMed360.Infrastructure.Repositories;
 
 public class AppointmentRepository(ApplicationDbContext context) : IAppointmentRepository
 {
-    public async Task<SessionSlot?> FindSlot(Guid id)
-    {
-        var slot = await context.SessionSlots.FirstOrDefaultAsync(row => row.Id == id);
-        if (slot != null) slot.Session = (await context.PractitionerSchedules.FirstOrDefaultAsync(row => row.Id == slot.SessionId))!;
-        return slot;
-    }
+    public Task<SessionSlot?> FindSlot(Guid id) => context.SessionSlots.Include(slot => slot.Session)
+        .FirstOrDefaultAsync(slot => slot.Id == id);
+
     public Task<Appointment?> Find(Guid id) => context.Appointments.FirstOrDefaultAsync(row => row.Id == id);
     public Task<Appointment?> FindReadable(Guid id, string callerId, IReadOnlyCollection<string> permissions)
     {
         if (context.Access.IsSelected)
             return context.Appointments.FirstOrDefaultAsync(row => row.Id == id);
+
         // Calls outside HTTP still need a matching patient, assignment, or membership.
-        var patient = permissions.Contains(WorkspaceModes.Patient); var practitionerRole = permissions.Contains(Permissions.EncountersStart); var organizationMember = permissions.Contains(Permissions.AppointmentsManage);
-        return context.Appointments.FirstOrDefaultAsync(row => row.Id == id &&
-            ((patient && context.Patients.Any(profile => profile.Id == row.PatientId && context.Users.Any(user => user.Id == callerId && user.PersonId == profile.PersonId)))
-            || (practitionerRole && context.PractitionerRoles.Where(role => context.Practitioners.Any(practitioner => practitioner.Id == role.PractitionerId && context.Users.Any(user => user.Id == callerId && user.PersonId == practitioner.PersonId))).Any(profile => profile.Id == row.PractitionerRoleId))
-            || (organizationMember && context.OrganizationMemberships.Any(profile => profile.OrganizationId == row.OrganizationId && profile.UserId == callerId))));
+        var patient = permissions.Contains(WorkspaceModes.Patient);
+        var practitionerRole = permissions.Contains(Permissions.EncountersStart);
+        var organizationMember = permissions.Contains(Permissions.AppointmentsManage);
+
+        var ownPatientIds =
+            from profile in context.Patients
+            join user in context.Users on profile.PersonId equals user.PersonId
+            where user.Id == callerId
+            select profile.Id;
+
+        var ownRoleIds =
+            from role in context.PractitionerRoles
+            join practitioner in context.Practitioners on role.PractitionerId equals practitioner.Id
+            join user in context.Users on practitioner.PersonId equals user.PersonId
+            where user.Id == callerId
+            select role.Id;
+
+        var ownOrganizationIds = context.OrganizationMemberships
+            .Where(member => member.UserId == callerId).Select(member => member.OrganizationId);
+
+        return context.Appointments.FirstOrDefaultAsync(appointment => appointment.Id == id
+            && ((patient && ownPatientIds.Contains(appointment.PatientId))
+                || (practitionerRole && ownRoleIds.Contains(appointment.PractitionerRoleId))
+                || (organizationMember && ownOrganizationIds.Contains(appointment.OrganizationId))));
     }
 
     public async Task<bool> TryBook(Appointment appointment, SessionSlot slot)
     {
-        await context.Appointments.AddAsync(appointment); slot.IsAvailable = false;
-        try { await context.SaveChangesAsync(); return true; }
+        await context.Appointments.AddAsync(appointment);
+        slot.IsAvailable = false;
+
+        try
+        {
+            await context.SaveChangesAsync();
+            return true;
+        }
         catch (DbUpdateException exception) when (exception.InnerException is PostgresException
         { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: ApplicationDbContext.NonCancelledSlotIndexName })
         {
             context.Entry(appointment).State = EntityState.Detached;
-            await context.Entry(slot).ReloadAsync(); return false;
+            await context.Entry(slot).ReloadAsync();
+            return false;
         }
     }
     public Task<CancellationRequest?> FindCancellationRequest(Guid id) => context.CancellationRequests.FirstOrDefaultAsync(row => row.AppointmentId == id);
@@ -50,10 +74,26 @@ public class AppointmentRepository(ApplicationDbContext context) : IAppointmentR
     public Task<bool> OrganizationExists(Guid id) => context.Organizations.AnyAsync(row => row.Id == id);
     public async Task<List<Appointment>> GetOwn(AppointmentFilter filter, string userId)
     {
-        var patientId = await context.Patients.Where(patient => context.Users.Any(user => user.Id == userId && user.PersonId == patient.PersonId)).Select(row => row.Id).FirstOrDefaultAsync();
+        var ownPatientIds =
+            from patient in context.Patients
+            join user in context.Users on patient.PersonId equals user.PersonId
+            where user.Id == userId
+            select patient.Id;
+
+        var patientId = await ownPatientIds.FirstOrDefaultAsync();
+
         if (context.Access.Mode == WorkspaceModes.Work)
             return await Filter(context.Appointments.Where(row => row.PractitionerRoleId == context.Access.PractitionerRoleId), filter).ToListAsync();
-        var practitionerRoleId = await context.PractitionerRoles.Where(role => context.Practitioners.Any(practitioner => practitioner.Id == role.PractitionerId && context.Users.Any(user => user.Id == userId && user.PersonId == practitioner.PersonId))).Select(row => row.Id).FirstOrDefaultAsync();
+
+        var ownRoleIds =
+            from role in context.PractitionerRoles
+            join practitioner in context.Practitioners on role.PractitionerId equals practitioner.Id
+            join user in context.Users on practitioner.PersonId equals user.PersonId
+            where user.Id == userId
+            select role.Id;
+
+        var practitionerRoleId = await ownRoleIds.FirstOrDefaultAsync();
+
         return await Filter(context.Appointments.Where(row => row.PatientId == patientId || row.PractitionerRoleId == practitionerRoleId), filter).ToListAsync();
     }
     public async Task<List<Appointment>> GetOrganizationAppointments(AppointmentFilter filter, string userId)
@@ -77,18 +117,39 @@ public class AppointmentRepository(ApplicationDbContext context) : IAppointmentR
     {
         var rows = source.ToList();
         var patientIds = rows.Select(row => row.PatientId).Distinct().ToArray();
-        var patients = await (from patient in context.Patients join person in context.People on patient.PersonId equals person.Id
-            where patientIds.Contains(patient.Id) select new { patient.Id, Person = person }).ToDictionaryAsync(row => row.Id, row => row.Person);
+        var patientQuery =
+            from patient in context.Patients
+            join person in context.People on patient.PersonId equals person.Id
+            where patientIds.Contains(patient.Id)
+            select new { patient.Id, Person = person };
+
+        var patients = await patientQuery.ToDictionaryAsync(patient => patient.Id, patient => patient.Person);
+
         var roleIds = rows.Select(row => row.PractitionerRoleId).Distinct().ToArray();
-        var practitioners = await (from role in context.PractitionerRoles join practitioner in context.Practitioners on role.PractitionerId equals practitioner.Id
+        var practitionerQuery =
+            from role in context.PractitionerRoles
+            join practitioner in context.Practitioners on role.PractitionerId equals practitioner.Id
             join person in context.People on practitioner.PersonId equals person.Id
-            where roleIds.Contains(role.Id) select new { role.Id, role.Specialty, Person = person }).ToDictionaryAsync(row => row.Id);
+            where roleIds.Contains(role.Id)
+            select new { role.Id, role.Specialty, Person = person };
+
+        var practitioners = await practitionerQuery.ToDictionaryAsync(practitioner => practitioner.Id);
+
         var organizationIds = rows.Select(row => row.OrganizationId).Distinct().ToArray();
         var organizations = await context.Organizations.Where(row => organizationIds.Contains(row.Id)).ToDictionaryAsync(row => row.Id);
+
         var accountIds = rows.Select(row => row.CreatedByUserId).Distinct().ToArray();
-        var accounts = await context.Users.Where(row => accountIds.Contains(row.Id)).Select(row => new { row.Id, Name = row.Person.FirstName + " " + row.Person.LastName }).ToDictionaryAsync(row => row.Id, row => row.Name);
+        var accountQuery =
+            from user in context.Users
+            join person in context.People on user.PersonId equals person.Id
+            where accountIds.Contains(user.Id)
+            select new { user.Id, Name = person.FirstName + " " + person.LastName };
+
+        var accounts = await accountQuery.ToDictionaryAsync(user => user.Id, user => user.Name);
+
         var slotIds = rows.Select(row => row.SessionSlotId).Distinct().ToArray();
         var slots = await context.SessionSlots.Where(row => slotIds.Contains(row.Id)).ToDictionaryAsync(row => row.Id, row => row.SlotNumber);
+
         return rows.Select(row =>
         {
             var patient = patients.GetValueOrDefault(row.PatientId);

@@ -84,12 +84,16 @@ public class PractitionerScheduleRepository(ApplicationDbContext context) : IPra
     {
         var rows = source.ToList();
         var ids = rows.Select(row => row.PractitionerScheduleId).Distinct().ToArray();
-        var sessions = await (from session in context.PractitionerSchedules
+        var sessionQuery =
+            from session in context.PractitionerSchedules
             join role in context.PractitionerRoles on session.PractitionerRoleId equals role.Id
             join practitioner in context.Practitioners on role.PractitionerId equals practitioner.Id
             join person in context.People on practitioner.PersonId equals person.Id
             where ids.Contains(session.Id)
-            select new { session.Id, Session = session, role.Specialty, Name = person.FirstName + " " + person.LastName }).ToDictionaryAsync(row => row.Id);
+            select new { session.Id, Session = session, role.Specialty, Name = person.FirstName + " " + person.LastName };
+
+        var sessions = await sessionQuery.ToDictionaryAsync(session => session.Id);
+
         return rows.Select(row =>
         {
             var details = sessions.GetValueOrDefault(row.PractitionerScheduleId);

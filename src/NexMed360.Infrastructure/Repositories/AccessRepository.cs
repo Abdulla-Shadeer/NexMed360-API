@@ -20,16 +20,22 @@ public sealed class AccessRepository(ApplicationDbContext context) : IAccessRepo
         await context.SaveChangesAsync();
     }
 
-    public async Task<List<MembershipDto>> Members()
+    public Task<List<MembershipDto>> Members()
     {
-        var rows = await context.OrganizationMemberships.Join(context.Users, member => member.UserId, user => user.Id,
-            (member, user) => new { Member = member, Name = user.Person.FirstName + " " + user.Person.LastName, user.Email }).ToListAsync();
+        var members =
+            from member in context.OrganizationMemberships
+            join user in context.Users on member.UserId equals user.Id
+            join person in context.People on user.PersonId equals person.Id
+            select new MembershipDto(
+                member.Id,
+                member.UserId,
+                person.FirstName + " " + person.LastName,
+                user.Email,
+                member.IsActive,
+                member.LocationId,
+                member.RoleAssignments.Select(assignment => assignment.AccessRoleId).ToList());
 
-        var links = await context.MembershipAccessRoles.ToListAsync();
-
-        return rows.Select(row => new MembershipDto(row.Member.Id, row.Member.UserId, row.Name, row.Email, row.Member.IsActive, row.Member.LocationId,
-        links.Where(link => link.MembershipId == row.Member.Id)
-        .Select(link => link.AccessRoleId).ToList())).ToList();
+        return members.ToListAsync();
     }
 
     public Task<OrganizationMembership?> FindMember(Guid id) => context.OrganizationMemberships.FirstOrDefaultAsync(row => row.Id == id);
@@ -38,59 +44,98 @@ public sealed class AccessRepository(ApplicationDbContext context) : IAccessRepo
 
     public async Task SaveMember(OrganizationMembership membership, IReadOnlyCollection<Guid> roleIds)
     {
-        var links = await context.MembershipAccessRoles.Where(row => row.MembershipId == membership.Id).ToListAsync();
+        await context.Entry(membership).Collection(member => member.RoleAssignments).LoadAsync();
+        var links = membership.RoleAssignments;
         context.MembershipAccessRoles.RemoveRange(links.Where(row => !roleIds.Contains(row.AccessRoleId)));
 
         foreach (var roleId in roleIds.Where(id => links.All(row => row.AccessRoleId != id)))
-            context.MembershipAccessRoles.Add(new() { OrganizationId = membership.OrganizationId, MembershipId = membership.Id, AccessRoleId = roleId });
+        {
+            membership.RoleAssignments.Add(new() { OrganizationId = membership.OrganizationId, MembershipId = membership.Id, AccessRoleId = roleId });
+        }
 
         await context.SaveChangesAsync();
     }
-    private IQueryable<OrganizationMembership> Administrators(Guid organizationId) =>
-        context.OrganizationMemberships.Where(member => member.OrganizationId == organizationId
-            && context.MembershipAccessRoles.Any(link => link.MembershipId == member.Id
-                && link.OrganizationId == organizationId && context.AccessRoles.Any(role => role.Id == link.AccessRoleId
-                    && role.OrganizationId == organizationId && (role.Permissions.Contains(Permissions.OrganizationsManage)
-                        || role.Permissions.Contains(Permissions.MembersManage) || role.Permissions.Contains(Permissions.RolesManage)))));
+
+    // Administrative permissions identify administrators, regardless of role names or active status.
+    private IQueryable<OrganizationMembership> Administrators(Guid organizationId)
+    {
+        var administratorIds =
+            from assignment in context.MembershipAccessRoles
+            join role in context.AccessRoles
+                on new { Id = assignment.AccessRoleId, assignment.OrganizationId }
+                equals new { role.Id, role.OrganizationId }
+            where assignment.OrganizationId == organizationId
+                && (role.Permissions.Contains(Permissions.OrganizationsManage)
+                    || role.Permissions.Contains(Permissions.MembersManage)
+                    || role.Permissions.Contains(Permissions.RolesManage))
+            select assignment.MembershipId;
+
+        return context.OrganizationMemberships.Where(member => member.OrganizationId == organizationId
+            && administratorIds.Contains(member.Id));
+    }
 
     public async Task<OrganizationAdministratorsDto?> OrganizationAdministrators(Guid organizationId)
     {
         var organization = await context.Organizations.AsNoTracking().FirstOrDefaultAsync(row => row.Id == organizationId);
         if (organization == null) return null;
 
-        var members = await Administrators(organizationId).Join(context.Users, member => member.UserId, user => user.Id,
-            (member, user) => new { member.Id, member.IsActive, Name = user.Person.FirstName + " " + user.Person.LastName, user.Email }).ToListAsync();
+        var memberQuery =
+            from member in Administrators(organizationId)
+            join user in context.Users on member.UserId equals user.Id
+            join person in context.People on user.PersonId equals person.Id
+            select new { member.Id, member.IsActive, Name = person.FirstName + " " + person.LastName, user.Email };
 
-        var grants = await context.MembershipAccessRoles.Where(row => row.OrganizationId == organizationId)
-            .Join(context.AccessRoles, link => new { Id = link.AccessRoleId, link.OrganizationId },
-                role => new { role.Id, role.OrganizationId }, (link, role) => new { link.MembershipId, role.Permissions }).ToListAsync();
+        var members = await memberQuery.ToListAsync();
+
+        var grantQuery =
+            from assignment in context.MembershipAccessRoles
+            join role in context.AccessRoles
+                on new { Id = assignment.AccessRoleId, assignment.OrganizationId }
+                equals new { role.Id, role.OrganizationId }
+            where assignment.OrganizationId == organizationId
+            select new { assignment.MembershipId, role.Permissions };
+
+        var grants = await grantQuery.ToListAsync();
 
         return new(organizationId, organization.Name, members.Select(member => new OrganizationAdministratorDto(
             member.Id, member.Name, member.Email, member.IsActive,
-            grants.Where(row => row.MembershipId == member.Id).SelectMany(row => row.Permissions).Distinct().OrderBy(value => value).ToList())).ToList());
+            grants.Where(grant => grant.MembershipId == member.Id)
+                .SelectMany(grant => grant.Permissions).Distinct().OrderBy(value => value).ToList())).ToList());
     }
 
     public async Task<bool> UpdateAdministrator(Guid organizationId, Guid membershipId, UpdateOrganizationAdministratorDto dto)
     {
-        var member = await Administrators(organizationId).FirstOrDefaultAsync(row => row.Id == membershipId);
+        var member = await Administrators(organizationId)
+            .Include(row => row.RoleAssignments)
+            .FirstOrDefaultAsync(row => row.Id == membershipId);
         if (member == null) return false;
 
-        var user = await context.Users.FirstAsync(row => row.Id == member.UserId);
-        var links = await context.MembershipAccessRoles.Where(row => row.MembershipId == membershipId && row.OrganizationId == organizationId).ToListAsync();
-        var roleIds = links.Select(row => row.AccessRoleId).ToArray();
-        var privateRoles = await context.AccessRoles.Where(row => row.OrganizationId == organizationId && roleIds.Contains(row.Id)
-            && !context.MembershipAccessRoles.Any(link => link.AccessRoleId == row.Id && link.MembershipId != membershipId)).ToListAsync();
+        var links = member.RoleAssignments;
+        var roleIds = links.Select(link => link.AccessRoleId).ToArray();
+        var rolesAssignedElsewhere = context.MembershipAccessRoles
+            .Where(link => link.OrganizationId == organizationId && link.MembershipId != membershipId)
+            .Select(link => link.AccessRoleId);
+
+        var privateRoles = await context.AccessRoles.Where(role => role.OrganizationId == organizationId
+            && roleIds.Contains(role.Id) && !rolesAssignedElsewhere.Contains(role.Id)).ToListAsync();
 
         // Never change a shared role when editing one administrator.
         var role = privateRoles.FirstOrDefault(row => row.Permissions.Any(Permissions.Administration.Contains));
         if (role == null)
         {
-            var baseName = $"Administrator - {user.Person.FirstName} {user.Person.LastName}";
+            var nameQuery =
+                from user in context.Users
+                join person in context.People on user.PersonId equals person.Id
+                where user.Id == member.UserId
+                select person.FirstName + " " + person.LastName;
+
+            var baseName = $"Administrator - {await nameQuery.FirstAsync()}";
             if (baseName.Length > 85) baseName = baseName[..85];
             var name = baseName;
             var suffix = 2;
             while (await context.AccessRoles.AnyAsync(row => row.OrganizationId == organizationId && row.Name == name))
                 name = $"{baseName} ({suffix++})";
+
             role = new AccessRole { OrganizationId = organizationId, Name = name };
             context.AccessRoles.Add(role);
         }
@@ -99,7 +144,8 @@ public sealed class AccessRepository(ApplicationDbContext context) : IAccessRepo
         context.MembershipAccessRoles.RemoveRange(links.Where(row => row.AccessRoleId != role.Id));
 
         if (links.All(row => row.AccessRoleId != role.Id))
-            context.MembershipAccessRoles.Add(new() { OrganizationId = organizationId, MembershipId = membershipId, AccessRoleId = role.Id });
+            member.RoleAssignments.Add(new() { OrganizationId = organizationId, MembershipId = membershipId, AccessRoleId = role.Id });
+
         member.IsActive = dto.IsActive;
         await context.SaveChangesAsync();
         return true;
@@ -107,12 +153,11 @@ public sealed class AccessRepository(ApplicationDbContext context) : IAccessRepo
 
     public async Task<bool> RemoveAdministrator(Guid organizationId, Guid membershipId)
     {
-        var member = await Administrators(organizationId).FirstOrDefaultAsync(row => row.Id == membershipId);
+        var member = await Administrators(organizationId).Include(row => row.RoleAssignments)
+            .FirstOrDefaultAsync(row => row.Id == membershipId);
         if (member == null) return false;
 
-        var links = await context.MembershipAccessRoles.Where(row => row.OrganizationId == organizationId && row.MembershipId == membershipId).ToListAsync();
-
-        context.MembershipAccessRoles.RemoveRange(links);
+        // Role assignments belong to the membership and are deleted by its cascade.
         context.OrganizationMemberships.Remove(member);
 
         await context.SaveChangesAsync();
@@ -139,9 +184,8 @@ public sealed class AccessRepository(ApplicationDbContext context) : IAccessRepo
 
         context.PractitionerRoles.RemoveRange(await context.PractitionerRoles.IgnoreQueryFilters().Where(row => row.OrganizationId == organizationId).ToListAsync());
 
-        context.MembershipAccessRoles.RemoveRange(await context.MembershipAccessRoles.Where(row => row.OrganizationId == organizationId).ToListAsync());
-
-        context.OrganizationMemberships.RemoveRange(await context.OrganizationMemberships.Where(row => row.OrganizationId == organizationId).ToListAsync());
+        context.OrganizationMemberships.RemoveRange(await context.OrganizationMemberships
+            .Include(member => member.RoleAssignments).Where(row => row.OrganizationId == organizationId).ToListAsync());
 
         context.AccessRoles.RemoveRange(await context.AccessRoles.Where(row => row.OrganizationId == organizationId).ToListAsync());
 
@@ -149,13 +193,15 @@ public sealed class AccessRepository(ApplicationDbContext context) : IAccessRepo
 
         context.Organizations.Remove(organization);
 
-        try { await context.SaveChangesAsync(); }
-
+        try
+        {
+            await context.SaveChangesAsync();
+        }
         catch (DbUpdateException exception) when (exception.InnerException is Npgsql.PostgresException { SqlState: Npgsql.PostgresErrorCodes.ForeignKeyViolation })
         {
             return OrganizationDeletionOutcome.HasHistory;
         }
+
         return OrganizationDeletionOutcome.Deleted;
     }
-
 }

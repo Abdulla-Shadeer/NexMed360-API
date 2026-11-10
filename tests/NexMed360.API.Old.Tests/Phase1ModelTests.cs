@@ -126,6 +126,26 @@ public class Phase1ModelTests
         Assert.Equal(Permissions.All.Count, Permissions.All.Distinct().Count());
     }
 
+    [Fact]
+    public void MemberRoleLinksCascadeButSharedIdentitiesAndClinicalHistoryStayProtected()
+    {
+        using var context = new ApplicationDbContextFactory().CreateDbContext([]);
+        var model = context.Model;
+        var assignment = model.FindEntityType(typeof(MembershipAccessRole))!;
+        var membership = assignment.GetForeignKeys().Single(key => key.PrincipalEntityType.ClrType == typeof(OrganizationMembership));
+        Assert.Equal(DeleteBehavior.Cascade, membership.DeleteBehavior);
+
+        foreach (var type in new[] { typeof(OrganizationMembership), typeof(PractitionerRole), typeof(ClinicalRecord), typeof(EncounterParticipant) })
+        {
+            var foreignKeys = model.FindEntityType(type)!.GetForeignKeys().Where(key =>
+                key.PrincipalEntityType.ClrType == typeof(ApplicationUser)
+                || key.PrincipalEntityType.ClrType == typeof(Practitioner)
+                || key.PrincipalEntityType.ClrType == typeof(PractitionerRole));
+            Assert.NotEmpty(foreignKeys);
+            Assert.All(foreignKeys, key => Assert.Equal(DeleteBehavior.Restrict, key.DeleteBehavior));
+        }
+    }
+
     private static ApplicationDbContext Context() => new(new DbContextOptionsBuilder<ApplicationDbContext>()
         .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
 }
