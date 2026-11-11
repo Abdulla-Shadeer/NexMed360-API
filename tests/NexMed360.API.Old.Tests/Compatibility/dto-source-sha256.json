@@ -30,7 +30,7 @@
   "Shared/DatewiseStatsDto.cs": "42a3d9369bf78ad709156afe5f5a8721c252181ae9bfd8b36f070fe194468b94",
   "User/LoginResponseDto.cs": "8f5c39e34a6d92a4bc9fdc34d554415dd56d0d36425ff1411895ae66997f157d",
   "User/LoginUserDto.cs": "2f0bc58d67e3c7acc8e7592dc53696afc81a1a0ec736cf8fa7562ae7443b1686",
-  "User/RegisterUserDto.cs": "b86792d81fcb35e2c2c30a0f6db095ce36de5c4f7fbe56d19e18b15482f3e3e3",
+  "User/RegisterUserDto.cs": "daed616dbb56f6738498a0fb1b81a798078452572f7b3b6c26857f97fe903f6a",
   "User/UpdateUserDto.cs": "5dd00a26f514ae3c7bbe604b02e56a5657bd3d8dd83a7cd96a9ea0bb0870bdb8",
   "User/ViewUserDto.cs": "80cca93829890a0a8c7f6bbe12238b96a46b1bd87721df38c10ac9aeee0b4d83",
   "practitionerSchedule/CreatePractitionerScheduleDto.cs": "d50fe4c938548da505356a79d737764bda5e6bf757c9da957b14e8f0ed89a0a6",

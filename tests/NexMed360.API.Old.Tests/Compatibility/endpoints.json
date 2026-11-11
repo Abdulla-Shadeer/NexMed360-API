@@ -208,6 +208,15 @@
   },
   {
     "controller": "PatientController",
+    "action": "EnableAccess",
+    "verb": "POST",
+    "route": "EnableAccess",
+    "roles": [],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "PatientController",
     "action": "GetClinicalRecord",
     "verb": "GET",
     "route": "GetClinicalRecord/{recordId}",
@@ -391,6 +400,15 @@
     "action": "Login",
     "verb": "POST",
     "route": "Login",
+    "roles": [],
+    "authorized": false,
+    "anonymous": true
+  },
+  {
+    "controller": "UsersController",
+    "action": "RegisterPatient",
+    "verb": "POST",
+    "route": "RegisterPatient",
     "roles": [],
     "authorized": false,
     "anonymous": true

@@ -231,6 +231,47 @@ public class AppointmentBookingPostgresTests
         }
     }
 
+    [Fact(Skip = SkipReason, SkipUnless = nameof(HasPostgresConfiguration))]
+    public async Task CompetingPatientEnablementsReuseOneProfile()
+    {
+        var options = await PrepareDatabase();
+        var account = new ApplicationUser { UserName = $"patient-{Guid.NewGuid():N}" };
+        await using (var setup = new ApplicationDbContext(options))
+        {
+            setup.Users.Add(account);
+            await setup.SaveChangesAsync();
+        }
+        var barrier = new BothPatientSavesReady();
+        var competingOptions = new DbContextOptionsBuilder<ApplicationDbContext>(options).AddInterceptors(barrier).Options;
+        await using var first = new ApplicationDbContext(competingOptions);
+        await using var second = new ApplicationDbContext(competingOptions);
+        var details = new EnablePatientAccessDto { BirthDate = new(2000, 1, 1), Gender = "Unknown" };
+        var results = await Task.WhenAll(
+            new PatientService(null!, new PatientRepository(first), null!, null!).EnablePatientAccess(details, account.Id),
+            new PatientService(null!, new PatientRepository(second), null!, null!).EnablePatientAccess(details, account.Id));
+        Assert.All(results, result => Assert.True(result.IsSuccess));
+        Assert.Equal(results[0].Data!.Id, results[1].Data!.Id);
+        await using var check = new ApplicationDbContext(options);
+        Assert.Single(await check.Patients.Where(patient => patient.PersonId == account.PersonId).ToListAsync());
+        Assert.Empty(await check.OrganizationPatients.Where(link => link.PatientId == Guid.Parse(results[0].Data!.Id)).ToListAsync());
+    }
+
+    private sealed class BothPatientSavesReady : SaveChangesInterceptor
+    {
+        private readonly TaskCompletionSource ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int count;
+        public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            if (eventData.Context!.ChangeTracker.Entries<Patient>().Any(entry => entry.State == EntityState.Added))
+            {
+                if (Interlocked.Increment(ref count) == 2) ready.TrySetResult();
+                await ready.Task.WaitAsync(TimeSpan.FromSeconds(20), cancellationToken);
+            }
+            return result;
+        }
+    }
+
     private static async Task<DbContextOptions<ApplicationDbContext>> PrepareDatabase()
     {
         var connection = new NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable(ConnectionVariable)!);

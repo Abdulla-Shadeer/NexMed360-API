@@ -34,6 +34,13 @@ public class PatientController : ControllerBase
         return HandleResult(await _patientService.CreatePatient(dto), true);
     }
 
+    [HttpPost("EnableAccess")]
+    [Authorize]
+    public async Task<ActionResult<Result<ViewPatientDto>>> EnableAccess(EnablePatientAccessDto dto)
+    {
+        return HandleResult(await _patientService.EnablePatientAccess(dto, User.FindFirstValue(ClaimTypes.NameIdentifier)));
+    }
+
     [HttpGet]
     [Route("Get/{patientId}")]
     [Authorize]

@@ -496,7 +496,7 @@ public class WorkspaceAccessTests
         var service = new OrganizationService(new OrganizationRepository(f.Context), StaffAccount(f),
             new NoopRegistrationTransaction(), new PractitionerRoleRepository(f.Context), new OrganizationMemberRepository(f.Context), f.Access);
 
-        var result = await service.AssignAdmin(new() { OrganizationId = f.A.Id.ToString(), Permissions = [] });
+        var result = await service.AssignAdmin(new() { OrganizationId = f.A.Id.ToString(), PersonalInformation = new() { Email = "other@example.test" }, Permissions = [] });
 
         Assert.True(result.IsSuccess);
         var member = await f.Context.OrganizationMembers.SingleAsync(row => row.UserId == "other");
@@ -650,8 +650,8 @@ public class WorkspaceAccessTests
             new NoopRegistrationTransaction(), new PractitionerRoleRepository(f.Context),
             new OrganizationMemberRepository(f.Context), f.Access);
         return practitioner
-            ? service.AddPractitionerRole(new() { OrganizationId = f.A.Id.ToString(), RoleName = title, LocationId = locationId, AccessRoleIds = roleIds ?? [] })
-            : service.AddOrganizationMember(new() { OrganizationId = f.A.Id.ToString(), LocationId = locationId, AccessRoleIds = roleIds ?? [] });
+            ? service.AddPractitionerRole(new() { OrganizationId = f.A.Id.ToString(), PersonalInformation = new() { Email = "other@example.test" }, RoleName = title, LocationId = locationId, AccessRoleIds = roleIds ?? [] })
+            : service.AddOrganizationMember(new() { OrganizationId = f.A.Id.ToString(), PersonalInformation = new() { Email = "other@example.test" }, LocationId = locationId, AccessRoleIds = roleIds ?? [] });
     }
 
     [Fact]
@@ -893,7 +893,7 @@ public class WorkspaceAccessTests
     [Fact]
     public void BusinessEndpointsHaveWorkspaceRulesAndNoJobRoleAuthorization()
     {
-        var exceptions = new HashSet<string> { "UsersController.Login", "UsersController.GetUser", "UsersController.UpdateUser", "WorkspaceController.Get", "WorkspaceController.PermissionList" };
+        var exceptions = new HashSet<string> { "UsersController.Login", "UsersController.RegisterPatient", "PatientController.EnableAccess", "UsersController.GetUser", "UsersController.UpdateUser", "WorkspaceController.Get", "WorkspaceController.PermissionList" };
         foreach (var controller in typeof(UsersController).Assembly.GetTypes().Where(type => type.IsSubclassOf(typeof(ControllerBase))))
         foreach (var method in controller.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly).Where(method => method.IsDefined(typeof(HttpMethodAttribute))))
         {
@@ -919,6 +919,7 @@ public class WorkspaceAccessTests
 
     private sealed class ExistingAccount(NexMed360Api.Dtos.User.ViewUserDto user) : NexMed360Api.Interfaces.Services.IAuthService
     {
+        public Task<NexMed360Api.Dtos.User.ViewUserDto?> FindUserByEmail(string email) => Task.FromResult<NexMed360Api.Dtos.User.ViewUserDto?>(null);
         public int RegistrationCalls { get; private set; }
         public Task<Result<NexMed360Api.Dtos.User.ViewUserDto>> RegisterUser(NexMed360Api.Dtos.User.RegisterUserDto dto, string role)
         {

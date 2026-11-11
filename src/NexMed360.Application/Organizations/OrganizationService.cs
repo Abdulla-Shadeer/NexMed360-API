@@ -26,7 +26,7 @@ public class OrganizationService(IOrganizationRepository orgRepo, IAuthService a
 
         await using var transaction = await transactions.BeginAsync();
 
-        var registerationResult = await auth.RegisterUser(dto.PersonalInformation, UserRoles.ORGANIZATION_MANAGER);
+        var registerationResult = await RegisterStaff(organizationId, dto.PersonalInformation, UserRoles.ORGANIZATION_MANAGER);
         if (!registerationResult.IsSuccess) return registerationResult;
         if (dto.Permissions == null || dto.Permissions.Any(permission => !Permissions.All.Contains(permission)))
             return ApiError.From(ErrorCode.SYS_BadRequest, "Choose permissions from the list.");
@@ -58,7 +58,7 @@ public class OrganizationService(IOrganizationRepository orgRepo, IAuthService a
 
         await using var transaction = await transactions.BeginAsync();
 
-        var registrationResult = await auth.RegisterUser(dto.PersonalInformation, UserRoles.ORGANIZATION_MEMBER);
+        var registrationResult = await RegisterStaff(organizationId, dto.PersonalInformation, UserRoles.ORGANIZATION_MEMBER);
         if (!registrationResult.IsSuccess) return registrationResult;
 
         var memberError = await AddMember(
@@ -85,7 +85,7 @@ public class OrganizationService(IOrganizationRepository orgRepo, IAuthService a
 
         await using var transaction = await transactions.BeginAsync();
 
-        var registrationResult = await auth.RegisterUser(dto.PersonalInformation, UserRoles.PRACTITIONER);
+        var registrationResult = await RegisterStaff(organizationId, dto.PersonalInformation, UserRoles.PRACTITIONER);
         if (!registrationResult.IsSuccess) return registrationResult;
 
         var memberError = await AddMember(
@@ -134,6 +134,18 @@ public class OrganizationService(IOrganizationRepository orgRepo, IAuthService a
         if (!await orgRepo.HasPermission(organizationId, userId, Permissions.MembersManage)) return ApiError.From(ErrorCode.SYS_Unauthorized, "Access denied, only authorized members of this organization can view its members.");
 
         return await orgRepo.MemberViews(organizationId);
+    }
+
+    private async Task<Result<ViewUserDto>> RegisterStaff(Guid organizationId, RegisterUserDto details, string accountRole)
+    {
+        var existing = await auth.FindUserByEmail(details.Email);
+        if (existing == null) return await auth.RegisterUser(details, accountRole);
+
+        // Established members can receive another assignment without changing credentials.
+        if (await memberRepository.Find(organizationId, existing.Id) != null) return existing;
+
+        return ApiError.From(ErrorCode.SYS_BadRequest,
+            "This account must confirm before it can join another organization. Account linking is not available yet.", 409);
     }
 
     private bool CanManageMembers() => workspace?.IsSelected != true

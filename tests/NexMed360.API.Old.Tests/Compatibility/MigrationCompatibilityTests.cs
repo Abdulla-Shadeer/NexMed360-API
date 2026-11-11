@@ -44,7 +44,7 @@ public class MigrationCompatibilityTests
                         auth.Length > 0, method.IsDefined(typeof(AllowAnonymousAttribute)) || type.IsDefined(typeof(AllowAnonymousAttribute)));
                 })).OrderBy(endpoint => endpoint.Controller, StringComparer.Ordinal)
                 .ThenBy(endpoint => endpoint.Action, StringComparer.Ordinal).ToArray();
-        Assert.Equal(55, actual.Length);
+        Assert.Equal(57, actual.Length);
         Assert.Equal(JsonSerializer.Serialize(expected), JsonSerializer.Serialize(actual));
     }
 

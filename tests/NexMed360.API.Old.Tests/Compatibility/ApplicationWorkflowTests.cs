@@ -109,6 +109,7 @@ public class ApplicationWorkflowTests
     }
     private sealed class Identity : IIdentityGateway
     {
+        public Task<ViewUserDto?> FindUserByEmail(string email) => Task.FromResult<ViewUserDto?>(null);
         public bool Reject { get; init; }
         public Task<Result<AuthenticatedAccount>> AuthenticateAsync(string email, string password) => Task.FromResult(Reject
             ? Result<AuthenticatedAccount>.Failure(ErrorCode.SYS_Unauthorized)
@@ -119,6 +120,7 @@ public class ApplicationWorkflowTests
     }
     private sealed class Registration : IAuthService
     {
+        public Task<ViewUserDto?> FindUserByEmail(string email) => Task.FromResult<ViewUserDto?>(null);
         public ViewUserDto ApplicationUser { get; } = new() { Id = "existing-user-id", PersonId = TestProfiles.PersonId("existing-user-id").ToString() };
         public bool RejectRegistration { get; init; }
         public string? RegisteredRole { get; private set; }
@@ -139,6 +141,9 @@ public class ApplicationWorkflowTests
     }
     private sealed class PatientProfiles : IPatientRepository
     {
+        public Task<Guid?> FindPersonIdForUser(string userId) => throw new NotSupportedException();
+        public Task<Patient?> FindForPerson(Guid personId) => throw new NotSupportedException();
+        public Task<Patient> AddSelf(Patient patient) => throw new NotSupportedException();
         public bool Throw { get; init; }
         public bool FailView { get; init; }
         public Task<ViewPatientDto?> View(Patient? row) => FailView

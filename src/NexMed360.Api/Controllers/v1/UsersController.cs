@@ -1,4 +1,5 @@
 using NexMed360Api.Common.Auth;
+using NexMed360Api.Dtos.Patient;
 using Asp.Versioning;
 using NexMed360Api.Common;
 using NexMed360Api.Dtos.Overview;
@@ -17,11 +18,13 @@ public class UsersController : ControllerBase
 {
     private readonly IAuthService _authService;
     private readonly IUserService _userService;
+    private readonly IPatientService _patientService;
 
-    public UsersController(IAuthService authService, IUserService userService)
+    public UsersController(IAuthService authService, IUserService userService, IPatientService patientService)
     {
         _authService = authService;
         _userService = userService;
+        _patientService = patientService;
     }
 
     [HttpPost]
@@ -35,6 +38,14 @@ public class UsersController : ControllerBase
             return Ok(loginResponse);
         }
         return Unauthorized(loginResponse);
+    }
+
+    [HttpPost("RegisterPatient")]
+    [AllowAnonymous]
+    public async Task<ActionResult<Result<ViewPatientDto>>> RegisterPatient(RegisterPatientDto dto)
+    {
+        var result = await _patientService.RegisterPatient(dto);
+        return result.IsSuccess ? Created(string.Empty, result) : StatusCode(result.Error!.HttpStatus, result);
     }
 
     [HttpGet]

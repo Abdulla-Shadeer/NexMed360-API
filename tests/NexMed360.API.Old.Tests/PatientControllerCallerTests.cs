@@ -65,6 +65,18 @@ public class PatientControllerCallerTests
         Assert.Equal(Permissions.ClinicalRecordsRead, workspace.Permission);
     }
 
+    [Fact]
+    public async Task EnableAccessUsesTheAuthenticatedSubjectWithoutAWorkspaceRequirement()
+    {
+        var service = new RecordingPatientService();
+        var controller = Controller(service, [new Claim(ClaimTypes.NameIdentifier, "signed-in-user")]);
+        await controller.EnableAccess(new());
+        Assert.Equal("signed-in-user", service.RequesterUserId);
+        var method = typeof(PatientController).GetMethod(nameof(PatientController.EnableAccess))!;
+        Assert.NotNull(method.GetCustomAttribute<AuthorizeAttribute>());
+        Assert.Null(method.GetCustomAttribute<WorkspaceAttribute>());
+    }
+
     private static PatientController Controller(RecordingPatientService service, IEnumerable<Claim> claims, string mode = WorkspaceModes.Patient) => new(service, Workspace(mode))
     {
         ControllerContext = new ControllerContext
@@ -85,6 +97,12 @@ public class PatientControllerCallerTests
 
     private sealed class RecordingPatientService : IPatientService
     {
+        public Task<Result<ViewPatientDto>> RegisterPatient(RegisterPatientDto dto) => throw new NotSupportedException();
+        public Task<Result<ViewPatientDto>> EnablePatientAccess(EnablePatientAccessDto dto, string? userId)
+        {
+            RequesterUserId = userId;
+            return Task.FromResult(Result<ViewPatientDto>.Success(null));
+        }
         public Task<Result<ViewPatientDto>> GetOwnPatient() => throw new NotSupportedException();
         public string? RequestedId { get; private set; }
         public string? RequesterUserId { get; private set; }

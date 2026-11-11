@@ -23,7 +23,7 @@ public class UserControllerCallerTests
         var service = new RecordingUserService();
         var claims = requesterUserId == null ? Array.Empty<Claim>()
             : new[] { new Claim(ClaimTypes.NameIdentifier, requesterUserId) };
-        var controller = new UsersController(null!, service)
+        var controller = new UsersController(null!, service, null!)
         {
             ControllerContext = new ControllerContext
             {

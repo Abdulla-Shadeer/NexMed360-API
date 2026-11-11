@@ -1,3 +1,4 @@
+using Npgsql;
 using NexMed360Api.Common.Auth;
 using NexMed360Api.Dtos.Patient;
 using Microsoft.EntityFrameworkCore;
@@ -19,6 +20,29 @@ public class PatientRepository(ApplicationDbContext context) : IPatientRepositor
         await context.SaveChangesAsync();
         return patient;
     }
+    public Task<Guid?> FindPersonIdForUser(string userId) => context.Users
+        .Where(user => user.Id == userId && user.IsActive).Select(user => (Guid?)user.PersonId).FirstOrDefaultAsync();
+
+    public Task<Patient?> FindForPerson(Guid personId) => context.Patients.IgnoreQueryFilters()
+        .FirstOrDefaultAsync(patient => patient.PersonId == personId);
+
+    public async Task<Patient> AddSelf(Patient patient)
+    {
+        // Self-enablement never adds an organization registration.
+        context.Patients.Add(patient);
+        try
+        {
+            await context.SaveChangesAsync();
+            return patient;
+        }
+        catch (DbUpdateException error) when (error.InnerException is PostgresException
+            { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: "IX_Patients_PersonId" })
+        {
+            context.Entry(patient).State = EntityState.Detached;
+            return (await FindForPerson(patient.PersonId))!;
+        }
+    }
+
     public Task<PractitionerRole?> FindPractitionerRole(Guid roleId, string userId)
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);

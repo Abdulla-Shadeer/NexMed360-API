@@ -9,5 +9,6 @@ public sealed record AuthenticatedAccount(string UserId, string AccessToken);
 public interface IIdentityGateway
 {
     Task<Result<AuthenticatedAccount>> AuthenticateAsync(string email, string password);
+    Task<ViewUserDto?> FindUserByEmail(string email);
     Task<Result<ViewUserDto>> RegisterUser(RegisterUserDto user, string role);
 }

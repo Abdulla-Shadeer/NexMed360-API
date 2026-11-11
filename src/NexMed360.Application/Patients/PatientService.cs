@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using NexMed360.Application.Access;
 using NexMed360Api.Entities;
 using NexMed360Api.Common;
@@ -11,6 +12,53 @@ namespace NexMed360Api.Services;
 
 public class PatientService(IAuthService auth, IPatientRepository data, IRegistrationTransactions transactions, IClinicalRecordRepository records, WorkspaceAccess? workspace = null) : IPatientService
 {
+    public async Task<Result<ViewPatientDto>> RegisterPatient(RegisterPatientDto dto)
+    {
+        var details = dto.PersonalInformation;
+        if (details == null || string.IsNullOrWhiteSpace(details.FirstName) || string.IsNullOrWhiteSpace(details.LastName))
+            return ApiError.From(ErrorCode.SYS_BadRequest, "Enter your first and last name.");
+        if (string.IsNullOrWhiteSpace(details.Email) || !new EmailAddressAttribute().IsValid(details.Email.Trim()))
+            return ApiError.From(ErrorCode.SYS_BadRequest, "Enter a valid email address.");
+        if (string.IsNullOrEmpty(details.Password) || details.Password != dto.ConfirmPassword)
+            return ApiError.From(ErrorCode.SYS_BadRequest, "Enter matching passwords.");
+
+        var error = ValidatePatientDetails(dto.BirthDate, dto.Gender);
+        if (error != null) return error;
+
+        return await CreatePatient(new CreatePatientDto
+        {
+            PersonalInformation = details, BirthDate = dto.BirthDate, Gender = dto.Gender
+        });
+    }
+
+    public async Task<Result<ViewPatientDto>> EnablePatientAccess(EnablePatientAccessDto dto, string? userId)
+    {
+        if (string.IsNullOrWhiteSpace(userId)) return ErrorCode.SYS_Unauthorized;
+        var personId = await data.FindPersonIdForUser(userId);
+        if (!personId.HasValue) return ErrorCode.SYS_Unauthorized;
+
+        var patient = await data.FindForPerson(personId.Value);
+        if (patient != null) return await data.View(patient);
+
+        var error = ValidatePatientDetails(dto.BirthDate, dto.Gender);
+        if (error != null) return error;
+
+        patient = await data.AddSelf(new Patient
+        {
+            PersonId = personId.Value, BirthDate = dto.BirthDate!.Value, Gender = dto.Gender!
+        });
+        return await data.View(patient);
+    }
+
+    private static ApiError? ValidatePatientDetails(DateOnly? birthDate, string? gender)
+    {
+        if (!birthDate.HasValue || birthDate == default(DateOnly) || birthDate > DateOnly.FromDateTime(DateTime.UtcNow))
+            return ApiError.From(ErrorCode.SYS_BadRequest, "Enter a birth date that is not in the future.");
+        if (gender is not ("Male" or "Female" or "Other" or "Unknown"))
+            return ApiError.From(ErrorCode.SYS_BadRequest, "Choose a gender from the list.");
+        return null;
+    }
+
     public async Task<Result<ViewPatientDto>> CreatePatient(CreatePatientDto dto)
     {
         await using var transaction = await transactions.BeginAsync();

@@ -5,6 +5,7 @@ namespace NexMed360Api.Interfaces.Services
 {
     public interface IAuthService
     {
+        Task<ViewUserDto?> FindUserByEmail(string email);
         Task<Result<ViewUserDto>> RegisterUser(RegisterUserDto user, string role);
         Task<Result<LoginResponseDto>> LoginAsync(LoginUserDto loginUserDto);
     }

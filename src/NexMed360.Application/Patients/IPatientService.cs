@@ -7,6 +7,8 @@ namespace NexMed360Api.Interfaces.Services
 {
     public interface IPatientService
     {
+        Task<Result<ViewPatientDto>> RegisterPatient(RegisterPatientDto dto);
+        Task<Result<ViewPatientDto>> EnablePatientAccess(EnablePatientAccessDto dto, string? userId);
         public Task<Result<ViewPatientDto>> CreatePatient(CreatePatientDto dto);
         public Task<Result<ViewPatientDto>> GetPatient(string id);
         public Task<Result<ViewClinicalRecordDto>> AddToClinicalRecords(AddClinicalRecordDto dto, string practitionerRoleUserId);

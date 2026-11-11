@@ -3,6 +3,12 @@ using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using NexMed360Api.Dtos.Patient;
+using NexMed360Api.Entities;
+using NexMed360.Application.Access;
+using NexMed360Api.Common;
+using NexMed360Api.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -68,28 +74,178 @@ public class AuthServiceTests
         Assert.Equal("Incorrect username or password!", result.Error.Description);
     }
 
-    [Fact]
-    public async Task AddingAnotherOrganizationAssignmentCanReuseTheExistingAccountRole()
+    [Theory]
+    [InlineData("account@example.test")]
+    [InlineData("  ACCOUNT@EXAMPLE.TEST  ")]
+    public async Task RegistrationCannotAttachRolesToAnExistingEmail(string email)
     {
         using var fixture = new Fixture();
         var auth = fixture.Services.GetRequiredService<IAuthService>();
         var original = await auth.RegisterUser(Request(), UserRoles.PATIENT);
-        Assert.True(original.IsSuccess);
-        var changed = Request();
-        changed.FirstName = "Ignored";
-        var added = await auth.RegisterUser(changed, UserRoles.PRACTITIONER);
-        Assert.True(added.IsSuccess);
-        Assert.Equal(original.Data!.Id, added.Data!.Id);
-        Assert.Equal("Synthetic", added.Data.FirstName);
-        var manager = fixture.Services.GetRequiredService<UserManager<NexMed360Api.Entities.ApplicationUser>>();
-        var account = await manager.FindByIdAsync(added.Data.Id);
-        Assert.Equal(new[] { UserRoles.PRACTITIONER, UserRoles.PATIENT }.Order(), (await manager.GetRolesAsync(account!)).Order());
-        Assert.Equal(1, await fixture.Services.GetRequiredService<ApplicationDbContext>().Users.CountAsync(TestContext.Current.CancellationToken));
-        var duplicate = await auth.RegisterUser(Request(), UserRoles.PRACTITIONER);
-        Assert.True(duplicate.IsSuccess);
-        Assert.Equal(original.Data.Id, duplicate.Data!.Id);
-        Assert.Equal(added.Data.PersonId, duplicate.Data.PersonId);
+        var changed = Request(); changed.Email = email; changed.FirstName = "Ignored";
+
+        var result = await auth.RegisterUser(changed, UserRoles.PRACTITIONER);
+
+        Assert.Equal(409, result.Error!.HttpStatus);
+        var manager = fixture.Services.GetRequiredService<UserManager<ApplicationUser>>();
+        var account = (await manager.FindByIdAsync(original.Data!.Id))!;
+        Assert.Equal("Synthetic", account.FirstName);
+        Assert.Equal(new[] { UserRoles.PATIENT }, await manager.GetRolesAsync(account));
+        Assert.True(await manager.CheckPasswordAsync(account, Request().Password));
+        Assert.Equal(1, await fixture.Services.GetRequiredService<ApplicationDbContext>().Users.CountAsync());
     }
+
+    [Fact]
+    public async Task PublicSignupCreatesOnlyPatientAccessAndNormalLoginStillWorks()
+    {
+        using var fixture = new Fixture();
+        var patients = fixture.Services.GetRequiredService<IPatientService>();
+        var result = await patients.RegisterPatient(Signup());
+        Assert.True(result.IsSuccess);
+        var context = fixture.Services.GetRequiredService<ApplicationDbContext>();
+        var account = await context.Users.SingleAsync();
+        Assert.False(account.EmailConfirmed);
+        Assert.Single(await context.People.ToListAsync());
+        Assert.Equal(account.PersonId, (await context.Patients.SingleAsync()).PersonId);
+        Assert.Empty(await context.OrganizationPatients.ToListAsync());
+        Assert.Empty(await context.OrganizationMembers.ToListAsync());
+        Assert.Empty(await context.Practitioners.ToListAsync());
+        Assert.Empty(await context.MemberRoleAssignments.ToListAsync());
+        var login = await fixture.Services.GetRequiredService<IAuthService>().LoginAsync(new() { Email = Request().Email, Password = Request().Password });
+        Assert.True(login.IsSuccess);
+        var workspace = Assert.Single(await fixture.Services.GetRequiredService<WorkspaceService>().List(account.Id));
+        Assert.Equal(WorkspaceModes.Patient, workspace.Mode);
+    }
+
+    [Theory]
+    [InlineData("email")]
+    [InlineData("confirmation")]
+    [InlineData("birth-date")]
+    [InlineData("gender")]
+    [InlineData("password")]
+    public async Task InvalidSignupCreatesNoAccountOrProfile(string invalid)
+    {
+        using var fixture = new Fixture();
+        var request = Signup();
+        if (invalid == "email") request.PersonalInformation.Email = "not-an-email";
+        if (invalid == "confirmation") request.ConfirmPassword = "different";
+        if (invalid == "birth-date") request.BirthDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(1);
+        if (invalid == "gender") request.Gender = "invalid";
+        if (invalid == "password") request.PersonalInformation.Password = request.ConfirmPassword = "weak";
+        Assert.Equal(400, (await fixture.Services.GetRequiredService<IPatientService>().RegisterPatient(request)).Error!.HttpStatus);
+        var context = fixture.Services.GetRequiredService<ApplicationDbContext>();
+        Assert.Empty(await context.Users.ToListAsync());
+        Assert.Empty(await context.People.ToListAsync());
+        Assert.Empty(await context.Patients.ToListAsync());
+    }
+
+    [Fact]
+    public async Task SignupCannotClaimAnExistingStaffAccount()
+    {
+        using var fixture = new Fixture();
+        var auth = fixture.Services.GetRequiredService<IAuthService>();
+        var staff = await auth.RegisterUser(Request(), UserRoles.PRACTITIONER);
+        Assert.Equal(409, (await fixture.Services.GetRequiredService<IPatientService>().RegisterPatient(Signup())).Error!.HttpStatus);
+        var context = fixture.Services.GetRequiredService<ApplicationDbContext>();
+        Assert.Empty(await context.Patients.ToListAsync());
+        Assert.Single(await context.Users.ToListAsync());
+        var account = await fixture.Services.GetRequiredService<UserManager<ApplicationUser>>().FindByIdAsync(staff.Data!.Id);
+        Assert.Equal(new[] { UserRoles.PRACTITIONER }, await fixture.Services.GetRequiredService<UserManager<ApplicationUser>>().GetRolesAsync(account!));
+    }
+
+    [Fact]
+    public async Task SignedInStaffCanEnablePatientAccessOnceWithoutChangingTheirWorkAccess()
+    {
+        using var fixture = new Fixture();
+        var account = (await fixture.Services.GetRequiredService<IAuthService>().RegisterUser(Request(), UserRoles.PRACTITIONER)).Data!;
+        var context = fixture.Services.GetRequiredService<ApplicationDbContext>();
+        var organization = new Organization { Name = "Clinic" };
+        var member = new OrganizationMember { UserId = account.Id, OrganizationId = organization.Id };
+        var role = new AccessRole { OrganizationId = organization.Id, Name = "Nursing", Permissions = [Permissions.PatientsRead] };
+        context.AddRange(organization, member, role, new MemberRoleAssignment { OrganizationId = organization.Id, OrganizationMemberId = member.Id, AccessRoleId = role.Id });
+        await context.SaveChangesAsync();
+        var patients = fixture.Services.GetRequiredService<IPatientService>();
+        var result = await patients.EnablePatientAccess(new() { BirthDate = new(1995, 1, 2), Gender = "Unknown" }, account.Id);
+        var repeated = await patients.EnablePatientAccess(new(), account.Id);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(result.Data!.Id, repeated.Data!.Id);
+        Assert.Single(await context.Patients.ToListAsync());
+        Assert.Single(await context.MemberRoleAssignments.ToListAsync());
+        Assert.Equal(account.PersonId, (await context.Patients.SingleAsync()).PersonId.ToString());
+        Assert.Empty(await context.OrganizationPatients.ToListAsync());
+        var manager = fixture.Services.GetRequiredService<UserManager<ApplicationUser>>();
+        Assert.True(await manager.CheckPasswordAsync((await manager.FindByIdAsync(account.Id))!, Request().Password));
+        var workspaces = await fixture.Services.GetRequiredService<WorkspaceService>().List(account.Id);
+        Assert.Contains(workspaces, row => row.Mode == WorkspaceModes.Work);
+        Assert.Contains(workspaces, row => row.Mode == WorkspaceModes.Patient);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("missing-account")]
+    public async Task PatientEnablementRejectsMissingIdentity(string? userId)
+    {
+        using var fixture = new Fixture();
+        Assert.Equal(401, (await fixture.Services.GetRequiredService<IPatientService>().EnablePatientAccess(new(), userId)).Error!.HttpStatus);
+    }
+
+    [Fact]
+    public async Task EnablementDoesNotClaimAnotherPatientsMatchingEmail()
+    {
+        using var fixture = new Fixture();
+        var account = (await fixture.Services.GetRequiredService<IAuthService>().RegisterUser(Request(), UserRoles.PRACTITIONER)).Data!;
+        var context = fixture.Services.GetRequiredService<ApplicationDbContext>();
+        var otherPerson = new Person { FirstName = "Someone", LastName = "Else", Email = Request().Email };
+        var otherPatient = new Patient { PersonId = otherPerson.Id, BirthDate = new(1970, 1, 1), Gender = "Female" };
+        context.AddRange(otherPerson, otherPatient); await context.SaveChangesAsync();
+        var result = await fixture.Services.GetRequiredService<IPatientService>().EnablePatientAccess(new() { BirthDate = new(1995, 1, 2), Gender = "Male" }, account.Id);
+        Assert.True(result.IsSuccess);
+        Assert.NotEqual(otherPatient.Id.ToString(), result.Data!.Id);
+        Assert.Equal(account.PersonId, result.Data.PersonId);
+        Assert.Equal(2, await context.Patients.CountAsync());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ExistingStaffAccountNeedsAnEstablishedMembershipForAnotherAssignment(bool established)
+    {
+        using var fixture = new Fixture();
+        var account = (await fixture.Services.GetRequiredService<IAuthService>().RegisterUser(Request(), UserRoles.PRACTITIONER)).Data!;
+        var context = fixture.Services.GetRequiredService<ApplicationDbContext>();
+        var organization = new Organization { Name = "Clinic" };
+        context.Add(organization);
+        if (established) context.Add(new OrganizationMember { OrganizationId = organization.Id, UserId = account.Id });
+        await context.SaveChangesAsync();
+        var result = await fixture.Services.GetRequiredService<IOrganizationService>().AddPractitionerRole(new()
+        {
+            OrganizationId = organization.Id.ToString(), PersonalInformation = Request(), RoleName = "Nurse"
+        });
+        Assert.Equal(established, result.IsSuccess);
+        Assert.Equal(established ? 1 : 0, await context.PractitionerRoles.CountAsync());
+        if (!established) Assert.Equal(409, result.Error!.HttpStatus);
+    }
+
+    [Fact]
+    public void SignupWithoutAnOptionalPhoneNumberPassesMvcValidation()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging(); services.AddControllers();
+        using var provider = services.BuildServiceProvider();
+        var action = new Microsoft.AspNetCore.Mvc.ActionContext(
+            new Microsoft.AspNetCore.Http.DefaultHttpContext { RequestServices = provider },
+            new Microsoft.AspNetCore.Routing.RouteData(), new Microsoft.AspNetCore.Mvc.Abstractions.ActionDescriptor());
+        var request = Signup(); request.PersonalInformation.PhoneNumber = null;
+        provider.GetRequiredService<Microsoft.AspNetCore.Mvc.ModelBinding.Validation.IObjectModelValidator>()
+            .Validate(action, null, "", request);
+        Assert.True(action.ModelState.IsValid);
+    }
+
+    private static RegisterPatientDto Signup() => new()
+    {
+        PersonalInformation = Request(), ConfirmPassword = Request().Password,
+        BirthDate = new(2000, 1, 1), Gender = "Unknown"
+    };
 
     [Fact]
     public async Task RejectedRegistrationDoesNotCreateAnAccount()
@@ -145,7 +301,7 @@ public class AuthServiceTests
             services.AddLogging(); services.AddDataProtection(); services.AddRouting();
             services.AddNexMed360Infrastructure(config);
             services.RemoveAll<DbContextOptions<ApplicationDbContext>>();
-            services.AddSingleton(new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+            services.AddSingleton(new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).ConfigureWarnings(warnings => warnings.Ignore(InMemoryEventId.TransactionIgnoredWarning)).Options);
             provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
             scope = provider.CreateScope();
             var roles = Services.GetRequiredService<RoleManager<IdentityRole>>();

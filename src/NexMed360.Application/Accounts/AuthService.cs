@@ -7,6 +7,8 @@ namespace NexMed360Api.Services;
 
 public class AuthService(IIdentityGateway identity, IUserService users) : IAuthService
 {
+    public Task<ViewUserDto?> FindUserByEmail(string email) => identity.FindUserByEmail(email);
+
     public Task<Result<ViewUserDto>> RegisterUser(RegisterUserDto dto, string role) => identity.RegisterUser(dto, role);
 
     public async Task<Result<LoginResponseDto>> LoginAsync(LoginUserDto dto)
