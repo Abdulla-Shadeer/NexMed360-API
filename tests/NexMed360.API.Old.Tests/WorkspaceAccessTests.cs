@@ -203,6 +203,85 @@ public class WorkspaceAccessTests
         Assert.Equal(f.AssignmentA.Id, saved.PractitionerRoleId);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DirectClinicalCareSavesWithoutSchedulesAppointmentsOrEncounters(bool prescribe)
+    {
+        using var f = new Fixture();
+        f.Context.Appointments.RemoveRange(await f.Context.Appointments.ToListAsync());
+        f.Context.SessionSlots.RemoveRange(await f.Context.SessionSlots.ToListAsync());
+        f.Context.PractitionerSchedules.RemoveRange(await f.Context.PractitionerSchedules.ToListAsync());
+        f.RoleA.Permissions = [Permissions.PatientsRead, Permissions.ClinicalRecordsRead, Permissions.ClinicalRecordsWrite];
+        if (prescribe) f.RoleA.Permissions.Add(Permissions.PrescriptionsIssue);
+        f.Context.AccessRoles.Update(f.RoleA);
+        await f.Context.SaveChangesAsync();
+        f.Context.ChangeTracker.Clear();
+        await f.Select(f.A, f.AssignmentA);
+        var service = new PatientService(null!, new PatientRepository(f.Context), null!, new ClinicalRecordRepository(f.Context), f.Access);
+        var before = DateTime.UtcNow;
+
+        var result = await service.AddToClinicalRecords(new()
+        {
+            PatientId = f.Own.Id.ToString(), PractitionerRoleId = f.AssignmentA.Id,
+            Diagnosis = "Direct consultation", PractitionerNotes = "No booked appointment",
+            VisitDate = DateTime.UtcNow.AddYears(-10),
+            Prescriptions = prescribe ? [new() { MedicineName = "Synthetic medicine", Dosage = "Test", TimesPerDay = 1, IsLongTermUse = false }] : []
+        }, "staff");
+
+        Assert.True(result.IsSuccess);
+        var saved = await f.Context.ClinicalRecords.Include(row => row.Prescriptions).SingleAsync(row => row.Id.ToString() == result.Data!.Id);
+        Assert.Equal(f.Own.Id, saved.PatientId);
+        Assert.Equal(f.A.Id, saved.OrganizationId);
+        Assert.Equal(f.AssignmentA.Id, saved.PractitionerRoleId);
+        Assert.Null(saved.EncounterId);
+        Assert.InRange(saved.VisitDate, before, DateTime.UtcNow);
+        Assert.Equal(prescribe ? 1 : 0, saved.Prescriptions!.Count);
+        Assert.All(saved.Prescriptions, prescription => Assert.Equal(f.A.Id, prescription.OrganizationId));
+        Assert.Equal(f.A.Name, result.Data!.OrganizationName);
+        Assert.Empty(await f.Context.Appointments.IgnoreQueryFilters().ToListAsync());
+        Assert.Empty(await f.Context.PractitionerSchedules.IgnoreQueryFilters().ToListAsync());
+        Assert.Empty(await f.Context.Encounters.IgnoreQueryFilters().ToListAsync());
+
+        f.Access.Select((await f.Scopes("staff")).Single(row => row.Mode == WorkspaceModes.Patient));
+        var history = await service.ViewAllClinicalRecords(f.Own.Id.ToString(), "staff", false);
+        Assert.Contains(history.Data!, record => record.Id == result.Data.Id);
+    }
+
+    [Fact]
+    public async Task DirectClinicalCareDoesNotOpenAnUnregisteredPatient()
+    {
+        using var f = new Fixture();
+        await f.Select(f.A, f.AssignmentA);
+        var count = await f.Context.ClinicalRecords.IgnoreQueryFilters().CountAsync();
+        var service = new PatientService(null!, new PatientRepository(f.Context), null!, new ClinicalRecordRepository(f.Context), f.Access);
+        var result = await service.AddToClinicalRecords(new()
+        {
+            PatientId = f.Unregistered.Id.ToString(), PractitionerRoleId = f.AssignmentA.Id, Diagnosis = "Not permitted"
+        }, "staff");
+        Assert.Equal(404, result.Error!.HttpStatus);
+        Assert.Equal(count, await f.Context.ClinicalRecords.IgnoreQueryFilters().CountAsync());
+    }
+
+    [Fact]
+    public async Task DirectClinicalCareDoesNotChangeAnExistingAppointmentOrSession()
+    {
+        using var f = new Fixture();
+        await f.Select(f.A, f.AssignmentA);
+        var appointment = await f.Context.Appointments.SingleAsync(row => row.PatientId == f.Own.Id);
+        var status = appointment.Status;
+        var schedules = await f.Context.PractitionerSchedules.CountAsync();
+        var service = new PatientService(null!, new PatientRepository(f.Context), null!, new ClinicalRecordRepository(f.Context), f.Access);
+        var result = await service.AddToClinicalRecords(new()
+        {
+            PatientId = f.Own.Id.ToString(), PractitionerRoleId = f.AssignmentA.Id, Diagnosis = "Independent record"
+        }, "staff");
+        Assert.True(result.IsSuccess);
+        Assert.Equal(status, (await f.Context.Appointments.SingleAsync(row => row.Id == appointment.Id)).Status);
+        Assert.Equal(schedules, await f.Context.PractitionerSchedules.CountAsync());
+        Assert.Empty(await f.Context.SessionHistories.ToListAsync());
+    }
+
     [Fact]
     public async Task CrossOrganizationWritesFailBeforeSaving()
     {
