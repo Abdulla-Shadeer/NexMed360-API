@@ -15,20 +15,36 @@ public class OrganizationMemberRepository(ApplicationDbContext context) : IOrgan
     public Task<AccessRole?> FindRole(Guid organizationId, string name) =>
         context.AccessRoles.FirstOrDefaultAsync(row => row.OrganizationId == organizationId && row.Name == name);
 
-    public async Task Save(OrganizationMember member, AccessRole role, bool isNewMember, bool isNewRole)
+    public Task<List<AccessRole>> FindRoles(Guid organizationId, IReadOnlyCollection<Guid> roleIds) => context.AccessRoles
+        .Where(role => role.OrganizationId == organizationId && roleIds.Contains(role.Id)).ToListAsync();
+
+    public async Task Save(OrganizationMember member, IReadOnlyCollection<Guid> roleIds, bool isNewMember)
     {
         if (isNewMember) context.OrganizationMembers.Add(member);
-        if (isNewRole) context.AccessRoles.Add(role);
 
-        if (!await context.MemberRoleAssignments.AnyAsync(row => row.OrganizationMemberId == member.Id && row.AccessRoleId == role.Id))
+        if (roleIds.Count > 0)
         {
-            context.MemberRoleAssignments.Add(new MemberRoleAssignment
+            var assignedRoleIds = await context.MemberRoleAssignments
+                .Where(assignment => assignment.OrganizationMemberId == member.Id && assignment.OrganizationId == member.OrganizationId)
+                .Select(assignment => assignment.AccessRoleId).ToListAsync();
+
+            // Adding another assignment keeps the member's existing access roles.
+            foreach (var roleId in roleIds.Distinct().Except(assignedRoleIds))
             {
-                OrganizationId = member.OrganizationId, OrganizationMemberId = member.Id, AccessRoleId = role.Id
-            });
+                context.MemberRoleAssignments.Add(new MemberRoleAssignment
+                {
+                    OrganizationId = member.OrganizationId, OrganizationMemberId = member.Id, AccessRoleId = roleId
+                });
+            }
         }
 
         await context.SaveChangesAsync();
+    }
+
+    public async Task SaveAdministrator(OrganizationMember member, AccessRole role, bool isNewMember, bool isNewRole)
+    {
+        if (isNewRole) context.AccessRoles.Add(role);
+        await Save(member, [role.Id], isNewMember);
     }
 
     public Task<Location?> FindLocation(Guid organizationId, Guid locationId) => context.Locations

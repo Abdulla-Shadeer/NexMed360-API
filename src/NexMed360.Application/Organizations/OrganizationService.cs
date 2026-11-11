@@ -31,13 +31,11 @@ public class OrganizationService(IOrganizationRepository orgRepo, IAuthService a
         if (dto.Permissions == null || dto.Permissions.Any(permission => !Permissions.All.Contains(permission)))
             return ApiError.From(ErrorCode.SYS_BadRequest, "Choose permissions from the list.");
 
-        var memberError = await AddMember(
+        await AssignAdministratorAccess(
             new OrganizationMember { OrganizationId = organizationId, UserId = registerationResult.Data!.Id },
             $"Administrator access ({registerationResult.Data.Id})",
             [Permissions.OrganizationsManage, Permissions.MembersManage, Permissions.RolesManage,
-                Permissions.SchedulesManage, .. dto.Permissions],
-            updateExistingRole: true);
-        if (memberError != null) return memberError;
+                Permissions.SchedulesManage, .. dto.Permissions]);
 
         await transaction.CommitAsync();
         return registerationResult;
@@ -55,6 +53,9 @@ public class OrganizationService(IOrganizationRepository orgRepo, IAuthService a
         var locationError = await ValidateStaffLocation(organizationId, dto.LocationId);
         if (locationError != null) return locationError;
 
+        var roleError = await ValidateStaffRoles(organizationId, dto.AccessRoleIds);
+        if (roleError != null) return roleError;
+
         await using var transaction = await transactions.BeginAsync();
 
         var registrationResult = await auth.RegisterUser(dto.PersonalInformation, UserRoles.ORGANIZATION_MEMBER);
@@ -62,7 +63,7 @@ public class OrganizationService(IOrganizationRepository orgRepo, IAuthService a
 
         var memberError = await AddMember(
             new OrganizationMember { OrganizationId = organizationId, UserId = registrationResult.Data!.Id, LocationId = dto.LocationId },
-            "Front office", [Permissions.PatientsRead, Permissions.PatientsRegister, Permissions.AppointmentsManage]);
+            dto.AccessRoleIds);
         if (memberError != null) return memberError;
 
         await transaction.CommitAsync();
@@ -79,6 +80,9 @@ public class OrganizationService(IOrganizationRepository orgRepo, IAuthService a
         var locationError = await ValidateStaffLocation(organizationId, dto.LocationId);
         if (locationError != null) return locationError;
 
+        var roleError = await ValidateStaffRoles(organizationId, dto.AccessRoleIds);
+        if (roleError != null) return roleError;
+
         await using var transaction = await transactions.BeginAsync();
 
         var registrationResult = await auth.RegisterUser(dto.PersonalInformation, UserRoles.PRACTITIONER);
@@ -86,8 +90,7 @@ public class OrganizationService(IOrganizationRepository orgRepo, IAuthService a
 
         var memberError = await AddMember(
             new OrganizationMember { OrganizationId = organizationId, UserId = registrationResult.Data!.Id, LocationId = dto.LocationId },
-            "Clinician", [Permissions.PatientsRead, Permissions.AppointmentsManage, Permissions.SchedulesManage,
-                Permissions.EncountersStart, Permissions.ClinicalRecordsRead, Permissions.ClinicalRecordsWrite, Permissions.PrescriptionsIssue]);
+            dto.AccessRoleIds);
         if (memberError != null) return memberError;
 
         var practitioner = await practitionerRoles.FindOrAddPractitioner(Guid.Parse(registrationResult.Data.PersonId));
@@ -139,12 +142,11 @@ public class OrganizationService(IOrganizationRepository orgRepo, IAuthService a
     private static ApiError MemberManagementDenied() => ApiError.From(ErrorCode.SYS_Unauthorized,
         "You need permission to manage staff.", 403);
 
-    private async Task<ApiError?> AddMember(OrganizationMember requested, string roleName,
-        IReadOnlyCollection<string> permissions, bool updateExistingRole = false)
+    private async Task<ApiError?> AddMember(OrganizationMember requested, IReadOnlyCollection<Guid> roleIds)
     {
         var member = await memberRepository.Find(requested.OrganizationId, requested.UserId);
         var isNewMember = member == null;
-        if (member != null && !updateExistingRole)
+        if (member != null)
         {
             if (workspace?.HasLocationScope == true &&
                 (!member.LocationId.HasValue || !workspace.LocationIds.Contains(member.LocationId.Value)))
@@ -157,17 +159,35 @@ public class OrganizationService(IOrganizationRepository orgRepo, IAuthService a
         }
         member ??= requested;
 
+        await memberRepository.Save(member, roleIds, isNewMember);
+        return null;
+    }
+
+    private async Task AssignAdministratorAccess(OrganizationMember requested, string roleName, IReadOnlyCollection<string> permissions)
+    {
+        var member = await memberRepository.Find(requested.OrganizationId, requested.UserId);
+        var isNewMember = member == null;
+        member ??= requested;
+
         var role = await memberRepository.FindRole(requested.OrganizationId, roleName);
         var isNewRole = role == null;
-        if (isNewRole && workspace?.HasLocationScope == true)
-            return ApiError.From(ErrorCode.SYS_BadRequest, "Ask an organization administrator to set up this staff access role first.");
-
         role ??= new AccessRole { OrganizationId = requested.OrganizationId, Name = roleName };
+        role.Permissions = permissions.Distinct().ToList();
 
-        // Staff creation keeps shared role grants. Administrator assignment may replace existing grants.
-        if (isNewRole || updateExistingRole) role.Permissions = permissions.Distinct().ToList();
+        await memberRepository.SaveAdministrator(member, role, isNewMember, isNewRole);
+    }
 
-        await memberRepository.Save(member, role, isNewMember, isNewRole);
+    private async Task<ApiError?> ValidateStaffRoles(Guid organizationId, IReadOnlyCollection<Guid>? roleIds)
+    {
+        if (roleIds == null) return ApiError.From(ErrorCode.SYS_BadRequest, "Choose access roles from this organization, or leave the list empty.");
+
+        var selectedIds = roleIds.Distinct().ToArray();
+        if (selectedIds.Length == 0) return null;
+
+        var roles = await memberRepository.FindRoles(organizationId, selectedIds);
+        if (roles.Count != selectedIds.Length)
+            return ApiError.From(ErrorCode.SYS_BadRequest, "Choose access roles from this organization.");
+
         return null;
     }
 

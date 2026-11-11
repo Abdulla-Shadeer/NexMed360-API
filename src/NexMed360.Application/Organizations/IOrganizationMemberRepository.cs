@@ -6,6 +6,8 @@ public interface IOrganizationMemberRepository
 {
     Task<OrganizationMember?> Find(Guid organizationId, string userId);
     Task<AccessRole?> FindRole(Guid organizationId, string name);
-    Task Save(OrganizationMember member, AccessRole role, bool isNewMember, bool isNewRole);
+    Task<List<AccessRole>> FindRoles(Guid organizationId, IReadOnlyCollection<Guid> roleIds);
+    Task Save(OrganizationMember member, IReadOnlyCollection<Guid> roleIds, bool isNewMember);
+    Task SaveAdministrator(OrganizationMember member, AccessRole role, bool isNewMember, bool isNewRole);
     Task<Location?> FindLocation(Guid organizationId, Guid locationId);
 }

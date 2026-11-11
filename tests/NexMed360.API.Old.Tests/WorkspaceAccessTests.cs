@@ -289,13 +289,16 @@ public class WorkspaceAccessTests
         await f.Context.SaveChangesAsync();
         f.Context.ChangeTracker.Clear();
         await f.Select(f.A);
+        var careRole = new AccessRole { OrganizationId = f.A.Id, Name = "Care team", Permissions = [Permissions.ClinicalRecordsRead] };
+        f.Context.AccessRoles.Add(careRole);
+        await f.Context.SaveChangesAsync();
         var account = new NexMed360Api.Dtos.User.ViewUserDto { Id = "other", PersonId = f.Other.PersonId.ToString(), Email = "other@example.test" };
         var service = new OrganizationService(new OrganizationRepository(f.Context), new ExistingAccount(account),
             new NoopRegistrationTransaction(), new PractitionerRoleRepository(f.Context),
             new OrganizationMemberRepository(f.Context), f.Access);
         var result = await service.AddPractitionerRole(new NexMed360Api.Dtos.PractitionerRole.CreatePractitionerRoleDto
         {
-            OrganizationId = f.A.Id.ToString(), RoleName = "Physician", Specialty = "General medicine",
+            OrganizationId = f.A.Id.ToString(), RoleName = "Physician", Specialty = "General medicine", AccessRoleIds = [careRole.Id],
             PersonalInformation = new() { FirstName = "Other", LastName = "Patient", Email = "other@example.test", Password = "Synthetic-password1!" }
         });
         Assert.True(result.IsSuccess);
@@ -317,13 +320,13 @@ public class WorkspaceAccessTests
         var target = child ? f.Child.Id : f.Root.Id;
         var roleCount = await f.Context.AccessRoles.CountAsync();
 
-        var result = await CreateStaff(f, auth, practitioner, target);
+        var role = await f.Context.AccessRoles.SingleAsync(row => row.Name == (practitioner ? "Clinician" : "Front office"));
+        var result = await CreateStaff(f, auth, practitioner, target, [role.Id]);
 
         Assert.True(result.IsSuccess);
         var member = await f.Context.OrganizationMembers.SingleAsync(row => row.UserId == "other");
         Assert.Equal(target, member.LocationId);
         Assert.Equal(roleCount, await f.Context.AccessRoles.CountAsync());
-        var role = await f.Context.AccessRoles.SingleAsync(row => row.Name == (practitioner ? "Clinician" : "Front office"));
         Assert.Equal(new[] { Permissions.PatientsRead }, role.Permissions);
         Assert.True(await f.Context.MemberRoleAssignments.AnyAsync(row => row.OrganizationMemberId == member.Id && row.AccessRoleId == role.Id));
         Assert.Equal(1, auth.RegistrationCalls);
@@ -381,7 +384,7 @@ public class WorkspaceAccessTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task LocationManagersCannotCreateSharedAccessRolesThroughStaffCreation(bool practitioner)
+    public async Task LocationManagersCanCreateStaffWithoutAccessRoleTemplates(bool practitioner)
     {
         using var f = new Fixture();
         await PrepareLocationManager(f, setupRoles: false);
@@ -390,10 +393,10 @@ public class WorkspaceAccessTests
 
         var result = await CreateStaff(f, auth, practitioner, f.Child.Id);
 
-        Assert.False(result.IsSuccess);
-        Assert.Equal(400, result.Error!.HttpStatus);
+        Assert.True(result.IsSuccess);
         Assert.Equal(roleCount, await f.Context.AccessRoles.CountAsync());
-        Assert.False(await f.Context.OrganizationMembers.IgnoreQueryFilters().AnyAsync(row => row.UserId == "other"));
+        var member = await f.Context.OrganizationMembers.SingleAsync(row => row.UserId == "other");
+        Assert.False(await f.Context.MemberRoleAssignments.AnyAsync(row => row.OrganizationMemberId == member.Id));
     }
 
     [Theory]
@@ -485,6 +488,139 @@ public class WorkspaceAccessTests
         Assert.Equal(0, auth.RegistrationCalls);
     }
 
+    [Fact]
+    public async Task InitialAdministratorAssignmentStillCreatesItsExplicitAdministrationAccess()
+    {
+        using var f = new Fixture();
+        f.Access.Select(new() { Key = WorkspaceModes.Platform, Mode = WorkspaceModes.Platform });
+        var service = new OrganizationService(new OrganizationRepository(f.Context), StaffAccount(f),
+            new NoopRegistrationTransaction(), new PractitionerRoleRepository(f.Context), new OrganizationMemberRepository(f.Context), f.Access);
+
+        var result = await service.AssignAdmin(new() { OrganizationId = f.A.Id.ToString(), Permissions = [] });
+
+        Assert.True(result.IsSuccess);
+        var member = await f.Context.OrganizationMembers.SingleAsync(row => row.UserId == "other");
+        var assignedRole = Assert.Single(await f.Context.MemberRoleAssignments.Where(row => row.OrganizationMemberId == member.Id).ToListAsync());
+        var role = await f.Context.AccessRoles.FindAsync(assignedRole.AccessRoleId);
+        Assert.Contains(Permissions.OrganizationsManage, role!.Permissions);
+        Assert.Contains(Permissions.MembersManage, role.Permissions);
+        Assert.Contains(Permissions.RolesManage, role.Permissions);
+        Assert.DoesNotContain(Permissions.ClinicalRecordsRead, role.Permissions);
+    }
+
+    [Theory]
+    [InlineData(false, "Member")]
+    [InlineData(true, "Nurse")]
+    [InlineData(true, "Radiologist")]
+    [InlineData(true, "Care assistant")]
+    [InlineData(true, "Doctor")]
+    public async Task StaffAndProfessionalTitlesDoNotGrantDefaultPermissions(bool practitioner, string title)
+    {
+        using var f = new Fixture();
+        await PrepareLocationManager(f);
+        var roleCount = await f.Context.AccessRoles.CountAsync();
+
+        var result = await CreateStaff(f, StaffAccount(f), practitioner, f.Child.Id, title: title);
+
+        Assert.True(result.IsSuccess);
+        var member = await f.Context.OrganizationMembers.SingleAsync(row => row.UserId == "other");
+        Assert.False(await f.Context.MemberRoleAssignments.AnyAsync(row => row.OrganizationMemberId == member.Id));
+        Assert.Equal(roleCount, await f.Context.AccessRoles.CountAsync());
+        Assert.All((await f.Scopes("other")).Where(row => row.OrganizationId == f.A.Id), row => Assert.Empty(row.Permissions));
+        if (practitioner)
+        {
+            var assignment = await f.Context.PractitionerRoles.SingleAsync(row => f.Context.Practitioners.Any(
+                person => person.Id == row.PractitionerId && person.PersonId == f.Other.PersonId));
+            Assert.Equal(title, assignment.RoleName);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StaffReceiveOnlyExplicitRolesEvenWhenTheManagerDoesNotHoldThoseGrants(bool practitioner)
+    {
+        using var f = new Fixture();
+        f.RoleA.Permissions = [Permissions.MembersManage];
+        f.Context.Update(f.RoleA);
+        var care = new AccessRole { OrganizationId = f.A.Id, Name = "Nursing", Permissions = [Permissions.ClinicalRecordsRead] };
+        f.Context.AccessRoles.Add(care);
+        await f.Context.SaveChangesAsync();
+        await f.Select(f.A);
+
+        var result = await CreateStaff(f, StaffAccount(f), practitioner, null, [care.Id, care.Id]);
+
+        Assert.True(result.IsSuccess);
+        var member = await f.Context.OrganizationMembers.SingleAsync(row => row.UserId == "other");
+        Assert.Equal(care.Id, Assert.Single(await f.Context.MemberRoleAssignments.Where(row => row.OrganizationMemberId == member.Id).ToListAsync()).AccessRoleId);
+        Assert.Equal(new[] { Permissions.ClinicalRecordsRead }, (await f.Scopes("other")).Single(row => row.Key == $"{WorkspaceModes.Work}:{f.A.Id}").Permissions);
+        Assert.Equal(new[] { Permissions.ClinicalRecordsRead }, (await f.Context.AccessRoles.FindAsync(care.Id))!.Permissions);
+        Assert.False(f.Access.Has(Permissions.ClinicalRecordsRead));
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task ForeignAndMissingRoleIdsAreRejectedBeforeAccountRegistration(bool practitioner, bool foreign)
+    {
+        using var f = new Fixture();
+        await f.Select(f.A);
+        var auth = StaffAccount(f);
+
+        var result = await CreateStaff(f, auth, practitioner, null, [foreign ? f.RoleB.Id : Guid.NewGuid()]);
+
+        Assert.Equal(400, result.Error!.HttpStatus);
+        Assert.Equal(0, auth.RegistrationCalls);
+        Assert.False(await f.Context.OrganizationMembers.AnyAsync(row => row.UserId == "other"));
+        Assert.False(await f.Context.Practitioners.AnyAsync(row => row.PersonId == f.Other.PersonId));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NullAccessRoleListsAreRejectedBeforeAccountRegistration(bool practitioner)
+    {
+        using var f = new Fixture();
+        await f.Select(f.A);
+        var auth = StaffAccount(f);
+        var service = new OrganizationService(new OrganizationRepository(f.Context), auth,
+            new NoopRegistrationTransaction(), new PractitionerRoleRepository(f.Context), new OrganizationMemberRepository(f.Context), f.Access);
+
+        var result = practitioner
+            ? await service.AddPractitionerRole(new() { OrganizationId = f.A.Id.ToString(), AccessRoleIds = null! })
+            : await service.AddOrganizationMember(new() { OrganizationId = f.A.Id.ToString(), AccessRoleIds = null! });
+
+        Assert.Equal(400, result.Error!.HttpStatus);
+        Assert.Equal(0, auth.RegistrationCalls);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AddingAnAssignmentPreservesExistingRolesAndAddsOnlySelectedRoles(bool addRole)
+    {
+        using var f = new Fixture();
+        var member = new OrganizationMember { OrganizationId = f.A.Id, UserId = "other" };
+        var existingRole = new AccessRole { OrganizationId = f.A.Id, Name = "Reception", Permissions = [Permissions.PatientsRead] };
+        var selectedRole = new AccessRole { OrganizationId = f.A.Id, Name = "Nursing", Permissions = [Permissions.ClinicalRecordsRead] };
+        f.Context.AddRange(member, existingRole, selectedRole,
+            new MemberRoleAssignment { OrganizationId = f.A.Id, OrganizationMemberId = member.Id, AccessRoleId = existingRole.Id });
+        await f.Context.SaveChangesAsync();
+        await f.Select(f.A);
+
+        var result = await CreateStaff(f, StaffAccount(f), true, f.Child.Id,
+            addRole ? [existingRole.Id, selectedRole.Id, selectedRole.Id] : []);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(member.Id, (await f.Context.OrganizationMembers.SingleAsync(row => row.UserId == "other")).Id);
+        var assignedIds = await f.Context.MemberRoleAssignments.Where(row => row.OrganizationMemberId == member.Id).Select(row => row.AccessRoleId).ToListAsync();
+        Assert.Contains(existingRole.Id, assignedIds);
+        Assert.Equal(addRole ? 2 : 1, assignedIds.Count);
+        Assert.Equal(addRole, assignedIds.Contains(selectedRole.Id));
+    }
+
     private static async Task PrepareLocationManager(Fixture f, bool setupRoles = true)
     {
         f.RoleA.Permissions = [Permissions.MembersManage, Permissions.RolesManage];
@@ -508,14 +644,14 @@ public class WorkspaceAccessTests
     });
 
     private static Task<Result<NexMed360Api.Dtos.User.ViewUserDto>> CreateStaff(
-        Fixture f, ExistingAccount auth, bool practitioner, Guid? locationId)
+        Fixture f, ExistingAccount auth, bool practitioner, Guid? locationId, List<Guid>? roleIds = null, string title = "Nurse")
     {
         var service = new OrganizationService(new OrganizationRepository(f.Context), auth,
             new NoopRegistrationTransaction(), new PractitionerRoleRepository(f.Context),
             new OrganizationMemberRepository(f.Context), f.Access);
         return practitioner
-            ? service.AddPractitionerRole(new() { OrganizationId = f.A.Id.ToString(), RoleName = "Nurse", LocationId = locationId })
-            : service.AddOrganizationMember(new() { OrganizationId = f.A.Id.ToString(), LocationId = locationId });
+            ? service.AddPractitionerRole(new() { OrganizationId = f.A.Id.ToString(), RoleName = title, LocationId = locationId, AccessRoleIds = roleIds ?? [] })
+            : service.AddOrganizationMember(new() { OrganizationId = f.A.Id.ToString(), LocationId = locationId, AccessRoleIds = roleIds ?? [] });
     }
 
     [Fact]

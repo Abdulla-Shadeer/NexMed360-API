@@ -11,6 +11,7 @@ namespace NexMed360Api.Dtos.PractitionerRole
         public string RoleName { get; set; } = "Practitioner";
         public string? Specialty { get; set; }
         public Guid? LocationId { get; set; }
+        public List<Guid> AccessRoleIds { get; set; } = [];
 
         [Required]
         public string OrganizationId { get; set; }

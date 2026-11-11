@@ -15,6 +15,7 @@ public class RepositoryQueryTranslationTests
     [InlineData("Members")]
     [InlineData("HasPermission")]
     [InlineData("MemberRoles")]
+    [InlineData("SelectedStaffRoles")]
     [InlineData("Appointment")]
     [InlineData("ClinicalRecord")]
     [InlineData("PractitionerRoles")]
@@ -33,6 +34,7 @@ public class RepositoryQueryTranslationTests
             "Members" => new AccessRepository(context).Members(),
             "HasPermission" => new OrganizationRepository(context).HasPermission(id, "staff", Permissions.MembersManage),
             "MemberRoles" => new AccessRepository(context).MemberRoles(id, Guid.NewGuid()),
+            "SelectedStaffRoles" => new OrganizationMemberRepository(context).FindRoles(id, [Guid.NewGuid()]),
             "Appointment" => new AppointmentRepository(context).FindReadable(id, "staff", [Permissions.EncountersStart]),
             "ClinicalRecord" => new ClinicalRecordRepository(context).FindReadable(id, "patient", false),
             "PractitionerRoles" => new PractitionerRoleRepository(context).Views([new PractitionerRole { Id = id }]),
