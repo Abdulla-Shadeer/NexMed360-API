@@ -88,14 +88,23 @@ public class OrganizationService(IOrganizationRepository orgRepo, IAuthService a
         var registrationResult = await RegisterStaff(organizationId, dto.PersonalInformation, UserRoles.PRACTITIONER);
         if (!registrationResult.IsSuccess) return registrationResult;
 
+        await practitionerRoles.LockAccount(registrationResult.Data!.Id);
+        var practitioner = await practitionerRoles.FindOrAddPractitioner(Guid.Parse(registrationResult.Data.PersonId));
+        var assignment = new PractitionerRole
+        {
+            OrganizationId = organizationId, PractitionerId = practitioner.Id, LocationId = dto.LocationId,
+            RoleName = dto.RoleName.Trim(), Specialty = dto.Specialty?.Trim() ?? ""
+        };
+        var existing = await practitionerRoles.GetAssignments(practitioner.Id, organizationId);
+        if (existing.Any(role => role.IsSameAssignmentAs(assignment)))
+            return ApiError.From(ErrorCode.SYS_DuplicateEntry, "This practitioner assignment already exists.", 409);
+
         var memberError = await AddMember(
-            new OrganizationMember { OrganizationId = organizationId, UserId = registrationResult.Data!.Id, LocationId = dto.LocationId },
+            new OrganizationMember { OrganizationId = organizationId, UserId = registrationResult.Data.Id, LocationId = dto.LocationId },
             dto.AccessRoleIds);
         if (memberError != null) return memberError;
 
-        var practitioner = await practitionerRoles.FindOrAddPractitioner(Guid.Parse(registrationResult.Data.PersonId));
-        await practitionerRoles.Add(
-            new PractitionerRole { OrganizationId = organizationId, PractitionerId = practitioner.Id, LocationId = dto.LocationId, RoleName = dto.RoleName, Specialty = dto.Specialty ?? "" });
+        await practitionerRoles.Add(assignment);
 
         await transaction.CommitAsync();
         return registrationResult;

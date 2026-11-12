@@ -11,4 +11,10 @@ public class PractitionerRole : Entity, IOrganizationOwned
     public DateOnly? StartDate { get; set; }
     public DateOnly? EndDate { get; set; }
     public bool IsActive { get; set; } = true;
+
+    public bool IsSameAssignmentAs(PractitionerRole other) =>
+        PractitionerId == other.PractitionerId && OrganizationId == other.OrganizationId && LocationId == other.LocationId
+        && string.Equals(RoleName.Trim(), other.RoleName.Trim(), StringComparison.OrdinalIgnoreCase)
+        && string.Equals(Specialty.Trim(), other.Specialty.Trim(), StringComparison.OrdinalIgnoreCase)
+        && StartDate == other.StartDate && EndDate == other.EndDate && IsActive == other.IsActive;
 }

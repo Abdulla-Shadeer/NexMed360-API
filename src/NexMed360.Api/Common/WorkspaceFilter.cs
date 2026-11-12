@@ -33,7 +33,7 @@ public sealed class WorkspaceFilter(WorkspaceService service, WorkspaceAccess ac
 
             if (workspace == null || !requiredAttribute.Modes.Contains(workspace.Mode)
                 || workspace.Mode == WorkspaceModes.Work && requiredAttribute.Permission != null && !requiredAttribute.Permission.Split(',').Any(workspace.Permissions.Contains)
-                || requiredAttribute.Assignment && !workspace.PractitionerRoleId.HasValue)
+                || requiredAttribute.Assignment && workspace.PractitionerRoleIds.Count == 0 && !workspace.PractitionerRoleId.HasValue)
             {
                 context.Result = new ObjectResult(Result<object>.Failure(ErrorCode.SYS_Unauthorized,
                     "You do not have access in this workspace. Choose another workspace or ask your administrator.", 403))

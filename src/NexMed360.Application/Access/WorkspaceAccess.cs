@@ -10,6 +10,7 @@ public sealed class WorkspaceAccess
     public Guid? OrganizationId => Current?.OrganizationId;
     public Guid? PatientId => Current?.PatientId;
     public Guid? PractitionerRoleId => Current?.PractitionerRoleId;
+    public bool CanUseAssignment(Guid id) => Current?.PractitionerRoleIds.Contains(id) == true || PractitionerRoleId == id;
     public bool HasLocationScope => Current?.LocationIds != null;
     public List<Guid> LocationIds => Current?.LocationIds ?? [];
     public bool Has(string permission) => Current?.Permissions.Contains(permission) == true;
@@ -21,8 +22,8 @@ public sealed class WorkspaceAccess
     }
     public void RequireAssignment(Guid assignmentId)
     {
-        if (IsSelected && PractitionerRoleId != assignmentId)
-            throw new UnauthorizedAccessException("Choose your current practitioner assignment.");
+        if (IsSelected && (Mode != WorkspaceModes.Work || !CanUseAssignment(assignmentId)))
+            throw new UnauthorizedAccessException("Choose one of your active practitioner assignments in this organization.");
     }
 }
 
@@ -35,6 +36,8 @@ public sealed class WorkspaceScope
     public Guid? OrganizationMemberId { get; set; }
     public Guid? PatientId { get; set; }
     public Guid? PractitionerRoleId { get; set; }
+    public List<Guid> PractitionerRoleIds { get; set; } = [];
+    public List<PractitionerAssignmentDto> PractitionerAssignments { get; set; } = [];
     public string? OrganizationName { get; set; }
     public List<Guid>? LocationIds { get; set; }
     public List<string> Permissions { get; set; } = [];
@@ -46,3 +49,5 @@ public sealed record AccessRoleDto(Guid Id, string Name, List<string> Permission
 public sealed record OrganizationMemberDto(Guid Id, string UserId, string Name, string? Email, bool IsActive,
     Guid? LocationId, List<Guid> AccessRoleIds);
 public sealed record LocationDto(Guid Id, string Name);
+
+public sealed record PractitionerAssignmentDto(Guid Id, string Name);

@@ -84,7 +84,7 @@ public class PatientService(IAuthService auth, IPatientRepository data, IRegistr
             return ApiError.From(ErrorCode.SYS_InvalidGuid, "Invalid 'patientId' format received!");
         if (!await data.PatientExists(patientId))
             return ApiError.From(ErrorCode.USR_NotFound, $"Patient with id '{patientId}' not found!");
-        if (workspace?.IsSelected == true && (role.Id != workspace.PractitionerRoleId
+        if (workspace?.IsSelected == true && (!workspace.CanUseAssignment(role.Id)
             || dto.Prescriptions?.Count > 0 && !workspace.Has(Permissions.PrescriptionsIssue)))
             return ApiError.From(ErrorCode.SYS_Unauthorized, "Choose your current assignment and check your prescription permission.", 403);
         var prescriptions = dto.Prescriptions?.Select(value => new Prescription

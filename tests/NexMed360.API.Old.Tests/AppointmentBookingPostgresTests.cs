@@ -272,6 +272,61 @@ public class AppointmentBookingPostgresTests
         }
     }
 
+    [Fact(Skip = SkipReason, SkipUnless = nameof(HasPostgresConfiguration))]
+    public async Task CompetingPractitionerCreationsReturnOneSuccessAndOneDuplicate()
+    {
+        var options = await PrepareDatabase();
+        var account = new ApplicationUser { UserName = $"staff-{Guid.NewGuid():N}" };
+        var organization = new Organization { Name = "Synthetic duplicate check" };
+        await using (var setup = new ApplicationDbContext(options))
+        {
+            setup.AddRange(account, organization, new OrganizationMember { UserId = account.Id, OrganizationId = organization.Id });
+            await setup.SaveChangesAsync();
+        }
+        var barrier = new BothAccountLocksReady();
+        var competingOptions = new DbContextOptionsBuilder<ApplicationDbContext>(options).AddInterceptors(barrier).Options;
+        await using var first = new ApplicationDbContext(competingOptions);
+        await using var second = new ApplicationDbContext(competingOptions);
+        var profile = new ViewUserDto { Id = account.Id, PersonId = account.PersonId.ToString() };
+        OrganizationService CreateService(ApplicationDbContext context) => new(new OrganizationRepository(context),
+            new RegisteredAccount(profile), new RegistrationTransactions(context), new PractitionerRoleRepository(context), new OrganizationMemberRepository(context));
+        NexMed360Api.Dtos.PractitionerRole.CreatePractitionerRoleDto Request() => new()
+        {
+            OrganizationId = organization.Id.ToString(), RoleName = "Nurse", Specialty = "Ward",
+            PersonalInformation = new() { Email = "synthetic@example.test" }
+        };
+        var results = await Task.WhenAll(CreateService(first).AddPractitionerRole(Request()), CreateService(second).AddPractitionerRole(Request()));
+        Assert.Equal(2, barrier.Count);
+        Assert.Single(results.Where(result => result.IsSuccess));
+        Assert.Equal(409, Assert.Single(results.Where(result => !result.IsSuccess)).Error!.HttpStatus);
+        await using var check = new ApplicationDbContext(options);
+        Assert.Single(await check.PractitionerRoles.Where(role => role.OrganizationId == organization.Id).ToListAsync());
+    }
+
+    private sealed class RegisteredAccount(ViewUserDto user) : NexMed360Api.Interfaces.Services.IAuthService
+    {
+        public Task<ViewUserDto?> FindUserByEmail(string email) => Task.FromResult<ViewUserDto?>(user);
+        public Task<Result<ViewUserDto>> RegisterUser(RegisterUserDto dto, string role) => throw new NotSupportedException();
+        public Task<Result<LoginResponseDto>> LoginAsync(LoginUserDto dto) => throw new NotSupportedException();
+    }
+
+    private sealed class BothAccountLocksReady : DbCommandInterceptor
+    {
+        private readonly TaskCompletionSource ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int count;
+        public int Count => count;
+        public override async ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+            System.Data.Common.DbCommand command, CommandEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.Contains("FOR UPDATE"))
+            {
+                if (Interlocked.Increment(ref count) == 2) ready.TrySetResult();
+                await ready.Task.WaitAsync(TimeSpan.FromSeconds(20), cancellationToken);
+            }
+            return result;
+        }
+    }
+
     private static async Task<DbContextOptions<ApplicationDbContext>> PrepareDatabase()
     {
         var connection = new NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable(ConnectionVariable)!);

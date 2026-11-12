@@ -94,6 +94,107 @@ public class WorkspaceAccessTests
     }
 
     [Fact]
+    public async Task MultipleRolesAndDuplicateProfessionalAssignmentsStillProduceOneWorkModePerOrganization()
+    {
+        using var f = new Fixture();
+        var extra = new AccessRole { OrganizationId = f.A.Id, Name = "Nurse access", Permissions = [Permissions.ClinicalRecordsRead, Permissions.PatientsRead] };
+        var duplicate = new PractitionerRole { OrganizationId = f.A.Id, PractitionerId = f.AssignmentA.PractitionerId, LocationId = f.AssignmentA.LocationId };
+        f.Context.AddRange(extra, duplicate, new MemberRoleAssignment { OrganizationId = f.A.Id, OrganizationMemberId = f.MemberA.Id, AccessRoleId = extra.Id });
+        await f.Context.SaveChangesAsync();
+        var options = await f.Workspaces.List("staff");
+        Assert.Equal(3, options.Count);
+        Assert.Single(options.Where(row => row.Key == $"{WorkspaceModes.Work}:{f.A.Id}"));
+        Assert.All(options.Where(row => row.Mode == WorkspaceModes.Work), row => Assert.Equal(2, row.Key.Split(':').Length));
+        var scope = (await f.Workspaces.Resolve("staff", $"{WorkspaceModes.Work}:{f.A.Id}"))!;
+        Assert.Equal(scope.Permissions.Distinct().Count(), scope.Permissions.Count);
+        Assert.Equal(2, scope.PractitionerAssignments.Count);
+        Assert.Equal(3, scope.PractitionerRoleIds.Count);
+        Assert.True(f.Access.Current == null);
+        Assert.Null(await f.Workspaces.Resolve("staff", $"{WorkspaceModes.Work}:{f.A.Id}:{f.AssignmentA.Id}"));
+    }
+
+    [Fact]
+    public async Task WorkModeCombinesOnlyThatOrganizationsGrantsAndPatientModeHasNoStaffGrants()
+    {
+        using var f = new Fixture();
+        f.RoleA.Permissions = [Permissions.ClinicalRecordsRead];
+        f.Context.Update(f.RoleA);
+        var extra = new AccessRole { OrganizationId = f.A.Id, Name = "Writer", Permissions = [Permissions.ClinicalRecordsRead, Permissions.ClinicalRecordsWrite] };
+        f.Context.AddRange(extra, new MemberRoleAssignment { OrganizationId = f.A.Id, OrganizationMemberId = f.MemberA.Id, AccessRoleId = extra.Id });
+        await f.Context.SaveChangesAsync();
+        var work = (await f.Workspaces.Resolve("staff", $"{WorkspaceModes.Work}:{f.A.Id}"))!;
+        Assert.Equal(new[] { Permissions.ClinicalRecordsRead, Permissions.ClinicalRecordsWrite }, work.Permissions);
+        Assert.DoesNotContain(Permissions.PatientsRead, work.Permissions);
+        var patient = (await f.Workspaces.Resolve("staff", WorkspaceModes.Patient))!;
+        Assert.Empty(patient.Permissions);
+        Assert.Empty(patient.PractitionerRoleIds);
+        Assert.Empty(patient.PractitionerAssignments);
+    }
+
+    [Fact]
+    public async Task DuplicateLegacyAssignmentsUseOneAutomaticClinicalChoiceWithoutDeletingHistory()
+    {
+        using var f = new Fixture();
+        f.OutsideAssignment.IsActive = false;
+        f.Context.Update(f.OutsideAssignment);
+        var duplicate = new PractitionerRole { OrganizationId = f.A.Id, PractitionerId = f.AssignmentA.PractitionerId, LocationId = f.AssignmentA.LocationId };
+        f.Context.Add(duplicate); await f.Context.SaveChangesAsync();
+        var scope = (await f.Workspaces.Resolve("staff", $"{WorkspaceModes.Work}:{f.A.Id}"))!;
+        Assert.Single(scope.PractitionerAssignments);
+        Assert.NotNull(scope.PractitionerRoleId);
+        Assert.Equal(2, scope.PractitionerRoleIds.Count);
+        Assert.Equal(3, await f.Context.PractitionerRoles.CountAsync(row => row.OrganizationId == f.A.Id));
+        f.Access.Select(scope);
+        f.Access.RequireAssignment(duplicate.Id);
+        f.Access.RequireAssignment(f.AssignmentA.Id);
+    }
+
+    [Fact]
+    public async Task APatientWithMembershipInOneOrganizationSeesExactlyTwoModesRegardlessOfRoleCount()
+    {
+        using var f = new Fixture();
+        var member = new OrganizationMember { OrganizationId = f.A.Id, UserId = "other" };
+        f.Context.AddRange(member, new MemberRoleAssignment { OrganizationId = f.A.Id, OrganizationMemberId = member.Id, AccessRoleId = f.RoleA.Id });
+        await f.Context.SaveChangesAsync();
+        var choices = await f.Workspaces.List("other");
+        Assert.Equal(2, choices.Count);
+        Assert.Contains(choices, row => row.Mode == WorkspaceModes.Patient);
+        Assert.Contains(choices, row => row.Key == $"{WorkspaceModes.Work}:{f.A.Id}" && row.Name == "Organization A — Work mode");
+    }
+
+    [Fact]
+    public async Task RepeatingPractitionerCreationRejectsDuplicatesWithoutAddingGrants()
+    {
+        using var f = new Fixture();
+        await f.Select(f.A);
+        var auth = StaffAccount(f);
+        Assert.True((await CreateStaff(f, auth, true, null)).IsSuccess);
+        var result = await CreateStaff(f, auth, true, null, [f.RoleA.Id], " nurse ");
+        Assert.Equal(409, result.Error!.HttpStatus);
+        var member = await f.Context.OrganizationMembers.SingleAsync(row => row.UserId == "other");
+        Assert.Empty(await f.Context.MemberRoleAssignments.Where(row => row.OrganizationMemberId == member.Id).ToListAsync());
+        Assert.Single(await f.Context.PractitionerRoles.Where(row => f.Context.Practitioners.Any(person => person.Id == row.PractitionerId && person.PersonId == f.Other.PersonId)).ToListAsync());
+    }
+
+    [Fact]
+    public async Task WorkModeAuthorizesOnlyOwnedActiveAssignmentsWithinMembershipLocations()
+    {
+        using var f = new Fixture();
+        f.MemberA.LocationId = f.Root.Id;
+        f.Context.Update(f.MemberA); await f.Context.SaveChangesAsync();
+        await f.Select(f.A);
+        Assert.True(f.Access.CanUseAssignment(f.AssignmentA.Id));
+        Assert.False(f.Access.CanUseAssignment(f.OutsideAssignment.Id));
+        Assert.False(f.Access.CanUseAssignment(f.AssignmentB.Id));
+        Assert.Throws<UnauthorizedAccessException>(() => f.Access.RequireAssignment(f.OutsideAssignment.Id));
+        f.AssignmentA.IsActive = false; f.Context.Update(f.AssignmentA); await f.Context.SaveChangesAsync();
+        await f.Select(f.A);
+        Assert.False(f.Access.CanUseAssignment(f.AssignmentA.Id));
+        Assert.Empty(f.Access.Current!.PractitionerAssignments);
+        Assert.Contains(Permissions.MembersManage, f.Access.Current.Permissions);
+    }
+
+    [Fact]
     public async Task OwnPatientDetailsUseThePatientInTheTrustedWorkspace()
     {
         using var f = new Fixture();
@@ -114,8 +215,9 @@ public class WorkspaceAccessTests
         Assert.Contains(choices, row => row.Key == WorkspaceModes.Patient && row.PatientId == f.Own.Id);
         Assert.Contains(choices, row => row.OrganizationId == f.A.Id && row.Permissions.Contains(Permissions.ClinicalRecordsRead));
         Assert.Contains(choices, row => row.OrganizationId == f.B.Id && !row.Permissions.Contains(Permissions.ClinicalRecordsRead));
-        Assert.Contains(choices, row => row.PractitionerRoleId == f.AssignmentA.Id);
-        Assert.Contains(choices, row => row.PractitionerRoleId == f.AssignmentB.Id);
+        Assert.Equal(3, choices.Count);
+        Assert.Contains(choices.Single(row => row.OrganizationId == f.A.Id).PractitionerRoleIds, id => id == f.AssignmentA.Id);
+        Assert.Contains(choices.Single(row => row.OrganizationId == f.B.Id).PractitionerRoleIds, id => id == f.AssignmentB.Id);
     }
 
     [Fact]
@@ -416,7 +518,7 @@ public class WorkspaceAccessTests
             var assignment = await f.Context.PractitionerRoles.SingleAsync(row => f.Context.Practitioners.Any(
                 person => person.Id == row.PractitionerId && person.PersonId == f.Other.PersonId));
             Assert.Equal(target, assignment.LocationId);
-            var scope = await f.Workspaces.Resolve("other", $"{WorkspaceModes.Work}:{f.A.Id}:{assignment.Id}");
+            var scope = await f.Workspaces.Resolve("other", $"{WorkspaceModes.Work}:{f.A.Id}");
             Assert.Contains(target, scope!.LocationIds!);
             Assert.DoesNotContain(f.Elsewhere.Id, scope.LocationIds!);
         }
@@ -893,7 +995,7 @@ public class WorkspaceAccessTests
     public async Task RevokedMembershipGrantsAssignmentsAndAccountStatusAreRechecked()
     {
         using var f = new Fixture();
-        var key = $"{WorkspaceModes.Work}:{f.A.Id}:{f.AssignmentA.Id}";
+        var key = $"{WorkspaceModes.Work}:{f.A.Id}";
         Assert.NotNull(await f.Workspaces.Resolve("staff", key));
         var member = await f.Context.OrganizationMembers.FindAsync(f.MemberA.Id);
         member!.IsActive = false;
@@ -907,7 +1009,7 @@ public class WorkspaceAccessTests
         var assignment = await f.Context.PractitionerRoles.FindAsync(f.AssignmentA.Id);
         assignment!.EndDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1);
         await f.Context.SaveChangesAsync();
-        Assert.Null(await f.Workspaces.Resolve("staff", key));
+        Assert.DoesNotContain(f.AssignmentA.Id, (await f.Workspaces.Resolve("staff", key))!.PractitionerRoleIds);
         var user = await f.Context.Users.FindAsync("staff");
         user!.IsActive = false;
         await f.Context.SaveChangesAsync();
@@ -951,7 +1053,7 @@ public class WorkspaceAccessTests
             called = true;
             return Task.FromResult(new ActionExecutedContext(action, [], new object()));
         });
-        var expected = choice == "a" && !assignment;
+        var expected = choice == "a";
         Assert.Equal(expected, called);
         if (!expected) Assert.Equal(403, Assert.IsType<ObjectResult>(executing.Result).StatusCode);
     }
@@ -1092,8 +1194,16 @@ public class WorkspaceAccessTests
             Workspaces = new(new WorkspaceRepository(Context));
         }
 
-        public async Task Select(Organization organization, PractitionerRole? assignment = null) => Access.Select(
-            (await Scopes("staff")).Single(row => row.Key == $"{WorkspaceModes.Work}:{organization.Id}" + (assignment == null ? "" : $":{assignment.Id}")));
+        public async Task Select(Organization organization, PractitionerRole? assignment = null)
+        {
+            var scope = (await Workspaces.Resolve("staff", $"{WorkspaceModes.Work}:{organization.Id}"))!;
+            if (assignment != null)
+            {
+                Assert.Contains(assignment.Id, scope.PractitionerRoleIds);
+                scope.PractitionerRoleId = assignment.Id;
+            }
+            Access.Select(scope);
+        }
         public void Dispose() => Context.Dispose();
     }
 }

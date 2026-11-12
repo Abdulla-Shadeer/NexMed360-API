@@ -39,7 +39,8 @@ public class Phase1ModelTests
         var reusedPatient = await new PatientRepository(context).Add(new Patient { PersonId = person.Id });
         Assert.Equal(patient.Id, reusedPatient.Id);
         var choices = await new WorkspaceRepository(context).List(user.Id);
-        Assert.Equal(2, choices.Count(row => row.Key.StartsWith(WorkspaceModes.Work + ":") && row.Key.Split(':').Length == 3));
+        Assert.Equal(3, choices.Count);
+        Assert.DoesNotContain(choices, row => row.Key.Split(':').Length == 3);
         Assert.Equal(2, choices.Count(row => row.Key.StartsWith(WorkspaceModes.Work + ":") && row.Key.Split(':').Length == 2));
         var ownPatient = await new WorkspaceRepository(context).Resolve(user.Id, WorkspaceModes.Patient);
         Assert.Equal(patient.Id, ownPatient!.PatientId);

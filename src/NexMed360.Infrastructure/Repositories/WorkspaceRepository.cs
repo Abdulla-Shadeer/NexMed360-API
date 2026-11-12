@@ -16,8 +16,8 @@ public sealed class WorkspaceRepository(ApplicationDbContext context) : IWorkspa
 
         List<WorkspaceOptionDto> result = [];
         if (await context.Patients.IgnoreQueryFilters().AnyAsync(row => row.PersonId == user.PersonId))
-            result.Add(new(WorkspaceModes.Patient, "My patient account", WorkspaceModes.Patient));
-        if (user.IsPlatformAdmin) result.Add(new(WorkspaceModes.Platform, "Platform administration", WorkspaceModes.Platform));
+            result.Add(new(WorkspaceModes.Patient, "Patient mode", WorkspaceModes.Patient));
+        if (user.IsPlatformAdmin) result.Add(new(WorkspaceModes.Platform, "Platform Admin mode", WorkspaceModes.Platform));
 
         // Workspace choices must be found before a workspace filter can be selected.
         var memberQuery =
@@ -28,27 +28,8 @@ public sealed class WorkspaceRepository(ApplicationDbContext context) : IWorkspa
 
         var memberDetails = await memberQuery.ToListAsync();
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var assignmentQuery =
-            from role in context.PractitionerRoles.IgnoreQueryFilters().AsNoTracking()
-            join practitioner in context.Practitioners on role.PractitionerId equals practitioner.Id
-            where practitioner.PersonId == user.PersonId && role.IsActive
-                && (!role.StartDate.HasValue || role.StartDate <= today)
-                && (!role.EndDate.HasValue || role.EndDate >= today)
-            select role;
-
-        var assignments = await assignmentQuery.ToListAsync();
-
         foreach (var details in memberDetails)
-        {
-            var member = details.Member;
-            result.Add(new($"{WorkspaceModes.Work}:{member.OrganizationId}", Name(details.OrganizationName, null), WorkspaceModes.Work));
-            var locations = member.LocationId.HasValue ? await Locations(member.OrganizationId) : [];
-            var scope = member.LocationId.HasValue ? Descendants(locations, member.LocationId.Value) : null;
-            foreach (var assignment in assignments.Where(role => role.OrganizationId == member.OrganizationId
-                && (scope == null || role.LocationId.HasValue && scope.Contains(role.LocationId.Value))))
-                result.Add(new($"{WorkspaceModes.Work}:{member.OrganizationId}:{assignment.Id}", Name(details.OrganizationName, assignment), WorkspaceModes.Work));
-        }
+            result.Add(new($"{WorkspaceModes.Work}:{details.Member.OrganizationId}", $"{details.OrganizationName} — Work mode", WorkspaceModes.Work));
 
         return result;
     }
@@ -62,19 +43,13 @@ public sealed class WorkspaceRepository(ApplicationDbContext context) : IWorkspa
         if (key == WorkspaceModes.Patient)
         {
             var patientId = await context.Patients.IgnoreQueryFilters().Where(row => row.PersonId == user.PersonId).Select(row => (Guid?)row.Id).FirstOrDefaultAsync();
-            return patientId.HasValue ? new() { Key = key, Name = "My patient account", Mode = WorkspaceModes.Patient, PatientId = patientId } : null;
+            return patientId.HasValue ? new() { Key = key, Name = "Patient mode", Mode = WorkspaceModes.Patient, PatientId = patientId } : null;
         }
         if (key == WorkspaceModes.Platform)
-            return user.IsPlatformAdmin ? new() { Key = key, Name = "Platform administration", Mode = WorkspaceModes.Platform } : null;
+            return user.IsPlatformAdmin ? new() { Key = key, Name = "Platform Admin mode", Mode = WorkspaceModes.Platform } : null;
 
         var parts = key.Split(':');
-        if (parts.Length is not (2 or 3) || parts[0] != WorkspaceModes.Work || !Guid.TryParse(parts[1], out var organizationId)) return null;
-        Guid? assignmentId = null;
-        if (parts.Length == 3)
-        {
-            if (!Guid.TryParse(parts[2], out var id)) return null;
-            assignmentId = id;
-        }
+        if (parts.Length != 2 || parts[0] != WorkspaceModes.Work || !Guid.TryParse(parts[1], out var organizationId)) return null;
 
         // Resolve fresh grants across filters; every read is tied to this account and organization.
         var member = await context.OrganizationMembers.IgnoreQueryFilters().AsNoTracking()
@@ -86,23 +61,24 @@ public sealed class WorkspaceRepository(ApplicationDbContext context) : IWorkspa
 
         var locations = await Locations(organizationId);
         var scope = member.LocationId.HasValue ? Descendants(locations, member.LocationId.Value) : null;
-        PractitionerRole? assignment = null;
-        if (assignmentId.HasValue)
-        {
-            var today = DateOnly.FromDateTime(DateTime.UtcNow);
-            var assignmentQuery =
-                from role in context.PractitionerRoles.IgnoreQueryFilters().AsNoTracking()
-                join practitioner in context.Practitioners on role.PractitionerId equals practitioner.Id
-                where role.Id == assignmentId && role.OrganizationId == organizationId && role.IsActive
-                    && practitioner.PersonId == user.PersonId
-                    && (!role.StartDate.HasValue || role.StartDate <= today)
-                    && (!role.EndDate.HasValue || role.EndDate >= today)
-                select role;
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var assignmentQuery =
+            from role in context.PractitionerRoles.IgnoreQueryFilters().AsNoTracking()
+            join practitioner in context.Practitioners on role.PractitionerId equals practitioner.Id
+            where practitioner.PersonId == user.PersonId && role.OrganizationId == organizationId && role.IsActive
+                && (!role.StartDate.HasValue || role.StartDate <= today)
+                && (!role.EndDate.HasValue || role.EndDate >= today)
+            select role;
 
-            assignment = await assignmentQuery.FirstOrDefaultAsync();
-            if (assignment == null || scope != null && (!assignment.LocationId.HasValue || !scope.Contains(assignment.LocationId.Value))) return null;
-            if (assignment.LocationId.HasValue) scope = Descendants(locations, assignment.LocationId.Value);
-        }
+        var assignments = (await assignmentQuery.ToListAsync())
+            .Where(role => scope == null || role.LocationId.HasValue && scope.Contains(role.LocationId.Value)).ToList();
+
+        // Old duplicate rows keep their history, but need only one clinical choice.
+        var choices = assignments.OrderBy(role => role.Id).DistinctBy(role => new
+        {
+            role.LocationId, Name = role.RoleName.Trim().ToUpperInvariant(),
+            Specialty = role.Specialty.Trim().ToUpperInvariant(), role.StartDate, role.EndDate
+        }).Select(role => new PractitionerAssignmentDto(role.Id, AssignmentName(role, locations))).ToList();
 
         var grantQuery =
             from roleAssignment in context.MemberRoleAssignments.IgnoreQueryFilters()
@@ -116,8 +92,9 @@ public sealed class WorkspaceRepository(ApplicationDbContext context) : IWorkspa
 
         return new()
         {
-            Key = key, Name = Name(organization.Name, assignment), Mode = WorkspaceModes.Work, OrganizationId = organizationId,
-            OrganizationName = organization.Name, OrganizationMemberId = member.Id, PractitionerRoleId = assignment?.Id,
+            Key = key, Name = $"{organization.Name} — Work mode", Mode = WorkspaceModes.Work, OrganizationId = organizationId,
+            OrganizationName = organization.Name, OrganizationMemberId = member.Id, PractitionerRoleId = choices.Count == 1 ? choices[0].Id : null,
+            PractitionerAssignments = choices, PractitionerRoleIds = assignments.Select(role => role.Id).ToList(),
             LocationIds = scope, Permissions = grants.SelectMany(permissions => permissions)
                 .Distinct().OrderBy(value => value).ToList()
         };
@@ -126,8 +103,14 @@ public sealed class WorkspaceRepository(ApplicationDbContext context) : IWorkspa
     private Task<List<Location>> Locations(Guid organizationId) => context.Locations.IgnoreQueryFilters().AsNoTracking()
         .Where(row => row.OrganizationId == organizationId).ToListAsync();
 
-    private static string Name(string organization, PractitionerRole? assignment) => organization +
-        (assignment == null ? " — Organization work" : $" — {assignment.RoleName} ({assignment.Specialty})");
+    private static string AssignmentName(PractitionerRole role, List<Location> locations)
+    {
+        var name = role.RoleName;
+        if (!string.IsNullOrWhiteSpace(role.Specialty)) name += $" ({role.Specialty})";
+        var location = locations.FirstOrDefault(row => row.Id == role.LocationId);
+        if (location != null) name += $" — {location.Name}";
+        return name;
+    }
 
     private static List<Guid> Descendants(List<Location> locations, Guid root)
     {

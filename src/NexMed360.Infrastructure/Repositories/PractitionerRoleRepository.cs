@@ -7,6 +7,19 @@ namespace NexMed360.Infrastructure.Repositories;
 
 public class PractitionerRoleRepository(ApplicationDbContext context) : IPractitionerRoleRepository
 {
+    public async Task LockAccount(string userId)
+    {
+        if (!context.Database.IsNpgsql()) return;
+        if (context.Database.CurrentTransaction == null)
+            throw new InvalidOperationException("Practitioner creation needs a registration transaction.");
+
+        // Hold the account row until commit so repeated requests check in sequence.
+        await context.Database.ExecuteSqlInterpolatedAsync($"""SELECT 1 FROM "AspNetUsers" WHERE "Id" = {userId} FOR UPDATE""");
+    }
+
+    public Task<List<PractitionerRole>> GetAssignments(Guid practitionerId, Guid organizationId) =>
+        context.PractitionerRoles.IgnoreQueryFilters().Where(role => role.PractitionerId == practitionerId && role.OrganizationId == organizationId).ToListAsync();
+
     public async Task<PractitionerRole?> Add(PractitionerRole row)
     {
         context.PractitionerRoles.Add(row);
