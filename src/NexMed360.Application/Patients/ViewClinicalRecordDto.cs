@@ -1,4 +1,4 @@
-﻿namespace NexMed360Api.Dtos.ClinicalRecord;
+namespace NexMed360Api.Dtos.ClinicalRecord;
 
 public class ViewClinicalRecordDto
 {
@@ -6,6 +6,9 @@ public class ViewClinicalRecordDto
     public string PatientName { get; set; }
     public string PractitionerName { get; set; }
     public string OrganizationName { get; set; }
+    public Guid OrganizationId { get; set; }
+    public bool IsShared { get; set; }
+    public bool IsPatientVisible { get; set; }
     public DateTime VisitDate { get; set; }
     public string Diagnosis { get; set; }
     public string? PractitionerNotes { get; set; }

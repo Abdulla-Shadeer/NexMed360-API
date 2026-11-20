@@ -198,7 +198,7 @@ public class WorkspaceAccessTests
     public async Task OwnPatientDetailsUseThePatientInTheTrustedWorkspace()
     {
         using var f = new Fixture();
-        var service = new PatientService(null!, new PatientRepository(f.Context), null!, new ClinicalRecordRepository(f.Context), f.Access);
+        var service = new PatientService(null!, new PatientRepository(f.Context), null!, new ClinicalRecordRepository(f.Context), new PractitionerRoleRepository(f.Context), f.Access);
         Assert.False((await service.GetOwnPatient()).IsSuccess);
         f.Access.Select((await f.Workspaces.Resolve("staff", WorkspaceModes.Patient))!);
         var response = await service.GetOwnPatient();
@@ -221,7 +221,7 @@ public class WorkspaceAccessTests
     }
 
     [Fact]
-    public async Task StaffQueriesHideOtherOrganizationsAndUnregisteredPatients()
+    public async Task StaffCanFindGlobalPatientsButClinicalAndAppointmentDataStayScoped()
     {
         using var f = new Fixture();
         await f.Select(f.A);
@@ -229,7 +229,7 @@ public class WorkspaceAccessTests
         Assert.All(await f.Context.ClinicalRecords.ToListAsync(), row => Assert.Equal(f.A.Id, row.OrganizationId));
         Assert.All(await f.Context.PractitionerSchedules.ToListAsync(), row => Assert.Equal(f.A.Id, row.OrganizationId));
         Assert.All(await f.Context.AccessRoles.ToListAsync(), row => Assert.Equal(f.A.Id, row.OrganizationId));
-        Assert.DoesNotContain(await f.Context.Patients.ToListAsync(), row => row.Id == f.Unregistered.Id);
+        Assert.Contains(await f.Context.Patients.ToListAsync(), row => row.Id == f.Unregistered.Id);
         Assert.Null(await new ClinicalRecordRepository(f.Context).FindReadable(f.RecordB.Id, "staff", true));
         Assert.Null(await new AppointmentRepository(f.Context).FindReadable(f.AppointmentB.Id, "staff", [Permissions.AppointmentsManage]));
     }
@@ -275,7 +275,7 @@ public class WorkspaceAccessTests
         using var f = new Fixture();
         await f.Select(f.A, f.AssignmentA);
         f.Access.Current!.Permissions.Remove(Permissions.PrescriptionsIssue);
-        var service = new PatientService(null!, new PatientRepository(f.Context), null!, new ClinicalRecordRepository(f.Context), f.Access);
+        var service = new PatientService(null!, new PatientRepository(f.Context), null!, new ClinicalRecordRepository(f.Context), new PractitionerRoleRepository(f.Context), f.Access);
         var result = await service.AddToClinicalRecords(new AddClinicalRecordDto
         {
             PatientId = f.Own.Id.ToString(), PractitionerRoleId = f.AssignmentA.Id, Diagnosis = "Test",
@@ -294,7 +294,7 @@ public class WorkspaceAccessTests
     {
         using var f = new Fixture();
         await f.Select(f.A, f.AssignmentA);
-        var service = new PatientService(null!, new PatientRepository(f.Context), null!, new ClinicalRecordRepository(f.Context), f.Access);
+        var service = new PatientService(null!, new PatientRepository(f.Context), null!, new ClinicalRecordRepository(f.Context), new PractitionerRoleRepository(f.Context), f.Access);
         var result = await service.AddToClinicalRecords(new AddClinicalRecordDto
         {
             PatientId = f.Own.Id.ToString(), PractitionerRoleId = f.AssignmentA.Id, Diagnosis = "New synthetic record"
@@ -320,7 +320,7 @@ public class WorkspaceAccessTests
         await f.Context.SaveChangesAsync();
         f.Context.ChangeTracker.Clear();
         await f.Select(f.A, f.AssignmentA);
-        var service = new PatientService(null!, new PatientRepository(f.Context), null!, new ClinicalRecordRepository(f.Context), f.Access);
+        var service = new PatientService(null!, new PatientRepository(f.Context), null!, new ClinicalRecordRepository(f.Context), new PractitionerRoleRepository(f.Context), f.Access);
         var before = DateTime.UtcNow;
 
         var result = await service.AddToClinicalRecords(new()
@@ -351,18 +351,19 @@ public class WorkspaceAccessTests
     }
 
     [Fact]
-    public async Task DirectClinicalCareDoesNotOpenAnUnregisteredPatient()
+    public async Task DirectClinicalCareCanCreateAnOwnOrganizationRecordForAGlobalPatient()
     {
         using var f = new Fixture();
         await f.Select(f.A, f.AssignmentA);
         var count = await f.Context.ClinicalRecords.IgnoreQueryFilters().CountAsync();
-        var service = new PatientService(null!, new PatientRepository(f.Context), null!, new ClinicalRecordRepository(f.Context), f.Access);
+        var service = new PatientService(null!, new PatientRepository(f.Context), null!, new ClinicalRecordRepository(f.Context), new PractitionerRoleRepository(f.Context), f.Access);
         var result = await service.AddToClinicalRecords(new()
         {
-            PatientId = f.Unregistered.Id.ToString(), PractitionerRoleId = f.AssignmentA.Id, Diagnosis = "Not permitted"
+            PatientId = f.Unregistered.Id.ToString(), PractitionerRoleId = f.AssignmentA.Id, Diagnosis = "Care for an existing global patient"
         }, "staff");
-        Assert.Equal(404, result.Error!.HttpStatus);
-        Assert.Equal(count, await f.Context.ClinicalRecords.IgnoreQueryFilters().CountAsync());
+        Assert.True(result.IsSuccess);
+        Assert.Equal(f.A.Id, result.Data!.OrganizationId);
+        Assert.Equal(count + 1, await f.Context.ClinicalRecords.IgnoreQueryFilters().CountAsync());
     }
 
     [Fact]
@@ -373,7 +374,7 @@ public class WorkspaceAccessTests
         var appointment = await f.Context.Appointments.SingleAsync(row => row.PatientId == f.Own.Id);
         var status = appointment.Status;
         var schedules = await f.Context.PractitionerSchedules.CountAsync();
-        var service = new PatientService(null!, new PatientRepository(f.Context), null!, new ClinicalRecordRepository(f.Context), f.Access);
+        var service = new PatientService(null!, new PatientRepository(f.Context), null!, new ClinicalRecordRepository(f.Context), new PractitionerRoleRepository(f.Context), f.Access);
         var result = await service.AddToClinicalRecords(new()
         {
             PatientId = f.Own.Id.ToString(), PractitionerRoleId = f.AssignmentA.Id, Diagnosis = "Independent record"

@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace NexMed360Api.Dtos.ClinicalRecord;
 
@@ -12,6 +12,7 @@ public class AddClinicalRecordDto
     [Required]
     public string Diagnosis { get; set; }
     public string? PractitionerNotes { get; set; }
+    public bool IsPatientVisible { get; set; } = true;
     public DateTime VisitDate { get; set; }
     public DateTime? FollowUpDate { get; set; }
     public List<AddPrescriptionDto>? Prescriptions { get; set; } = new List<AddPrescriptionDto>();

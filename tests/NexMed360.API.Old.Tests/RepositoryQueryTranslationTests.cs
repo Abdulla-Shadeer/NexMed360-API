@@ -1,4 +1,5 @@
 using System.Data.Common;
+using NexMed360.Application.Access;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using NexMed360.Infrastructure.Repositories;
@@ -19,13 +20,21 @@ public class RepositoryQueryTranslationTests
     [InlineData("Appointment")]
     [InlineData("ClinicalRecord")]
     [InlineData("PractitionerRoles")]
+    [InlineData("ActivePractitionerAssignment")]
     [InlineData("PatientSearch")]
+    [InlineData("SharedClinicalRecord")]
+    [InlineData("PatientSharingRequests")]
+    [InlineData("OrganizationSharingRequests")]
+    [InlineData("PatientPortalAccess")]
     public async Task RepositoryJoinsTranslateToPostgreSqlBeforeOpeningAConnection(string query)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseNpgsql("Host=127.0.0.1;Port=1;Database=design_only;Username=unused;Password=unused")
             .AddInterceptors(new StopBeforeConnecting()).Options;
-        using var context = new ApplicationDbContext(options);
+        var access = new WorkspaceAccess();
+        if (query is "SharedClinicalRecord" or "OrganizationSharingRequests")
+            access.Select(new() { Mode = WorkspaceModes.Work, OrganizationId = Guid.NewGuid(), LocationIds = [Guid.NewGuid()], Permissions = [Permissions.ClinicalRecordsRead] });
+        using var context = new ApplicationDbContext(options, access);
         var id = Guid.NewGuid();
 
         // Execute the real repository query. Translation errors occur before connection opening.
@@ -37,7 +46,12 @@ public class RepositoryQueryTranslationTests
             "SelectedStaffRoles" => new OrganizationMemberRepository(context).FindRoles(id, [Guid.NewGuid()]),
             "Appointment" => new AppointmentRepository(context).FindReadable(id, "staff", [Permissions.EncountersStart]),
             "ClinicalRecord" => new ClinicalRecordRepository(context).FindReadable(id, "patient", false),
+            "ActivePractitionerAssignment" => new PractitionerRoleRepository(context).FindActiveForUser(id, "staff"),
             "PractitionerRoles" => new PractitionerRoleRepository(context).Views([new PractitionerRole { Id = id }]),
+            "SharedClinicalRecord" => new ClinicalRecordRepository(context).FindReadable(id, "staff", true),
+            "PatientSharingRequests" => new RecordSharingRepository(context).ForPatient(id),
+            "OrganizationSharingRequests" => new RecordSharingRepository(context).ForOrganization(access.OrganizationId!.Value, id),
+            "PatientPortalAccess" => new RecordSharingRepository(context).PatientHasPortalAccess(id),
             "PatientSearch" => new SearchRepository(context, null!, null!).Patients(InputTypes.Email, "patient"),
             _ => throw new ArgumentOutOfRangeException(nameof(query))
         };

@@ -110,7 +110,8 @@ public sealed class AccessRepository(ApplicationDbContext context) : IAccessRepo
             || await context.ClinicalRecords.IgnoreQueryFilters().AnyAsync(row => row.OrganizationId == organizationId)
             || await context.Encounters.IgnoreQueryFilters().AnyAsync(row => row.OrganizationId == organizationId)
             || await context.VisitHistorys.IgnoreQueryFilters().AnyAsync(row => row.OrganizationId == organizationId)
-            || await context.SessionHistories.IgnoreQueryFilters().AnyAsync(row => row.OrganizationId == organizationId);
+            || await context.SessionHistories.IgnoreQueryFilters().AnyAsync(row => row.OrganizationId == organizationId)
+            || await context.RecordSharingRequests.AnyAsync(row => row.ReceivingOrganizationId == organizationId);
     }
 
     public async Task<bool> DeleteOrganization(Organization organization)

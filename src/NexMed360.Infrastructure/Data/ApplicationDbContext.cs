@@ -1,4 +1,4 @@
-﻿using NexMed360.Domain.Rules;
+using NexMed360.Domain.Rules;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using NexMed360Api.Entities;
@@ -55,9 +55,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         builder.Entity<Patient>().HasQueryFilter(row => !Access.IsSelected
             || Access.Mode == WorkspaceModes.Patient && row.Id == Access.PatientId
-            || Access.Mode == WorkspaceModes.Work && (OrganizationPatients.Any(link => link.PatientId == row.Id)
-                || Appointments.Any(appointment => appointment.PatientId == row.Id)
-                || ClinicalRecords.Any(record => record.PatientId == row.Id)));
+            || Access.Mode == WorkspaceModes.Work);
 
         builder.Entity<Appointment>().HasQueryFilter(row => !Access.IsSelected
             || Access.Mode == WorkspaceModes.Patient && row.PatientId == Access.PatientId
@@ -102,6 +100,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<MemberRoleAssignment> MemberRoleAssignments => Set<MemberRoleAssignment>();
     public DbSet<VisitHistory> VisitHistorys => Set<VisitHistory>();
     public DbSet<ClinicalRecord> ClinicalRecords => Set<ClinicalRecord>();
+    public DbSet<RecordSharingRequest> RecordSharingRequests => Set<RecordSharingRequest>();
     public DbSet<Prescription> Prescriptions => Set<Prescription>();
     public DbSet<Appointment> Appointments => Set<Appointment>();
     public DbSet<CancellationRequest> CancellationRequests => Set<CancellationRequest>();

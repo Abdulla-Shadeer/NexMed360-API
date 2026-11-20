@@ -229,7 +229,7 @@ public class PatientRecordAccessTests
             _context.ChangeTracker.Clear();
 
             // These read methods never use the account-registration dependency.
-            Service = new PatientService(null!, new PatientRepository(_context), null!, new ClinicalRecordRepository(_context));
+            Service = new PatientService(null!, new PatientRepository(_context), null!, new ClinicalRecordRepository(_context), new PractitionerRoleRepository(_context));
         }
 
         private Patient Patient(string userId, string firstName)

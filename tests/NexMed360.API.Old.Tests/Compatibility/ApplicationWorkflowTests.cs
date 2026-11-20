@@ -66,7 +66,7 @@ public class ApplicationWorkflowTests
     public async Task PatientRegistrationUsesTheIdentityIdAndCommitsBothWrites()
     {
         var auth = new Registration(); var data = new PatientProfiles(); var transactions = new Transactions();
-        var result = await new PatientService(auth, data, transactions, null!).CreatePatient(new CreatePatientDto());
+        var result = await new PatientService(auth, data, transactions, null!, null!).CreatePatient(new CreatePatientDto());
         Assert.True(result.IsSuccess);
         Assert.Equal(UserRoles.PATIENT, auth.RegisteredRole);
         Assert.Equal(auth.ApplicationUser.Id, data.RegisteredUserId);
@@ -81,7 +81,7 @@ public class ApplicationWorkflowTests
     {
         var auth = new Registration { RejectRegistration = accountFailure };
         var data = new PatientProfiles(); var transactions = new Transactions();
-        var result = await new PatientService(auth, data, transactions, null!).CreatePatient(new CreatePatientDto());
+        var result = await new PatientService(auth, data, transactions, null!, null!).CreatePatient(new CreatePatientDto());
         Assert.False(result.IsSuccess);
         if (accountFailure) Assert.Null(data.RegisteredUserId);
         Assert.False(transactions.Committed);
@@ -92,7 +92,7 @@ public class ApplicationWorkflowTests
     public async Task ProfileExceptionDisposesTheUncommittedRegistrationTransaction()
     {
         var transactions = new Transactions();
-        var service = new PatientService(new Registration(), new PatientProfiles { Throw = true }, transactions, null!);
+        var service = new PatientService(new Registration(), new PatientProfiles { Throw = true }, transactions, null!, null!);
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreatePatient(new CreatePatientDto()));
         Assert.False(transactions.Committed);
         Assert.True(transactions.Disposed);
@@ -102,7 +102,7 @@ public class ApplicationWorkflowTests
     public async Task MappingFailureDisposesTheUncommittedRegistrationTransaction()
     {
         var transactions = new Transactions();
-        var service = new PatientService(new Registration(), new PatientProfiles { FailView = true }, transactions, null!);
+        var service = new PatientService(new Registration(), new PatientProfiles { FailView = true }, transactions, null!, null!);
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreatePatient(new CreatePatientDto()));
         Assert.False(transactions.Committed);
         Assert.True(transactions.Disposed);
@@ -157,7 +157,6 @@ public class ApplicationWorkflowTests
             return Task.FromResult(patient);
         }
         public Task<Patient?> Find(Guid id) => throw new NotSupportedException();
-        public Task<PractitionerRole?> FindPractitionerRole(Guid roleId, string userId) => throw new NotSupportedException();
         public Task<bool> PatientExists(Guid id) => throw new NotSupportedException();
         public Task<ClinicalRecord> AddRecord(ClinicalRecord record) => throw new NotSupportedException();
         public Task<ClinicalRecord?> FindReadableRecord(Guid id, string caller, bool practitionerRole) => throw new NotSupportedException();

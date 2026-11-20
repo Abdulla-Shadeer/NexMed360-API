@@ -17,6 +17,21 @@ public class PractitionerRoleRepository(ApplicationDbContext context) : IPractit
         await context.Database.ExecuteSqlInterpolatedAsync($"""SELECT 1 FROM "AspNetUsers" WHERE "Id" = {userId} FOR UPDATE""");
     }
 
+    public Task<PractitionerRole?> FindActiveForUser(Guid roleId, string userId)
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var roles =
+            from role in context.PractitionerRoles
+            join practitioner in context.Practitioners on role.PractitionerId equals practitioner.Id
+            join user in context.Users on practitioner.PersonId equals user.PersonId
+            where role.Id == roleId && user.Id == userId && role.IsActive
+                && (!role.StartDate.HasValue || role.StartDate <= today)
+                && (!role.EndDate.HasValue || role.EndDate >= today)
+            select role;
+
+        return roles.FirstOrDefaultAsync();
+    }
+
     public Task<List<PractitionerRole>> GetAssignments(Guid practitionerId, Guid organizationId) =>
         context.PractitionerRoles.IgnoreQueryFilters().Where(role => role.PractitionerId == practitionerId && role.OrganizationId == organizationId).ToListAsync();
 

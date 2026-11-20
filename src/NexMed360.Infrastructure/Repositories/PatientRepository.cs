@@ -43,21 +43,6 @@ public class PatientRepository(ApplicationDbContext context) : IPatientRepositor
         }
     }
 
-    public Task<PractitionerRole?> FindPractitionerRole(Guid roleId, string userId)
-    {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var roles =
-            from role in context.PractitionerRoles
-            join practitioner in context.Practitioners on role.PractitionerId equals practitioner.Id
-            join user in context.Users on practitioner.PersonId equals user.PersonId
-            where role.Id == roleId && user.Id == userId && role.IsActive
-                && (!role.StartDate.HasValue || role.StartDate <= today)
-                && (!role.EndDate.HasValue || role.EndDate >= today)
-            select role;
-
-        return roles.FirstOrDefaultAsync();
-    }
-
     public Task<bool> PatientExists(Guid id) => context.Patients.AnyAsync(row => row.Id == id);
     public Task<Patient?> Find(Guid id) => context.Patients.FirstOrDefaultAsync(row => row.Id == id);
     public Task<bool> CanReadPatient(Guid id, string callerId, bool isPractitionerRole) => context.Patients.AnyAsync(row => row.Id == id
@@ -71,8 +56,8 @@ public class PatientRepository(ApplicationDbContext context) : IPatientRepositor
             where person.Id == row.PersonId
             select new ViewPatientDto
             {
-                Id = row.Id.ToString(), PersonId = person.Id.ToString(),
-                UserId = context.Users.Where(user => user.PersonId == person.Id).Select(user => user.Id).FirstOrDefault() ?? "",
+                Id = row.Id.ToString(), PersonId = context.Access.Mode == WorkspaceModes.Work ? "" : person.Id.ToString(),
+                UserId = context.Access.Mode == WorkspaceModes.Work ? "" : context.Users.Where(user => user.PersonId == person.Id).Select(user => user.Id).FirstOrDefault() ?? "",
                 FirstName = person.FirstName, LastName = person.LastName, Email = person.Email!, PhoneNumber = person.PhoneNumber!,
                 BirthDate = row.BirthDate, Gender = row.Gender
             };

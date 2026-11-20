@@ -17,6 +17,8 @@ public class SearchService(ISearchRepository data, WorkspaceAccess? workspace = 
         {
             if (dto.Entity == EntityTypes.Patient && (workspace.Mode != WorkspaceModes.Work || !workspace.Has(Permissions.PatientsRead)))
                 return ApiError.From(ErrorCode.SYS_Unauthorized, "You do not have permission to search patients.", 403);
+            if (dto.Entity == EntityTypes.Patient && (string.IsNullOrWhiteSpace(dto.Input) || dto.Input.Trim().Length < 2 || dto.Input.Length > 100))
+                return ApiError.From(ErrorCode.SYS_BadRequest, "Enter between 2 and 100 characters to search patients.");
             return dto.Entity switch
             {
                 EntityTypes.Patient => await data.Patients(dto.InputType, dto.Input),

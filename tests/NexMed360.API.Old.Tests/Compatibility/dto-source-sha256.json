@@ -3,9 +3,9 @@
   "Appointment/CreateAppointmentDto.cs": "e9531517c1882d7f8cc5a14140282cc0620f67b96e6bbe895ca83229870dfaa9",
   "Appointment/ViewAppointmentDto.cs": "580fab8cd5ea8b02e484884040d7ce6ae6889819f076ceca01ee90c205b4d777",
   "Appointment/ViewAppointmentsFilterDto.cs": "465581b537dedf6151b8b7a4bc204904ec9d23647b5e432f7d6e0558f0a1adcf",
-  "ClinicalRecord/AddClinicalRecordDto.cs": "ece20f4324cf4e75b3a49e42f20bd19824d6dcfce5e16772dcc1d04873f83cb4",
+  "ClinicalRecord/AddClinicalRecordDto.cs": "83ef08979ae93e50cbdf1c663ee5cfa9c8e052bc69a3006e598f36014eafe823",
   "ClinicalRecord/AddPrescriptionDto.cs": "bd0c380850c25e66e1e8ef7dbfe2a39b4d1fb659ad4655a5586e384bfa643235",
-  "ClinicalRecord/ViewClinicalRecordDto.cs": "0c6bccd154697a9b4390123499789c9cc2e025f4f166b005b084a9c4fe72e2c2",
+  "ClinicalRecord/ViewClinicalRecordDto.cs": "321d9c8508ca323d8fe2205600400ac32a9a63d78b3d407a4ad4913a5e35c97c",
   "ClinicalRecord/ViewPrescriptionDto.cs": "a8fea081687d111f85aa2500586949e0085c73249605e2a366e1a92ad258d7a5",
   "PractitionerRole/CreatePractitionerRoleDto.cs": "ecf49a49b84ba8923909d3f19ab61488ec351aec535d1a679d94e945e6e5bb9d",
   "PractitionerRole/ViewPractitionerRoleDto.cs": "8e3b6182795944783a4680b06f7c05644edb3f0478ab547fd29eeab0173fbfa0",
@@ -43,5 +43,6 @@
   "practitionerSchedule/ViewCurrentOrNextSessionDto.cs": "fbc20c36e7a9a653e3a69aa32870778a623644eb4a7d476d4f67c15dcaa39f69",
   "practitionerSchedule/ViewPractitionerScheduleDto.cs": "43a3461e293e15588b9247d2b9475e310fc29530a719b8d3fe0987be77a71ce4",
   "practitionerSchedule/ViewSessionHistoryDto.cs": "a2e6482650810110d5b7945fdc6ea589bad76c62bbd7db025962ee60acafeb38",
-  "practitionerSchedule/ViewSessionSlotDto.cs": "cb36d304070c927dd43089c24c432e616290dbdc831b9304bb5aa7fb9e66f589"
+  "practitionerSchedule/ViewSessionSlotDto.cs": "cb36d304070c927dd43089c24c432e616290dbdc831b9304bb5aa7fb9e66f589",
+  "Patient/RecordSharingDto.cs": "8dd33d5fcb24c26ef4a83e4bc0d2287a7f20503624d1f4b235447ff5dba20b94"
 }

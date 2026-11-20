@@ -34,7 +34,7 @@ After login, call `GET /api/v1/Workspace` for the small list of available worksp
 - `work:<organizationId>`: one Work mode per active organization membership, with the distinct union of that member's assigned access-role permissions in that organization and the membership's location scope.
 - `platform`: platform administration for accounts with the stored platform administrator flag. This mode does not grant clinical access.
 
-`GET /api/v1/Patient/MyClinicalRecords` returns only the signed-in patient's visible records across local organizations. It takes no patient ID. Staff endpoints use the selected organization, and patient-mode booking accepts only the linked patient.
+`GET /api/v1/Patient/MyClinicalRecords` returns only the signed-in patient's visible records across local organizations. It takes no patient ID. Staff clinical writes use the selected organization; reading another organization's records additionally requires patient approval. Patient discovery is global for staff with patients.read. Patient-mode booking accepts only the linked patient.
 
 `Workspace/Permissions` lists application permissions. `Workspace/Roles` supports listing, creating, and updating custom roles with `roles.manage`. `Workspace/Members`, `MemberRoles`, and `Locations` support membership editing with `members.manage`; `PUT Workspace/Members/{id}` saves active status, location, and access-role IDs. References must belong to the current organization. Members with `roles.manage` can define groups using any application permission. Members with `members.manage` can assign organization roles and manage staff access. They do not need the clinical permissions they administer. These administration permissions do not themselves allow reading records, starting encounters, or issuing prescriptions. A location-restricted workspace can add staff within its allowed locations and optionally assign existing roles; shared role definitions require unrestricted organization access.
 
@@ -176,3 +176,31 @@ The workspace list contains only one `Organization name — Work mode` entry per
 Exact repeated practitioner creation returns 409 before adding access-role grants. Title/specialty comparisons ignore case and surrounding spaces, while location, effective dates, and active status distinguish assignments. The existing registration transaction uses a [PostgreSQL account-row lock](https://www.postgresql.org/docs/current/explicit-locking.html#LOCKING-ROWS) to serialize competing creation checks. No new schema/index or package is needed. Existing duplicate rows are not deleted: they keep their scheduling/clinical references and are folded into one equivalent clinical choice. Inactive/expired assignments are excluded; organization membership remains independently usable.
 
 Verified on 11 November 2026: **304 non-PostgreSQL API tests and 62 UI tests passed**, and the full UI production build passed TypeScript/lint. Thirteen PostgreSQL integration tests were excluded, including the new simultaneous-practitioner-creation test; no real database, API host, or browser journey was run. Existing local development settings were preserved. Review: WorkspaceRepository / WorkspaceAccess / WorkspaceFilter → OrganizationService / PractitionerRole duplicate rule / repository lock → workspace provider/selector → shared AddUserForm and callers → focused tests. API check: `dotnet test .\tests\NexMed360.API.Old.Tests\NexMed360.API.Old.Tests.csproj --no-restore --filter "Category!=PostgreSQL" -m:1 -nr:false -p:OutputPath=bin/OrganizationWorkspaces/ -p:IntermediateOutputPath=obj/OrganizationWorkspaces/`.
+
+
+## Shared patient discovery and consent
+
+Implemented on 17 November 2026; left uncommitted for review. The existing Patient/Person identity is shared across organizations. Staff with `patients.read` can search name/email or open a Patient ID, including self-registered and other-organization patients. Search returns at most 30 matches and omits account/person IDs and phone numbers. `OrganizationPatient` is an administrative registration, not patient ownership. Existing names/emails never silently merge accounts; staff reuse the selected Patient ID for care.
+
+`RecordSharingRequests` is the only new table. An approved request is the grant; clinical records/prescriptions remain with their source organization. Request creation needs `clinical-records.read` and an owned active practitioner assignment in the receiving organization. The patient needs an active portal account; staff-assisted activation remains deferred. Receiving staff need clinical-read permission and an active grant in their organization; location restrictions are preserved.
+
+- `GET /api/v1/RecordSharing`: own inbox in Patient mode, or receiving-organization requests in Work mode; Work mode may filter by `patientId`.
+- `POST /api/v1/RecordSharing`: patient ID, practitioner assignment, purpose, optional `recordFromDate`/`recordToDate` visit-date filters, optional `accessExpiresOn` date. Receiving organization and verified requester details come from trusted context/profiles.
+- `POST /api/v1/RecordSharing/{id}/Decision`: `{ "approve": true }` or false, in the owning patient's mode only.
+- `POST /api/v1/RecordSharing/{id}/Revoke`: owning patient revokes an approval. Concurrent/repeated decisions return a conflict rather than replacing the saved decision.
+
+Dates filter the clinical visit date inclusively. The access expiry is separate and defaults to 30 days from request creation, ending on the chosen date in UTC. An expired pending request cannot be approved. Blank record dates include eligible past history; only published records created and visited before approval are shared. Future or backdated newly created records are excluded. No record copies are created. Revoking one approval does not cancel another valid approval. Revocation cannot undo information already viewed.
+
+Existing history/detail APIs and prescription reads use the same consent scope. Source organization/author remain visible; recipients cannot edit source records. `isPatientVisible` defaults to true when saving and may be disabled. Patient visibility does not grant another organization access. Organizations with sharing history cannot be deleted. Request/decision/shared-read events use application logs; a new durable audit subsystem was not introduced. Protected responses disable HTTP caching; clients may still hold data already retrieved.
+
+### Migration and review
+
+Generated `20261117112723_AddRecordSharingRequests`; it adds the table/indexes/restricted foreign keys and does not replace existing patient or record tables. It has **not** been applied to an application database. After reviewing and checking the development database target, apply it explicitly. The design-time factory deliberately uses an unreachable connection, so supply the checked connection when using the CLI:
+
+```powershell
+dotnet ef database update AddRecordSharingRequests --project src/NexMed360.Infrastructure --startup-project src/NexMed360.Api --connection "<checked development database connection>"
+```
+
+Review path: `RecordSharingRequest` domain transitions → `RecordSharingService` authorization/validation → `RecordSharingRepository` and `ClinicalRecordRepository.Readable` → `ApplicationDbContext` patient filter and migration → `RecordSharingController` → API regressions. The source-author projection bypasses role filters only for records already authorized for reading.
+
+Verification on 17 November 2026: **323 non-PostgreSQL API tests and 70 UI regressions passed**; UI production build passed TypeScript/lint. PostgreSQL query translation and in-memory decision concurrency were checked. **14 dedicated PostgreSQL tests were excluded** because no test connection was configured, including the new approval/revocation flow. The migration matches the EF model. No application database, running API, or live browser journey was used. Existing package vulnerability/source warnings remain.

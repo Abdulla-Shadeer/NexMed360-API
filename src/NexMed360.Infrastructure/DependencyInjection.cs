@@ -1,4 +1,5 @@
 using NexMed360.Application.Access;
+using NexMed360.Application.Patients;
 using NexMed360.Infrastructure.Repositories;
 using NexMed360.Application.Accounts.Internal;
 using NexMed360.Application.Accounts;
@@ -49,6 +50,8 @@ public static class DependencyInjection
         services.AddScoped<IIdentityGateway, IdentityGateway>();
         services.AddScoped<IPatientRepository, PatientRepository>();
         services.AddScoped<IClinicalRecordRepository, ClinicalRecordRepository>();
+        services.AddScoped<IRecordSharingRepository, RecordSharingRepository>();
+        services.AddScoped<RecordSharingService>();
         services.AddScoped<IPractitionerRoleRepository, PractitionerRoleRepository>();
         services.AddScoped<IOrganizationMemberRepository, OrganizationMemberRepository>();
         services.AddScoped<IOrganizationRepository, OrganizationRepository>();

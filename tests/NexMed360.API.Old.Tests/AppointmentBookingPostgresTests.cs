@@ -167,8 +167,8 @@ public class AppointmentBookingPostgresTests
     {
         var options = await PrepareDatabase();
         await using var context = new ApplicationDbContext(options);
-        Assert.Single(context.Database.GetMigrations());
-        Assert.Single(await context.Database.GetAppliedMigrationsAsync());
+        Assert.Equal(2, context.Database.GetMigrations().Count());
+        Assert.Equal(2, (await context.Database.GetAppliedMigrationsAsync()).Count());
         Assert.False(context.Database.HasPendingModelChanges());
         await context.Database.OpenConnectionAsync();
         await using var command = context.Database.GetDbConnection().CreateCommand();
@@ -198,7 +198,7 @@ public class AppointmentBookingPostgresTests
             roles, NullLogger<IdentityGateway>.Instance, null!);
         var users = new UserService(new UserRepository(context), null!);
         var auth = new AuthService(identity, users);
-        var patients = new PatientService(auth, new PatientRepository(context), new RegistrationTransactions(context), new ClinicalRecordRepository(context));
+        var patients = new PatientService(auth, new PatientRepository(context), new RegistrationTransactions(context), new ClinicalRecordRepository(context), new PractitionerRoleRepository(context));
         var email = $"rollback-{Guid.NewGuid():N}@example.test";
         var request = new CreatePatientDto
         {
@@ -247,8 +247,8 @@ public class AppointmentBookingPostgresTests
         await using var second = new ApplicationDbContext(competingOptions);
         var details = new EnablePatientAccessDto { BirthDate = new(2000, 1, 1), Gender = "Unknown" };
         var results = await Task.WhenAll(
-            new PatientService(null!, new PatientRepository(first), null!, null!).EnablePatientAccess(details, account.Id),
-            new PatientService(null!, new PatientRepository(second), null!, null!).EnablePatientAccess(details, account.Id));
+            new PatientService(null!, new PatientRepository(first), null!, null!, new PractitionerRoleRepository(first)).EnablePatientAccess(details, account.Id),
+            new PatientService(null!, new PatientRepository(second), null!, null!, new PractitionerRoleRepository(second)).EnablePatientAccess(details, account.Id));
         Assert.All(results, result => Assert.True(result.IsSuccess));
         Assert.Equal(results[0].Data!.Id, results[1].Data!.Id);
         await using var check = new ApplicationDbContext(options);
@@ -325,6 +325,13 @@ public class AppointmentBookingPostgresTests
             }
             return result;
         }
+    }
+
+    [Fact(Skip = SkipReason, SkipUnless = nameof(HasPostgresConfiguration))]
+    public async Task SharingApprovalAndRevocationProtectHistoryAndPrescriptions()
+    {
+        using var fixture = new RecordSharingTests.Fixture(await PrepareDatabase());
+        await RecordSharingTests.AssertFullFlow(fixture);
     }
 
     private static async Task<DbContextOptions<ApplicationDbContext>> PrepareDatabase()

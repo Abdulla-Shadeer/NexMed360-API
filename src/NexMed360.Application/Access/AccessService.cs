@@ -169,7 +169,7 @@ public sealed class AccessService(IAccessRepository repository, WorkspaceAccess 
         "Organization administrator not found.", 404);
 
     private static ApiError OrganizationHasHistory() => ApiError.From(ErrorCode.SYS_BadRequest,
-        "This organization has patient registrations or care history and cannot be deleted.", 409);
+        "This organization has patient registrations, care history, or sharing requests and cannot be deleted.", 409);
 
     private static ApiError Denied() => ApiError.From(ErrorCode.SYS_Unauthorized,
         "You do not have permission to manage this access in the current workspace.", 403);

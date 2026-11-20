@@ -548,7 +548,7 @@ namespace NexMed360.Infrastructure.Migrations
                     b.ToTable("Locations", (string)null);
                 });
 
-            modelBuilder.Entity("NexMed360Api.Entities.MembershipAccessRole", b =>
+            modelBuilder.Entity("NexMed360Api.Entities.MemberRoleAssignment", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
@@ -559,11 +559,12 @@ namespace NexMed360.Infrastructure.Migrations
                     b.Property<DateTime?>("CreatedDate")
                         .HasColumnType("timestamp without time zone");
 
-                    b.Property<Guid>("MembershipId")
-                        .HasColumnType("uuid");
-
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid");
+
+                    b.Property<Guid>("OrganizationMemberId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("MembershipId");
 
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("timestamp without time zone");
@@ -576,10 +577,10 @@ namespace NexMed360.Infrastructure.Migrations
 
                     b.HasIndex("AccessRoleId", "OrganizationId");
 
-                    b.HasIndex("MembershipId", "AccessRoleId")
+                    b.HasIndex("OrganizationMemberId", "AccessRoleId")
                         .IsUnique();
 
-                    b.HasIndex("MembershipId", "OrganizationId");
+                    b.HasIndex("OrganizationMemberId", "OrganizationId");
 
                     b.ToTable("MembershipAccessRoles", (string)null);
                 });
@@ -628,7 +629,7 @@ namespace NexMed360.Infrastructure.Migrations
                     b.ToTable("Organizations", (string)null);
                 });
 
-            modelBuilder.Entity("NexMed360Api.Entities.OrganizationMembership", b =>
+            modelBuilder.Entity("NexMed360Api.Entities.OrganizationMember", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
@@ -932,6 +933,70 @@ namespace NexMed360.Infrastructure.Migrations
                     b.HasIndex("ClinicalRecordId", "OrganizationId");
 
                     b.ToTable("Prescriptions", (string)null);
+                });
+
+            modelBuilder.Entity("NexMed360Api.Entities.RecordSharingRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("CreatedDate")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime?>("DecidedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("DecisionByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateOnly?>("FromDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("PatientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PractitionerRoleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("ReceivingOrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("Status")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateOnly?>("ToDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime?>("UpdatedDate")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReceivingOrganizationId");
+
+                    b.HasIndex("PractitionerRoleId", "ReceivingOrganizationId");
+
+                    b.HasIndex("PatientId", "ReceivingOrganizationId", "Status", "ExpiresAt");
+
+                    b.ToTable("RecordSharingRequests", (string)null);
                 });
 
             modelBuilder.Entity("NexMed360Api.Entities.SessionHistory", b =>
@@ -1284,7 +1349,7 @@ namespace NexMed360.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
-            modelBuilder.Entity("NexMed360Api.Entities.MembershipAccessRole", b =>
+            modelBuilder.Entity("NexMed360Api.Entities.MemberRoleAssignment", b =>
                 {
                     b.HasOne("NexMed360Api.Entities.Organization", null)
                         .WithMany()
@@ -1299,15 +1364,15 @@ namespace NexMed360.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("NexMed360Api.Entities.OrganizationMembership", null)
-                        .WithMany()
-                        .HasForeignKey("MembershipId", "OrganizationId")
+                    b.HasOne("NexMed360Api.Entities.OrganizationMember", null)
+                        .WithMany("RoleAssignments")
+                        .HasForeignKey("OrganizationMemberId", "OrganizationId")
                         .HasPrincipalKey("Id", "OrganizationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("NexMed360Api.Entities.OrganizationMembership", b =>
+            modelBuilder.Entity("NexMed360Api.Entities.OrganizationMember", b =>
                 {
                     b.HasOne("NexMed360Api.Entities.Organization", null)
                         .WithMany()
@@ -1416,6 +1481,28 @@ namespace NexMed360.Infrastructure.Migrations
                     b.Navigation("ClinicalRecord");
                 });
 
+            modelBuilder.Entity("NexMed360Api.Entities.RecordSharingRequest", b =>
+                {
+                    b.HasOne("NexMed360Api.Entities.Patient", null)
+                        .WithMany()
+                        .HasForeignKey("PatientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("NexMed360Api.Entities.Organization", null)
+                        .WithMany()
+                        .HasForeignKey("ReceivingOrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("NexMed360Api.Entities.PractitionerRole", null)
+                        .WithMany()
+                        .HasForeignKey("PractitionerRoleId", "ReceivingOrganizationId")
+                        .HasPrincipalKey("Id", "OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("NexMed360Api.Entities.SessionHistory", b =>
                 {
                     b.HasOne("NexMed360Api.Entities.Organization", null)
@@ -1475,6 +1562,11 @@ namespace NexMed360.Infrastructure.Migrations
             modelBuilder.Entity("NexMed360Api.Entities.Encounter", b =>
                 {
                     b.Navigation("Participants");
+                });
+
+            modelBuilder.Entity("NexMed360Api.Entities.OrganizationMember", b =>
+                {
+                    b.Navigation("RoleAssignments");
                 });
 
             modelBuilder.Entity("NexMed360Api.Entities.Patient", b =>

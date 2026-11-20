@@ -12,6 +12,7 @@ using System.Security.Claims;
 namespace NexMed360Api.Controllers.v1;
 
 [ApiController]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [ApiVersion(1.0)]
 [Route("api/v{version:apiVersion}/[controller]")]
 public class PatientController : ControllerBase

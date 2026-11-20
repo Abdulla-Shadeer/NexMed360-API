@@ -10,7 +10,7 @@ using NexMed360Api.Interfaces.Services;
 
 namespace NexMed360Api.Services;
 
-public class PatientService(IAuthService auth, IPatientRepository data, IRegistrationTransactions transactions, IClinicalRecordRepository records, WorkspaceAccess? workspace = null) : IPatientService
+public class PatientService(IAuthService auth, IPatientRepository data, IRegistrationTransactions transactions, IClinicalRecordRepository records, IPractitionerRoleRepository practitionerRoles, WorkspaceAccess? workspace = null) : IPatientService
 {
     public async Task<Result<ViewPatientDto>> RegisterPatient(RegisterPatientDto dto)
     {
@@ -76,7 +76,7 @@ public class PatientService(IAuthService auth, IPatientRepository data, IRegistr
     }
     public async Task<Result<ViewClinicalRecordDto>> AddToClinicalRecords(AddClinicalRecordDto dto, string practitionerRoleUserId)
     {
-        var role = await data.FindPractitionerRole(dto.PractitionerRoleId, practitionerRoleUserId);
+        var role = await practitionerRoles.FindActiveForUser(dto.PractitionerRoleId, practitionerRoleUserId);
         if (role == null)
             return ApiError.From(ErrorCode.SYS_Unauthorized, "Choose one of your active practitioner assignments.", 403);
         var practitionerRoleId = role.Id;
@@ -94,6 +94,7 @@ public class PatientService(IAuthService auth, IPatientRepository data, IRegistr
         }).ToList() ?? [];
         var record = ClinicalRecord.Create(patientId, practitionerRoleId, dto.Diagnosis, dto.PractitionerNotes, dto.FollowUpDate, prescriptions);
         record.OrganizationId = role.OrganizationId;
+        record.IsPatientVisible = dto.IsPatientVisible;
         foreach (var prescription in prescriptions) prescription.OrganizationId = role.OrganizationId;
         return await records.View(await records.Add(record));
     }
@@ -110,7 +111,8 @@ public class PatientService(IAuthService auth, IPatientRepository data, IRegistr
         if (string.IsNullOrWhiteSpace(caller)) return ErrorCode.SYS_Unauthorized;
         if (!Guid.TryParse(patientId, out var id)) return ApiError.From(ErrorCode.SYS_InvalidGuid, "Invalid patient ID format.");
         if (!await data.CanReadPatient(id, caller, isPractitionerRole)) return ApiError.From(ErrorCode.USR_NotFound, $"Patient with ID '{patientId}' not found.");
-        return await records.Views(await records.GetForPatient(id, caller, isPractitionerRole));
+        var readable = await records.GetForPatient(id, caller, isPractitionerRole);
+        return await records.Views(readable);
     }
     public async Task<Result<ViewPatientDto>> GetOwnPatient()
     {

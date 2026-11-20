@@ -360,6 +360,42 @@
     "anonymous": false
   },
   {
+    "controller": "RecordSharingController",
+    "action": "Create",
+    "verb": "POST",
+    "route": "",
+    "roles": [],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "RecordSharingController",
+    "action": "Decide",
+    "verb": "POST",
+    "route": "{id:guid}/Decision",
+    "roles": [],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "RecordSharingController",
+    "action": "List",
+    "verb": "GET",
+    "route": "",
+    "roles": [],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "RecordSharingController",
+    "action": "Revoke",
+    "verb": "POST",
+    "route": "{id:guid}/Revoke",
+    "roles": [],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
     "controller": "SearchController",
     "action": "EntitySearch",
     "verb": "POST",

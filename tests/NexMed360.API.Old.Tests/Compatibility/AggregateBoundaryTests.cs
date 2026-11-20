@@ -21,6 +21,7 @@ public class AggregateBoundaryTests
             [typeof(AccessRole)] = typeof(AccessRole), [typeof(Person)] = typeof(Person),
             [typeof(Practitioner)] = typeof(Practitioner), [typeof(Location)] = typeof(Location),
             [typeof(OrganizationPatient)] = typeof(OrganizationPatient),
+            [typeof(RecordSharingRequest)] = typeof(RecordSharingRequest),
             [typeof(Encounter)] = typeof(Encounter), [typeof(EncounterParticipant)] = typeof(Encounter)
         };
         foreach (var (model, owner) in owners)
@@ -38,7 +39,7 @@ public class AggregateBoundaryTests
     [Fact]
     public void RepositoryContractsKeepPersistenceAndHttpTypesPrivate()
     {
-        foreach (var repository in new[] { typeof(IAppointmentRepository), typeof(IPatientRepository), typeof(IOrganizationRepository), typeof(IPractitionerScheduleRepository), typeof(IPractitionerRoleRepository), typeof(IOrganizationMemberRepository), typeof(IClinicalRecordRepository), typeof(NexMed360.Application.Access.IWorkspaceRepository), typeof(NexMed360.Application.Access.IAccessRepository), typeof(NexMed360.Application.Accounts.IUserRepository), typeof(NexMed360.Application.Overview.IOverviewRepository), typeof(NexMed360.Application.Search.ISearchRepository) })
+        foreach (var repository in new[] { typeof(NexMed360.Application.Patients.IRecordSharingRepository), typeof(IAppointmentRepository), typeof(IPatientRepository), typeof(IOrganizationRepository), typeof(IPractitionerScheduleRepository), typeof(IPractitionerRoleRepository), typeof(IOrganizationMemberRepository), typeof(IClinicalRecordRepository), typeof(NexMed360.Application.Access.IWorkspaceRepository), typeof(NexMed360.Application.Access.IAccessRepository), typeof(NexMed360.Application.Accounts.IUserRepository), typeof(NexMed360.Application.Overview.IOverviewRepository), typeof(NexMed360.Application.Search.ISearchRepository) })
             foreach (var method in repository.GetMethods())
             {
                 Check(method.ReturnType);

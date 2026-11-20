@@ -13,22 +13,22 @@ public class SearchRepository(ApplicationDbContext context, IPractitionerRoleRep
 {
     public Task<List<ViewPatientDto>> Patients(InputTypes type, string input)
     {
+        var search = input.Trim().ToLowerInvariant();
         var patients =
             from patient in context.Patients
             join person in context.People on patient.PersonId equals person.Id
             where type == InputTypes.Email
-                ? EF.Functions.ILike(person.Email!, $"%{input}%")
-                : EF.Functions.ILike(person.FirstName + " " + person.LastName, $"%{input}%")
+                ? person.Email != null && person.Email.ToLower().Contains(search)
+                : (person.FirstName + " " + person.LastName).ToLower().Contains(search)
             select new ViewPatientDto
             {
-                Id = patient.Id.ToString(), PersonId = person.Id.ToString(),
-                UserId = context.Users.Where(user => user.PersonId == person.Id).Select(user => user.Id).FirstOrDefault() ?? "",
+                Id = patient.Id.ToString(), PersonId = "", UserId = "",
                 FirstName = person.FirstName, LastName = person.LastName,
-                Email = person.Email!, PhoneNumber = person.PhoneNumber!,
+                Email = person.Email!, PhoneNumber = "",
                 Gender = patient.Gender, BirthDate = patient.BirthDate
             };
 
-        return patients.ToListAsync();
+        return patients.OrderBy(row => row.FirstName).ThenBy(row => row.LastName).ThenBy(row => row.Id).Take(30).ToListAsync();
     }
 
     public async Task<List<ViewOrganizationDto>> Organizations(string input) => await organizations.Views(
