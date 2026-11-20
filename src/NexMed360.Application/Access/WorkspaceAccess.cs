@@ -10,6 +10,7 @@ public sealed class WorkspaceAccess
     public Guid? OrganizationId => Current?.OrganizationId;
     public Guid? PatientId => Current?.PatientId;
     public Guid? PractitionerRoleId => Current?.PractitionerRoleId;
+    public List<Guid> PractitionerRoleIds => Current?.PractitionerRoleIds ?? [];
     public bool CanUseAssignment(Guid id) => Current?.PractitionerRoleIds.Contains(id) == true || PractitionerRoleId == id;
     public bool HasLocationScope => Current?.LocationIds != null;
     public List<Guid> LocationIds => Current?.LocationIds ?? [];
@@ -41,6 +42,7 @@ public sealed class WorkspaceScope
     public string? OrganizationName { get; set; }
     public List<Guid>? LocationIds { get; set; }
     public List<string> Permissions { get; set; } = [];
+    public List<string> AccessRoleNames { get; set; } = [];
 }
 
 public sealed record SaveAccessRoleDto(string Name, List<string> Permissions);

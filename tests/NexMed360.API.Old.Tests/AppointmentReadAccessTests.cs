@@ -43,7 +43,7 @@ public class AppointmentReadAccessTests
         var id = await Book(fixture);
         var caller = await AddOrganizationMember(fixture, sameOrganization);
 
-        var result = await fixture.Service.Get(id, caller, [Permissions.AppointmentsManage]);
+        var result = await fixture.Service.Get(id, caller, [Permissions.OrganizationAppointmentsManage]);
 
         Assert.Equal(sameOrganization, result.IsSuccess);
         if (sameOrganization)
@@ -141,7 +141,7 @@ public class AppointmentReadAccessTests
         var id = await Book(fixture);
         var caller = await AddOrganizationMember(fixture, true);
 
-        var result = await fixture.Service.Get(id, caller, ["patient", Permissions.AppointmentsManage]);
+        var result = await fixture.Service.Get(id, caller, ["patient", Permissions.OrganizationAppointmentsManage]);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(id, result.Data!.BookingReference);
@@ -170,7 +170,7 @@ public class AppointmentReadAccessTests
     public async Task MissingIdentityIsRejectedBeforeStorageAccess(string? caller)
     {
         using var context = new ApplicationDbContext(new DbContextOptions<ApplicationDbContext>());
-        var service = new AppointmentService(new AppointmentRepository(context));
+        var service = new AppointmentService(new AppointmentRepository(context), new PractitionerRoleRepository(context));
 
         var result = await service.Get(Guid.NewGuid().ToString(), caller, [Permissions.EncountersStart]);
 
@@ -183,7 +183,7 @@ public class AppointmentReadAccessTests
     public async Task MalformedIdKeepsTheExistingBadRequestResponseBeforeStorageAccess()
     {
         using var context = new ApplicationDbContext(new DbContextOptions<ApplicationDbContext>());
-        var service = new AppointmentService(new AppointmentRepository(context));
+        var service = new AppointmentService(new AppointmentRepository(context), new PractitionerRoleRepository(context));
 
         var result = await service.Get("invalid", "signed-in-user", ["patient"]);
 

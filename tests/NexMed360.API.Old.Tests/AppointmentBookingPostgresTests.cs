@@ -1,4 +1,6 @@
 using NexMed360.Infrastructure.Repositories;
+using NexMed360.Infrastructure.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using NexMed360.Infrastructure.Data;
@@ -138,7 +140,7 @@ public class AppointmentBookingPostgresTests
         fixture.Context.ChangeTracker.Clear();
         var dto = new CancellationRequestDto { AppointmentId = appointmentId.ToString(), Reason = "Synthetic reason" };
 
-        var requested = await fixture.Service.Cancel(dto, requesterId, [Permissions.AppointmentsManage]);
+        var requested = await fixture.Service.Cancel(dto, requesterId, [Permissions.OrganizationAppointmentsManage]);
         Assert.True(requested.IsSuccess);
         Assert.Equal(AppointmentStatus.CancelRequested, requested.Data!.Status);
         fixture.Context.ChangeTracker.Clear();
@@ -167,8 +169,8 @@ public class AppointmentBookingPostgresTests
     {
         var options = await PrepareDatabase();
         await using var context = new ApplicationDbContext(options);
-        Assert.Equal(2, context.Database.GetMigrations().Count());
-        Assert.Equal(2, (await context.Database.GetAppliedMigrationsAsync()).Count());
+        Assert.Equal(4, context.Database.GetMigrations().Count());
+        Assert.Equal(4, (await context.Database.GetAppliedMigrationsAsync()).Count());
         Assert.False(context.Database.HasPendingModelChanges());
         await context.Database.OpenConnectionAsync();
         await using var command = context.Database.GetDbConnection().CreateCommand();
@@ -177,6 +179,35 @@ public class AppointmentBookingPostgresTests
             WHERE table_schema = 'public' AND table_name = 'CancellationRequests' AND column_name = 'RequestedById'
             """;
         Assert.Equal("text:NO", await command.ExecuteScalarAsync());
+    }
+
+    [Fact(Skip = SkipReason, SkipUnless = nameof(HasPostgresConfiguration))]
+    public async Task PermissionRenamePreservesExistingRoleGrantsAndCanBeReversed()
+    {
+        var options = await PrepareDatabase();
+        await using var context = new ApplicationDbContext(options);
+        await using var transaction = await context.Database.BeginTransactionAsync();
+        var organization = new Organization { Name = "Permission migration test" };
+        var role = new AccessRole { OrganizationId = organization.Id, Name = "Existing manager",
+            Permissions = ["appointments.manage", "schedules.manage", Permissions.AppointmentsReadOwn, Permissions.PatientsRead] };
+        var reader = new AccessRole { OrganizationId = organization.Id, Name = "Reader", Permissions = [Permissions.AppointmentsReadOrganization] };
+        context.AddRange(organization, role, reader);
+        await context.SaveChangesAsync();
+
+        var migration = new RenameOrganizationManagementPermissions();
+        foreach (var operation in migration.UpOperations.OfType<SqlOperation>())
+            await context.Database.ExecuteSqlRawAsync(operation.Sql);
+        context.ChangeTracker.Clear();
+        var updated = await context.AccessRoles.SingleAsync(row => row.Id == role.Id);
+        Assert.Equal(new[] { Permissions.OrganizationAppointmentsManage, Permissions.OrganizationSchedulesManage,
+            Permissions.AppointmentsReadOwn, Permissions.PatientsRead }, updated.Permissions);
+        Assert.Equal(reader.Permissions, (await context.AccessRoles.SingleAsync(row => row.Id == reader.Id)).Permissions);
+
+        foreach (var operation in migration.DownOperations.OfType<SqlOperation>())
+            await context.Database.ExecuteSqlRawAsync(operation.Sql);
+        context.ChangeTracker.Clear();
+        Assert.Equal(role.Permissions, (await context.AccessRoles.SingleAsync(row => row.Id == role.Id)).Permissions);
+        await transaction.RollbackAsync();
     }
 
     [Fact(Skip = SkipReason, SkipUnless = nameof(HasPostgresConfiguration))]
@@ -353,7 +384,7 @@ public class AppointmentBookingPostgresTests
 
     private static AppointmentService Service(ApplicationDbContext context)
     {
-        return new AppointmentService(new AppointmentRepository(context));
+        return new AppointmentService(new AppointmentRepository(context), new PractitionerRoleRepository(context));
     }
 
     private static async Task<Appointment> AddHistory(

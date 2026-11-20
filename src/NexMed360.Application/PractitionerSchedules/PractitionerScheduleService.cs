@@ -1,4 +1,5 @@
 using NexMed360.Application.Access;
+using NexMed360Api.Common.Auth;
 using NexMed360.Domain.Scheduling;
 using NexMed360.API.Entities.Enums;
 using NexMed360.API.Dtos.practitionerSchedule;
@@ -13,6 +14,11 @@ namespace NexMed360Api.Services;
 
 public class PractitionerScheduleService(IPractitionerScheduleRepository repository, WorkspaceAccess? workspace = null) : IPractitionerScheduleService
 {
+    private bool CanReadOwn => workspace?.Has(Permissions.SchedulesReadOwn) == true && workspace.PractitionerRoleIds.Count > 0;
+    private bool CanReadOrganization => workspace?.Has(Permissions.SchedulesReadOrganization) == true || workspace?.Has(Permissions.OrganizationSchedulesManage) == true;
+    private static ApiError OwnViewDenied() => ApiError.From(ErrorCode.SYS_Unauthorized,
+        "You need a practitioner assignment and permission to view your own sessions.", 403);
+
     private static bool Available(DateOnly date, PractitionerSchedule row) => new SessionSchedule(row.StartTime, row.EndTime, row.Occurrences).IsDateAvailable(date);
     public async Task<Result<ViewPractitionerScheduleDto>> Create(CreatePractitionerScheduleDto dto)
     {
@@ -37,9 +43,24 @@ public class PractitionerScheduleService(IPractitionerScheduleRepository reposit
     }
     public async Task<Result<List<ViewPractitionerScheduleDto>>> Get(FilterPractitionerScheduleDto filter)
     {
+        var ownOnly = filter.OwnOnly;
+        if (workspace?.Mode == WorkspaceModes.Work)
+        {
+            if (ownOnly && !CanReadOwn) return OwnViewDenied();
+
+            // Booking staff may load the selected practitioner's schedule without opening organization session lists.
+            var booking = !ownOnly && workspace.Has(Permissions.OrganizationAppointmentsManage) && filter.PractitionerRoleId != null;
+            if (!ownOnly && !CanReadOrganization && !booking)
+            {
+                if (!CanReadOwn) return OwnViewDenied();
+                ownOnly = true;
+            }
+        }
+        else if (workspace?.IsSelected == true && ownOnly) return OwnViewDenied();
+
         if (filter.PractitionerRoleId != null && !Guid.TryParse(filter.PractitionerRoleId, out _)) return ApiError.From(ErrorCode.SYS_InvalidGuid, "Invalid Practitioner ID");
         if (filter.OrganizationId != null && !Guid.TryParse(filter.OrganizationId, out _)) return ApiError.From(ErrorCode.SYS_InvalidGuid, "Invalid Organization ID");
-        var rows = await repository.Get(new SessionFilter(filter.PractitionerRoleId == null ? null : Guid.Parse(filter.PractitionerRoleId), filter.OrganizationId == null ? null : Guid.Parse(filter.OrganizationId), filter.Date, filter.SessionStatus));
+        var rows = await repository.Get(new SessionFilter(filter.PractitionerRoleId == null ? null : Guid.Parse(filter.PractitionerRoleId), filter.OrganizationId == null ? null : Guid.Parse(filter.OrganizationId), filter.Date, filter.SessionStatus, ownOnly));
         return await repository.Views(rows);
     }
     public async Task<Result<List<ViewSessionSlotDto>>> GetSlots(GetSessionSlotsDto dto)
@@ -84,11 +105,20 @@ public class PractitionerScheduleService(IPractitionerScheduleRepository reposit
     }
     public async Task<Result<List<ViewSessionHistoryDto>>> GetHistory(FilterSessionHistoryDto filter)
     {
+        var ownOnly = filter.OwnOnly;
+        if (workspace?.Mode == WorkspaceModes.Work && (ownOnly || !CanReadOrganization))
+        {
+            if (!CanReadOwn) return OwnViewDenied();
+            ownOnly = true;
+        }
+
+        if (filter.FromDate.HasValue && filter.ToDate.HasValue && filter.FromDate > filter.ToDate)
+            return ApiError.From(ErrorCode.SYS_BadRequest, "The from date must be on or before the to date.");
         if (filter.SessionId != null && !Guid.TryParse(filter.SessionId, out _)) return ApiError.From(ErrorCode.SYS_InvalidGuid, "Invalid Session ID");
         if (filter.PractitionerRoleId != null && !Guid.TryParse(filter.PractitionerRoleId, out _)) return ApiError.From(ErrorCode.SYS_InvalidGuid, "Invalid Practitioner ID");
         if (filter.OrganizationId != null && !Guid.TryParse(filter.OrganizationId, out _)) return ApiError.From(ErrorCode.SYS_InvalidGuid, "Invalid Organization ID");
         var rows = await repository.Histories(new SessionHistoryFilter(filter.SessionId == null ? null : Guid.Parse(filter.SessionId), filter.PractitionerRoleId == null ? null : Guid.Parse(filter.PractitionerRoleId),
-            filter.OrganizationId == null ? null : Guid.Parse(filter.OrganizationId), filter.Status, filter.FromDate, filter.ToDate));
+            filter.OrganizationId == null ? null : Guid.Parse(filter.OrganizationId), filter.Status, filter.FromDate, filter.ToDate, ownOnly));
         return await repository.HistoryViews(rows);
     }
     public async Task<Result<ViewCurrentOrNextSessionDto>> GetCurrentOrUpcoming(FilterSessionsForCurrentDayDto filter)

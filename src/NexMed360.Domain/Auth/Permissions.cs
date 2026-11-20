@@ -7,8 +7,12 @@ public static class Permissions
     public const string RolesManage = "roles.manage";
     public const string PatientsRead = "patients.read";
     public const string PatientsRegister = "patients.register";
-    public const string AppointmentsManage = "appointments.manage";
-    public const string SchedulesManage = "schedules.manage";
+    public const string AppointmentsReadOrganization = "appointments.read-organization";
+    public const string SchedulesReadOrganization = "schedules.read-organization";
+    public const string AppointmentsReadOwn = "appointments.read-own";
+    public const string SchedulesReadOwn = "schedules.read-own";
+    public const string OrganizationAppointmentsManage = "appointments.manage-organization";
+    public const string OrganizationSchedulesManage = "schedules.manage-organization";
     public const string EncountersStart = "encounters.start";
     public const string ClinicalRecordsRead = "clinical-records.read";
     public const string ClinicalRecordsWrite = "clinical-records.write";
@@ -22,7 +26,8 @@ public static class Permissions
     public static readonly IReadOnlyList<string> All = Array.AsReadOnly(new[]
     {
         OrganizationsManage, MembersManage, RolesManage, PatientsRead, PatientsRegister,
-        AppointmentsManage, SchedulesManage, EncountersStart, ClinicalRecordsRead,
+        OrganizationAppointmentsManage, AppointmentsReadOrganization, AppointmentsReadOwn,
+        OrganizationSchedulesManage, SchedulesReadOrganization, SchedulesReadOwn, EncountersStart, ClinicalRecordsRead,
         ClinicalRecordsWrite, PrescriptionsIssue
     });
 }

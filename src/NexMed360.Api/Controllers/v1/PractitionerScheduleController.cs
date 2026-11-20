@@ -23,7 +23,7 @@ public class PractitionerScheduleController: ControllerBase
     [HttpPost]
     [Route("Create")]
     [Authorize]
-    [Workspace(WorkspaceModes.Work, Permissions.SchedulesManage)]
+    [Workspace(WorkspaceModes.Work, Permissions.OrganizationSchedulesManage)]
     public async Task<ActionResult<Result<ViewPractitionerScheduleDto>>> Create(CreatePractitionerScheduleDto createSessionDto)
     {
         return HandleResult(await _sessionService.Create(createSessionDto), true);
@@ -32,7 +32,7 @@ public class PractitionerScheduleController: ControllerBase
     [HttpGet]
     [Route("Get")]
     [Authorize]
-    [Workspace(WorkspaceModes.Work + "," + WorkspaceModes.Patient, Permissions.SchedulesManage + "," + Permissions.AppointmentsManage)]
+    [Workspace(WorkspaceModes.Work + "," + WorkspaceModes.Patient, Permissions.OrganizationSchedulesManage + "," + Permissions.SchedulesReadOrganization + "," + Permissions.OrganizationAppointmentsManage + "," + Permissions.SchedulesReadOwn)]
     public async Task<ActionResult<Result<List<ViewPractitionerScheduleDto>>>> Get([FromQuery] FilterPractitionerScheduleDto filter)
     {
         return HandleResult(await _sessionService.Get(filter));
@@ -41,7 +41,7 @@ public class PractitionerScheduleController: ControllerBase
     [HttpPut]
     [Route("Update/{sessionId}")]
     [Authorize]
-    [Workspace(WorkspaceModes.Work, Permissions.SchedulesManage)]
+    [Workspace(WorkspaceModes.Work, Permissions.OrganizationSchedulesManage)]
     public async Task<ActionResult<Result<ViewPractitionerScheduleDto>>> Update(string sessionId, UpdatePractitionerScheduleDto updateSessionDto)
     {
         return HandleResult(await _sessionService.Update(sessionId, updateSessionDto));
@@ -50,7 +50,7 @@ public class PractitionerScheduleController: ControllerBase
     [HttpDelete]
     [Route("Delete/{sessionId}")]
     [Authorize]
-    [Workspace(WorkspaceModes.Work, Permissions.SchedulesManage)]
+    [Workspace(WorkspaceModes.Work, Permissions.OrganizationSchedulesManage)]
     public async Task<ActionResult<Result<string>>> Delete(string sessionId)
     {
         return HandleResult(await _sessionService.Delete(sessionId));
@@ -59,7 +59,7 @@ public class PractitionerScheduleController: ControllerBase
     [HttpGet]
     [Route("GetSlots")]
     [Authorize]
-    [Workspace(WorkspaceModes.Work + "," + WorkspaceModes.Patient, Permissions.AppointmentsManage)]
+    [Workspace(WorkspaceModes.Work + "," + WorkspaceModes.Patient, Permissions.OrganizationAppointmentsManage)]
     public async Task<ActionResult<Result<List<ViewSessionSlotDto>>>> GetSlots([FromQuery] GetSessionSlotsDto dto)
     {
         return HandleResult(await _sessionService.GetSlots(dto));
@@ -86,7 +86,7 @@ public class PractitionerScheduleController: ControllerBase
     [HttpGet]
     [Route("GetHistory")]
     [Authorize]
-    [Workspace(WorkspaceModes.Work, Permissions.EncountersStart, true)]
+    [Workspace(WorkspaceModes.Work, Permissions.OrganizationSchedulesManage + "," + Permissions.SchedulesReadOrganization + "," + Permissions.SchedulesReadOwn)]
     public async Task<ActionResult<Result<List<ViewSessionHistoryDto>>>> GetHistory([FromQuery] FilterSessionHistoryDto filter)
     {
         return HandleResult(await _sessionService.GetHistory(filter));
@@ -113,7 +113,7 @@ public class PractitionerScheduleController: ControllerBase
     [HttpGet]
     [Route("GetOngoing")]
     [Authorize]
-    [Workspace(WorkspaceModes.Work, Permissions.AppointmentsManage)]
+    [Workspace(WorkspaceModes.Work, Permissions.OrganizationAppointmentsManage)]
     public async Task<ActionResult<Result<List<ViewSessionHistoryDto>>>> GetOngoing()
     {
         return HandleResult(await _sessionService.GetOngoing(User.FindFirstValue(ClaimTypes.NameIdentifier)!));

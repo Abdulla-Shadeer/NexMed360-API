@@ -22,8 +22,8 @@ public class AppointmentRepository(ApplicationDbContext context) : IAppointmentR
 
         // Calls outside HTTP still need a matching patient, practitioner assignment, or organization member.
         var patient = permissions.Contains(WorkspaceModes.Patient);
-        var practitionerRole = permissions.Contains(Permissions.EncountersStart);
-        var organizationMember = permissions.Contains(Permissions.AppointmentsManage);
+        var practitionerRole = permissions.Contains(Permissions.EncountersStart) || permissions.Contains(Permissions.AppointmentsReadOwn);
+        var organizationMember = permissions.Contains(Permissions.OrganizationAppointmentsManage) || permissions.Contains(Permissions.AppointmentsReadOrganization);
 
         var ownPatientIds =
             from profile in context.Patients
@@ -83,7 +83,7 @@ public class AppointmentRepository(ApplicationDbContext context) : IAppointmentR
         var patientId = await ownPatientIds.FirstOrDefaultAsync();
 
         if (context.Access.Mode == WorkspaceModes.Work)
-            return await Filter(context.Appointments.Where(row => row.PractitionerRoleId == context.Access.PractitionerRoleId), filter).ToListAsync();
+            return await Filter(context.Appointments.Where(row => context.Access.PractitionerRoleIds.Contains(row.PractitionerRoleId) || row.PractitionerRoleId == context.Access.PractitionerRoleId), filter).ToListAsync();
 
         var ownRoleIds =
             from role in context.PractitionerRoles
@@ -91,6 +91,9 @@ public class AppointmentRepository(ApplicationDbContext context) : IAppointmentR
             join user in context.Users on practitioner.PersonId equals user.PersonId
             where user.Id == userId
             select role.Id;
+
+        if (context.Access.Mode == WorkspaceModes.Patient)
+            return await Filter(context.Appointments.Where(row => row.PatientId == patientId), filter).ToListAsync();
 
         var practitionerRoleId = await ownRoleIds.FirstOrDefaultAsync();
 

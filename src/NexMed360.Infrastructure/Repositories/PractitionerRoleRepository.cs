@@ -7,6 +7,15 @@ namespace NexMed360.Infrastructure.Repositories;
 
 public class PractitionerRoleRepository(ApplicationDbContext context) : IPractitionerRoleRepository
 {
+    public Task<PractitionerRole?> Find(Guid id) => context.PractitionerRoles.FirstOrDefaultAsync(role => role.Id == id);
+    public async Task Save() => await context.SaveChangesAsync();
+    public Task<List<PractitionerRole>> GetForUser(string userId) =>
+        (from role in context.PractitionerRoles
+         join practitioner in context.Practitioners on role.PractitionerId equals practitioner.Id
+         join user in context.Users on practitioner.PersonId equals user.PersonId
+         where user.Id == userId
+         select role).ToListAsync();
+
     public async Task LockAccount(string userId)
     {
         if (!context.Database.IsNpgsql()) return;
@@ -64,7 +73,7 @@ public class PractitionerRoleRepository(ApplicationDbContext context) : IPractit
             where ids.Contains(role.Id)
             select new ViewPractitionerRoleDto
             {
-                Id = role.Id.ToString(), PractitionerId = role.PractitionerId.ToString(), RoleName = role.RoleName, Specialty = role.Specialty,
+                Id = role.Id.ToString(), PractitionerId = role.PractitionerId.ToString(), RoleName = role.RoleName, Specialty = role.Specialty, AcceptsAppointments = role.AcceptsAppointments,
                 UserId = context.Users.Where(user => user.PersonId == person.Id).Select(user => user.Id).FirstOrDefault() ?? "",
                 FirstName = person.FirstName, LastName = person.LastName,
                 Email = person.Email!, PhoneNumber = person.PhoneNumber!,

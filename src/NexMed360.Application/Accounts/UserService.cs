@@ -45,7 +45,7 @@ public class UserService(IUserRepository users, IOverviewService overviewService
             List<OverviewDto> selected = [];
             if (workspace.Mode == WorkspaceModes.Platform) selected.Add(await _overviewService.GetSystemOverview());
             if (workspace.Mode == WorkspaceModes.Patient) selected.Add(await _overviewService.GetPatientOverview(userId));
-            if (workspace.Mode == WorkspaceModes.Work && workspace.Has(Permissions.AppointmentsManage))
+            if (workspace.Mode == WorkspaceModes.Work && workspace.Has(Permissions.OrganizationAppointmentsManage))
                 selected.Add(await _overviewService.GetOrganizationOverview(userId, false));
             return selected;
         }

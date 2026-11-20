@@ -1,8 +1,9 @@
-﻿namespace NexMed360Api.Dtos.PractitionerRole;
+namespace NexMed360Api.Dtos.PractitionerRole;
 
 public class ViewPractitionerRoleDto
 {
     public string PractitionerId { get; set; } = "";
+    public bool AcceptsAppointments { get; set; }
     public string RoleName { get; set; } = "";
     public string Id { get; set; }
     public string UserId { get; set; }

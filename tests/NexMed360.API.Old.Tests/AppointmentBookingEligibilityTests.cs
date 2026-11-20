@@ -143,7 +143,7 @@ public class AppointmentBookingEligibilityTests
             var practitionerRole = new PractitionerRole
             {
                 Id = Guid.NewGuid(), PractitionerId = TestProfiles.PractitionerId(practitionerRoleUser.Id),
-                OrganizationId = organization.Id,  Specialty = "Test specialty"
+                OrganizationId = organization.Id, AcceptsAppointments = true, Specialty = "Test specialty"
             };
             var session = new PractitionerSchedule
             {
@@ -167,7 +167,7 @@ public class AppointmentBookingEligibilityTests
             Context.SessionSlots.Add(slot);
             TestProfiles.Save(Context);
             Context.ChangeTracker.Clear();
-            Service = new AppointmentService(new AppointmentRepository(Context));
+            Service = new AppointmentService(new AppointmentRepository(Context), new PractitionerRoleRepository(Context));
         }
 
         public CreateAppointmentDto Request() => new()

@@ -14,5 +14,5 @@ public static class AppointmentRules
 
     public static string[] StatusPermissions(IReadOnlyCollection<string> permissions, AppointmentStatus status)
         => permissions.Where(role => role == Permissions.EncountersStart
-            || (role == Permissions.AppointmentsManage && status != AppointmentStatus.InProgress)).ToArray();
+            || (role == Permissions.OrganizationAppointmentsManage && status != AppointmentStatus.InProgress)).ToArray();
 }

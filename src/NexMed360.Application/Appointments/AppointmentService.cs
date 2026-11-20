@@ -10,7 +10,7 @@ using NexMed360.Domain.Rules;
 
 namespace NexMed360Api.Services;
 
-public class AppointmentService(IAppointmentRepository repository, WorkspaceAccess? workspace = null) : IAppointmentService
+public class AppointmentService(IAppointmentRepository repository, IPractitionerRoleRepository practitionerRoles, WorkspaceAccess? workspace = null) : IAppointmentService
 {
     public async Task<Result<ViewAppointmentDto>> Create(CreateAppointmentDto dto, string requesterId)
     {
@@ -21,6 +21,9 @@ public class AppointmentService(IAppointmentRepository repository, WorkspaceAcce
         var slot = await repository.FindSlot(dto.SessionSlotId);
         if (slot == null) return ApiError.From(ErrorCode.SYS_BadRequest, "No slots found with given ID!");
         if (slot.Session == null) return ApiError.From(ErrorCode.SYS_BadRequest, "No session found for given slot ID!");
+        var role = await practitionerRoles.Find(slot.Session.PractitionerRoleId);
+        if (role == null || !role.CanAcceptAppointments(slot.Date))
+            return ApiError.From(ErrorCode.APPT_PractitionerRoleUnavailable, "This practitioner assignment does not accept appointments on the selected date.");
         var eligibility = AppointmentRules.Booking(slot.Session.IsActive, slot.IsAvailable, slot.BookingAllowed);
         if (eligibility == BookingEligibility.InactiveSession)
             return ApiError.From(ErrorCode.APPT_PractitionerRoleUnavailable, "The practitioner session is inactive and cannot accept bookings.");
@@ -33,12 +36,20 @@ public class AppointmentService(IAppointmentRepository repository, WorkspaceAcce
     }
     public async Task<Result<List<ViewAppointmentDto>>> GetOwn(ViewAppointmentsFilterDto filter, string userId)
     {
+        if (workspace?.Mode == WorkspaceModes.Work
+            && (!workspace.Has(Permissions.AppointmentsReadOwn) || workspace.PractitionerRoleIds.Count == 0))
+            return ApiError.From(ErrorCode.SYS_Unauthorized, "You need a practitioner assignment and permission to view your own appointments.", 403);
+
         var validation = await ValidateFilter(filter); 
         if (!validation.IsSuccess) return validation.Error!;
         return await repository.Views(await repository.GetOwn(validation.Data!, userId));
     }
     public async Task<Result<List<ViewAppointmentDto>>> GetOrganizationAppointments(ViewAppointmentsFilterDto filter, string userId)
     {
+        if (workspace?.IsSelected == true && (workspace.Mode != WorkspaceModes.Work
+            || !workspace.Has(Permissions.AppointmentsReadOrganization) && !workspace.Has(Permissions.OrganizationAppointmentsManage)))
+            return ApiError.From(ErrorCode.SYS_Unauthorized, "You need permission to view organization appointments.", 403);
+
         var validation = await ValidateFilter(filter); if (!validation.IsSuccess) return validation.Error!;
         return await repository.Views(await repository.GetOrganizationAppointments(validation.Data!, userId));
     }
@@ -74,6 +85,8 @@ public class AppointmentService(IAppointmentRepository repository, WorkspaceAcce
     }
     public async Task<Result<ViewAppointmentDto>> Cancel(CancellationRequestDto dto, string? caller, IReadOnlyCollection<string> permissions)
     {
+        if (workspace?.Mode == WorkspaceModes.Work && !workspace.Has(Permissions.OrganizationAppointmentsManage))
+            return ApiError.From(ErrorCode.SYS_Unauthorized, "You need permission to manage organization appointments.", 403);
         if (string.IsNullOrWhiteSpace(caller)) return ErrorCode.SYS_Unauthorized;
         if (!Guid.TryParse(dto.AppointmentId, out var id)) return ApiError.From(ErrorCode.SYS_InvalidGuid, "AppointmentId has invalid GUID format!");
         var appointment = await repository.FindReadable(id, caller, permissions);

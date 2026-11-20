@@ -231,7 +231,7 @@ public class WorkspaceAccessTests
         Assert.All(await f.Context.AccessRoles.ToListAsync(), row => Assert.Equal(f.A.Id, row.OrganizationId));
         Assert.Contains(await f.Context.Patients.ToListAsync(), row => row.Id == f.Unregistered.Id);
         Assert.Null(await new ClinicalRecordRepository(f.Context).FindReadable(f.RecordB.Id, "staff", true));
-        Assert.Null(await new AppointmentRepository(f.Context).FindReadable(f.AppointmentB.Id, "staff", [Permissions.AppointmentsManage]));
+        Assert.Null(await new AppointmentRepository(f.Context).FindReadable(f.AppointmentB.Id, "staff", [Permissions.OrganizationAppointmentsManage]));
     }
 
     [Fact]
@@ -263,7 +263,7 @@ public class WorkspaceAccessTests
     {
         using var f = new Fixture();
         f.Access.Select((await f.Scopes("staff")).Single(row => row.Key == WorkspaceModes.Patient));
-        var service = new AppointmentService(new AppointmentRepository(f.Context), f.Access);
+        var service = new AppointmentService(new AppointmentRepository(f.Context), new PractitionerRoleRepository(f.Context), f.Access);
         var result = await service.Create(new CreateAppointmentDto { PatientId = f.Other.Id, SessionSlotId = f.SlotA.Id }, "staff");
         Assert.Equal(403, result.Error!.HttpStatus);
         Assert.Equal(3, await f.Context.Appointments.IgnoreQueryFilters().CountAsync());
@@ -1033,12 +1033,12 @@ public class WorkspaceAccessTests
     }
 
     [Theory]
-    [InlineData("", "appointments.manage", false)]
-    [InlineData("work:unknown", "appointments.manage", false)]
+    [InlineData("", "appointments.manage-organization", false)]
+    [InlineData("work:unknown", "appointments.manage-organization", false)]
     [InlineData("b", "clinical-records.read", false)]
     [InlineData("a", "encounters.start", true)]
-    [InlineData("a", "appointments.manage", false)]
-    [InlineData("a", "schedules.manage,appointments.manage", false)]
+    [InlineData("a", "appointments.manage-organization", false)]
+    [InlineData("a", "schedules.manage-organization,appointments.manage-organization", false)]
     public async Task FilterDeniesInvalidWorkspaceOrMissingPermissionBeforeTheAction(string choice, string permission, bool assignment)
     {
         using var f = new Fixture();

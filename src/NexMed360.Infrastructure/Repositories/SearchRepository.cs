@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using NexMed360.Domain.Scheduling;
 using NexMed360.Application.Search;
 using NexMed360Api.Data;
 using NexMed360Api.Dtos.Search;
@@ -34,17 +35,34 @@ public class SearchRepository(ApplicationDbContext context, IPractitionerRoleRep
     public async Task<List<ViewOrganizationDto>> Organizations(string input) => await organizations.Views(
         await context.Organizations.Where(row => EF.Functions.ILike(row.Name, $"%{input}%")).ToListAsync());
 
-    public async Task<List<ViewPractitionerRoleDto>> PractitionerRoles(string? name, string? email, string? specialty)
+    public async Task<List<ViewPractitionerRoleDto>> PractitionerRoles(string? name, string? email, string? specialty, bool forBooking = false, DateOnly? date = null)
     {
+        var day = date ?? DateOnly.FromDateTime(DateTime.UtcNow);
         var roles =
             from role in context.PractitionerRoles
             join practitioner in context.Practitioners on role.PractitionerId equals practitioner.Id
             join person in context.People on practitioner.PersonId equals person.Id
-            where (string.IsNullOrEmpty(name) || EF.Functions.ILike(person.FirstName + " " + person.LastName, $"%{name}%"))
+            where (!forBooking || role.AcceptsAppointments && role.IsActive
+                && (!role.StartDate.HasValue || role.StartDate <= day) && (!role.EndDate.HasValue || role.EndDate >= day))
+                && (string.IsNullOrEmpty(name) || EF.Functions.ILike(person.FirstName + " " + person.LastName, $"%{name}%"))
                 && (string.IsNullOrEmpty(email) || EF.Functions.ILike(person.Email!, $"%{email}%"))
                 && (string.IsNullOrEmpty(specialty) || EF.Functions.ILike(role.Specialty, $"%{specialty}%"))
             select role;
 
-        return await practitioners.Views(await roles.ToListAsync());
+        var matches = await roles.ToListAsync();
+        if (forBooking)
+        {
+            var ids = matches.Select(role => role.Id).ToArray();
+            var sessions = await context.PractitionerSchedules.Where(session => session.IsActive && ids.Contains(session.PractitionerRoleId)).ToListAsync();
+            var sessionIds = sessions.Select(session => session.Id).ToArray();
+            var slots = date.HasValue ? await context.SessionSlots.Where(slot => sessionIds.Contains(slot.SessionId) && slot.Date == day).ToListAsync() : [];
+            var available = sessions.Where(session => !date.HasValue || new SessionSchedule(session.StartTime, session.EndTime, session.Occurrences).IsDateAvailable(day))
+                .Where(session => !date.HasValue || (slots.Any(slot => slot.SessionId == session.Id)
+                    ? slots.Any(slot => slot.SessionId == session.Id && slot.IsAvailable && slot.BookingAllowed)
+                    : session.GenerateSlots(day).Any(slot => slot.BookingAllowed)))
+                .Select(session => session.PractitionerRoleId).ToHashSet();
+            matches = matches.Where(role => available.Contains(role.Id)).ToList();
+        }
+        return await practitioners.Views(matches);
     }
 }

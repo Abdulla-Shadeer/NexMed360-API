@@ -1,4 +1,4 @@
-﻿using NexMed360Api.Dtos.User;
+using NexMed360Api.Dtos.User;
 using System.ComponentModel.DataAnnotations;
 
 namespace NexMed360Api.Dtos.PractitionerRole
@@ -10,6 +10,7 @@ namespace NexMed360Api.Dtos.PractitionerRole
         [Required]
         public string RoleName { get; set; } = "Practitioner";
         public string? Specialty { get; set; }
+        public bool AcceptsAppointments { get; set; }
         public Guid? LocationId { get; set; }
         public List<Guid> AccessRoleIds { get; set; } = [];
 

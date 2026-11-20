@@ -60,7 +60,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         builder.Entity<Appointment>().HasQueryFilter(row => !Access.IsSelected
             || Access.Mode == WorkspaceModes.Patient && row.PatientId == Access.PatientId
             || Access.Mode == WorkspaceModes.Work && row.OrganizationId == Access.OrganizationId
-                && (Access.Has(Permissions.AppointmentsManage) || Access.Has(Permissions.EncountersStart))
+                && (Access.Has(Permissions.OrganizationAppointmentsManage) || Access.Has(Permissions.AppointmentsReadOrganization)
+                    || (Access.Has(Permissions.EncountersStart) || Access.Has(Permissions.AppointmentsReadOwn))
+                        && (Access.PractitionerRoleIds.Contains(row.PractitionerRoleId) || row.PractitionerRoleId == Access.PractitionerRoleId))
                 && PractitionerRoles.Any(role => role.Id == row.PractitionerRoleId));
 
         builder.Entity<ClinicalRecord>().HasQueryFilter(row => !Access.IsSelected
@@ -72,8 +74,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             || ClinicalRecords.Any(record => record.Id == row.ClinicalRecordId));
 
         builder.Entity<PractitionerSchedule>().HasQueryFilter(row => !Access.IsSelected
-            || Access.Mode == WorkspaceModes.Patient && row.IsActive
+            || Access.Mode == WorkspaceModes.Patient && row.IsActive && PractitionerRoles.Any(role => role.Id == row.PractitionerRoleId && role.AcceptsAppointments && role.IsActive)
             || Access.Mode == WorkspaceModes.Work && row.OrganizationId == Access.OrganizationId
+                && (Access.Has(Permissions.OrganizationSchedulesManage) || Access.Has(Permissions.SchedulesReadOrganization) || Access.Has(Permissions.OrganizationAppointmentsManage)
+                    || Access.PractitionerRoleIds.Contains(row.PractitionerRoleId) || row.PractitionerRoleId == Access.PractitionerRoleId)
                 && PractitionerRoles.Any(role => role.Id == row.PractitionerRoleId));
 
         builder.Entity<SessionSlot>().HasQueryFilter(row => !Access.IsSelected

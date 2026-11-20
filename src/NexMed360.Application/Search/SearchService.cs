@@ -23,7 +23,7 @@ public class SearchService(ISearchRepository data, WorkspaceAccess? workspace = 
             {
                 EntityTypes.Patient => await data.Patients(dto.InputType, dto.Input),
                 EntityTypes.PractitionerRole => await data.PractitionerRoles(
-                    dto.InputType == InputTypes.Name ? dto.Input : null, dto.InputType == InputTypes.Email ? dto.Input : null, null),
+                    dto.InputType == InputTypes.Name ? dto.Input : null, dto.InputType == InputTypes.Email ? dto.Input : null, null, workspace.Mode == WorkspaceModes.Patient),
                 EntityTypes.Organization => await data.Organizations(dto.Input),
                 _ => ApiError.From(ErrorCode.SYS_BadRequest, "Choose a search type.")
             };
@@ -35,6 +35,6 @@ public class SearchService(ISearchRepository data, WorkspaceAccess? workspace = 
     {
         if (String.IsNullOrEmpty(dto.Name) && String.IsNullOrEmpty(dto.Email) && String.IsNullOrEmpty(dto.Specialty))
             return ApiError.From(ErrorCode.SYS_BadRequest, "Empty filter!");
-        return await data.PractitionerRoles(dto.Name, dto.Email, dto.Specialty);
+        return await data.PractitionerRoles(dto.Name, dto.Email, dto.Specialty, dto.ForBooking || workspace?.Mode == WorkspaceModes.Patient, dto.Date);
     }
 }

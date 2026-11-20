@@ -86,7 +86,7 @@ public sealed class WorkspaceRepository(ApplicationDbContext context) : IWorkspa
                 on new { Id = roleAssignment.AccessRoleId, roleAssignment.OrganizationId }
                 equals new { role.Id, role.OrganizationId }
             where roleAssignment.OrganizationMemberId == member.Id && roleAssignment.OrganizationId == organizationId
-            select role.Permissions;
+            select new { role.Name, role.Permissions };
 
         var grants = await grantQuery.ToListAsync();
 
@@ -94,8 +94,9 @@ public sealed class WorkspaceRepository(ApplicationDbContext context) : IWorkspa
         {
             Key = key, Name = $"{organization.Name} — Work mode", Mode = WorkspaceModes.Work, OrganizationId = organizationId,
             OrganizationName = organization.Name, OrganizationMemberId = member.Id, PractitionerRoleId = choices.Count == 1 ? choices[0].Id : null,
+            AccessRoleNames = grants.Select(row => row.Name).Distinct().Order().ToList(),
             PractitionerAssignments = choices, PractitionerRoleIds = assignments.Select(role => role.Id).ToList(),
-            LocationIds = scope, Permissions = grants.SelectMany(permissions => permissions)
+            LocationIds = scope, Permissions = grants.SelectMany(role => role.Permissions)
                 .Distinct().OrderBy(value => value).ToList()
         };
     }

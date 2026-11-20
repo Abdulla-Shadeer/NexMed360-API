@@ -4,6 +4,9 @@ namespace NexMed360Api.Interfaces.Services;
 public interface IPractitionerRoleRepository
 {
     Task LockAccount(string userId);
+    Task<PractitionerRole?> Find(Guid id);
+    Task<List<PractitionerRole>> GetForUser(string userId);
+    Task Save();
     Task<PractitionerRole?> FindActiveForUser(Guid roleId, string userId);
     Task<List<PractitionerRole>> GetAssignments(Guid practitionerId, Guid organizationId);
     Task<PractitionerRole?> Add(PractitionerRole row);

@@ -35,7 +35,7 @@ public class OrganizationService(IOrganizationRepository orgRepo, IAuthService a
             new OrganizationMember { OrganizationId = organizationId, UserId = registerationResult.Data!.Id },
             $"Administrator access ({registerationResult.Data.Id})",
             [Permissions.OrganizationsManage, Permissions.MembersManage, Permissions.RolesManage,
-                Permissions.SchedulesManage, .. dto.Permissions]);
+                Permissions.OrganizationSchedulesManage, .. dto.Permissions]);
 
         await transaction.CommitAsync();
         return registerationResult;
@@ -93,7 +93,7 @@ public class OrganizationService(IOrganizationRepository orgRepo, IAuthService a
         var assignment = new PractitionerRole
         {
             OrganizationId = organizationId, PractitionerId = practitioner.Id, LocationId = dto.LocationId,
-            RoleName = dto.RoleName.Trim(), Specialty = dto.Specialty?.Trim() ?? ""
+            RoleName = dto.RoleName.Trim(), Specialty = dto.Specialty?.Trim() ?? "", AcceptsAppointments = dto.AcceptsAppointments
         };
         var existing = await practitionerRoles.GetAssignments(practitioner.Id, organizationId);
         if (existing.Any(role => role.IsSameAssignmentAs(assignment)))

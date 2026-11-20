@@ -17,7 +17,7 @@ public class AppointmentCancellationAccessTests
     [Theory]
     [InlineData("patient")]
     [InlineData(Permissions.EncountersStart)]
-    [InlineData(Permissions.AppointmentsManage)]
+    [InlineData(Permissions.OrganizationAppointmentsManage)]
     public async Task RelatedCallerKeepsExistingCreatorOrRequestBehaviorAndStoresExactStringId(string role)
     {
         using var fixture = new BookingFixture();
@@ -90,7 +90,7 @@ public class AppointmentCancellationAccessTests
         var (id, _) = await BookAsPatient(fixture);
         var caller = await AppointmentReadAccessTests.AddOrganizationMember(fixture, false);
 
-        var result = await fixture.Service.Cancel(Request(id), caller, [Permissions.AppointmentsManage]);
+        var result = await fixture.Service.Cancel(Request(id), caller, [Permissions.OrganizationAppointmentsManage]);
 
         Assert.False(result.IsSuccess);
         Assert.Null(result.Data);
@@ -157,7 +157,7 @@ public class AppointmentCancellationAccessTests
     {
         using var context = new ApplicationDbContext(new DbContextOptions<ApplicationDbContext>());
 
-        var result = await new AppointmentService(new AppointmentRepository(context)).Cancel(
+        var result = await new AppointmentService(new AppointmentRepository(context), new PractitionerRoleRepository(context)).Cancel(
             Request(Guid.NewGuid().ToString()), caller, ["patient"]);
 
         Assert.False(result.IsSuccess);

@@ -3,8 +3,8 @@ using NexMed360Api.Entities;
 using NexMed360Api.Entities.Enums;
 
 namespace NexMed360Api.Interfaces.Services;
-public sealed record SessionFilter(Guid? PractitionerRoleId, Guid? OrganizationId, DateOnly? Date, SessionStatus? Status);
-public sealed record SessionHistoryFilter(Guid? SessionId, Guid? PractitionerRoleId, Guid? OrganizationId, SessionStatus? Status, DateOnly? FromDate, DateOnly? ToDate);
+public sealed record SessionFilter(Guid? PractitionerRoleId, Guid? OrganizationId, DateOnly? Date, SessionStatus? Status, bool OwnOnly = false);
+public sealed record SessionHistoryFilter(Guid? SessionId, Guid? PractitionerRoleId, Guid? OrganizationId, SessionStatus? Status, DateOnly? FromDate, DateOnly? ToDate, bool OwnOnly = false);
 public interface IPractitionerScheduleRepository
 {
     Task<bool> PractitionerRoleExists(Guid id, Guid? organizationId = null);

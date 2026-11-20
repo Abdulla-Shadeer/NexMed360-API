@@ -17,7 +17,8 @@ public class PractitionerScheduleRepository(ApplicationDbContext context) : IPra
     {
         var rows = await context.PractitionerSchedules.Include(row => row.History)
             .Where(row => (!filter.PractitionerRoleId.HasValue || row.PractitionerRoleId == filter.PractitionerRoleId) && (!filter.OrganizationId.HasValue || row.OrganizationId == filter.OrganizationId)
-                && (!filter.Status.HasValue || row.History.Any(history => history.SessionStatus == filter.Status))).ToListAsync();
+                && (!filter.Status.HasValue || row.History.Any(history => history.SessionStatus == filter.Status))
+                && (!filter.OwnOnly || context.Access.PractitionerRoleIds.Contains(row.PractitionerRoleId) || row.PractitionerRoleId == context.Access.PractitionerRoleId)).ToListAsync();
         return rows.Where(row => !filter.Date.HasValue || new SessionSchedule(row.StartTime, row.EndTime, row.Occurrences).IsDateAvailable(filter.Date.Value)).ToList();
     }
     public Task<List<PractitionerSchedule>> GetPeers(Guid practitionerRoleId, Guid organizationId, Guid? exclude = null)
@@ -31,9 +32,9 @@ public class PractitionerScheduleRepository(ApplicationDbContext context) : IPra
     public Task<SessionHistory?> History(Guid id, DateOnly date) => context.SessionHistories.Include(row => row.PractitionerSchedule).FirstOrDefaultAsync(row => row.PractitionerScheduleId == id && row.Date == date
             && (!context.Access.IsSelected || row.PractitionerSchedule.PractitionerRoleId == context.Access.PractitionerRoleId));
     public Task<List<SessionHistory>> Histories(SessionHistoryFilter filter) => context.SessionHistories.Include(row => row.PractitionerSchedule)
-        .Where(row => (!context.Access.IsSelected || row.PractitionerSchedule.PractitionerRoleId == context.Access.PractitionerRoleId) && (!filter.SessionId.HasValue || row.PractitionerScheduleId == filter.SessionId) && (!filter.PractitionerRoleId.HasValue || row.PractitionerSchedule.PractitionerRoleId == filter.PractitionerRoleId)
+        .Where(row => (!filter.OwnOnly || context.Access.PractitionerRoleIds.Contains(row.PractitionerSchedule.PractitionerRoleId) || row.PractitionerSchedule.PractitionerRoleId == context.Access.PractitionerRoleId) && (!filter.SessionId.HasValue || row.PractitionerScheduleId == filter.SessionId) && (!filter.PractitionerRoleId.HasValue || row.PractitionerSchedule.PractitionerRoleId == filter.PractitionerRoleId)
             && (!filter.OrganizationId.HasValue || row.PractitionerSchedule.OrganizationId == filter.OrganizationId) && (!filter.Status.HasValue || row.SessionStatus == filter.Status)
-            && (!filter.FromDate.HasValue || row.Date > filter.FromDate) && (!filter.ToDate.HasValue || row.Date < filter.ToDate)).ToListAsync();
+            && (!filter.FromDate.HasValue || row.Date >= filter.FromDate) && (!filter.ToDate.HasValue || row.Date <= filter.ToDate)).ToListAsync();
     public Task<SessionHistory?> Current(Guid practitionerRoleId, Guid organizationId, DateOnly date) => context.SessionHistories.Include(row => row.PractitionerSchedule)
         .FirstOrDefaultAsync(row => row.SessionStatus == SessionStatus.Started && row.Date == date && row.PractitionerSchedule.PractitionerRoleId == practitionerRoleId && row.PractitionerSchedule.OrganizationId == organizationId);
     public Task<List<Guid>> ClosedSessionIds(DateOnly date) => context.PractitionerSchedules.Where(row => row.History.Any(history => history.Date == date
@@ -64,10 +65,20 @@ public class PractitionerScheduleRepository(ApplicationDbContext context) : IPra
         var rows = source.ToList();
         var ids = rows.Select(row => row.OrganizationId).Distinct().ToArray();
         var organizations = await context.Organizations.Where(row => ids.Contains(row.Id)).ToDictionaryAsync(row => row.Id);
+        var roleIds = rows.Select(row => row.PractitionerRoleId).Distinct().ToArray();
+        var authors = await (from role in context.PractitionerRoles
+            join practitioner in context.Practitioners on role.PractitionerId equals practitioner.Id
+            join person in context.People on practitioner.PersonId equals person.Id
+            where roleIds.Contains(role.Id)
+            select new { role.Id, Name = person.FirstName + " " + person.LastName, role.RoleName, role.LocationId }).ToDictionaryAsync(row => row.Id);
+        var locations = await context.Locations.ToDictionaryAsync(row => row.Id, row => row.Name);
         return rows.Select(row => new ViewPractitionerScheduleDto
         {
             Id = row.Id,
             PractitionerRoleId = row.PractitionerRoleId,
+            PractitionerName = authors.GetValueOrDefault(row.PractitionerRoleId)?.Name ?? "",
+            PractitionerRole = authors.GetValueOrDefault(row.PractitionerRoleId)?.RoleName ?? "",
+            LocationName = authors.GetValueOrDefault(row.PractitionerRoleId)?.LocationId is Guid locationId ? locations.GetValueOrDefault(locationId) : null,
             OrganizationId = row.OrganizationId,
             OrganizationName = organizations.GetValueOrDefault(row.OrganizationId)?.Name!,
             OrganizationAddress = Address(organizations.GetValueOrDefault(row.OrganizationId))!,

@@ -9,5 +9,5 @@ public interface ISearchRepository
 {
     Task<List<ViewPatientDto>> Patients(InputTypes type, string input);
     Task<List<ViewOrganizationDto>> Organizations(string input);
-    Task<List<ViewPractitionerRoleDto>> PractitionerRoles(string? name, string? email, string? specialty);
+    Task<List<ViewPractitionerRoleDto>> PractitionerRoles(string? name, string? email, string? specialty, bool forBooking = false, DateOnly? date = null);
 }

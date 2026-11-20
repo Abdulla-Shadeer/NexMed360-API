@@ -1,4 +1,4 @@
-﻿using NexMed360.API.Entities.Enums;
+using NexMed360.API.Entities.Enums;
 
 namespace NexMed360Api.Dtos.practitionerSchedule;
 
@@ -6,6 +6,9 @@ public class ViewPractitionerScheduleDto
 {
     public Guid Id { get; set; }
     public Guid PractitionerRoleId { get; set; }
+    public string PractitionerName { get; set; } = "";
+    public string PractitionerRole { get; set; } = "";
+    public string? LocationName { get; set; }
     public TimeOnly StartTime { get; set; }
     public TimeOnly EndTime { get; set; }
     public Guid OrganizationId { get; set; }

@@ -29,7 +29,7 @@ public class AppointmentsController : ControllerBase
     [HttpPost]
     [Route("Create")]
     [Authorize]
-    [Workspace(WorkspaceModes.Patient + "," + WorkspaceModes.Work, Permissions.AppointmentsManage)]
+    [Workspace(WorkspaceModes.Patient + "," + WorkspaceModes.Work, Permissions.OrganizationAppointmentsManage)]
     public async Task<ActionResult<Result<ViewAppointmentDto>>> CreateAppointment(CreateAppointmentDto createAppointment)
     {
         var requesterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -39,7 +39,7 @@ public class AppointmentsController : ControllerBase
     [HttpGet]
     [Route("ViewOwn")]
     [Authorize]
-    [Workspace(WorkspaceModes.Patient + "," + WorkspaceModes.Work, Permissions.AppointmentsManage)]
+    [Workspace(WorkspaceModes.Patient + "," + WorkspaceModes.Work, Permissions.AppointmentsReadOwn)]
     public async Task<ActionResult<Result<List<ViewAppointmentDto>>>> ViewOwnAppointments([FromQuery] ViewAppointmentsFilterDto filter)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -49,7 +49,7 @@ public class AppointmentsController : ControllerBase
     [HttpGet]
     [Route("ViewOrganization")]
     [Authorize]
-    [Workspace(WorkspaceModes.Work, Permissions.AppointmentsManage)]
+    [Workspace(WorkspaceModes.Work, Permissions.OrganizationAppointmentsManage + "," + Permissions.AppointmentsReadOrganization)]
     public async Task<ActionResult<Result<List<ViewAppointmentDto>>>> ViewOrganizationAppointments([FromQuery] ViewAppointmentsFilterDto filter)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -59,7 +59,7 @@ public class AppointmentsController : ControllerBase
     [HttpGet]
     [Route("View/{appointmentId}")]
     [Authorize]
-    [Workspace(WorkspaceModes.Patient + "," + WorkspaceModes.Work, Permissions.AppointmentsManage)]
+    [Workspace(WorkspaceModes.Patient + "," + WorkspaceModes.Work, Permissions.OrganizationAppointmentsManage + "," + Permissions.AppointmentsReadOrganization + "," + Permissions.AppointmentsReadOwn)]
     public async Task<ActionResult<Result<ViewAppointmentDto>>> ViewAppointment(string appointmentId)
     {
         var requesterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -70,7 +70,7 @@ public class AppointmentsController : ControllerBase
     [HttpGet]
     [Route("Confirm/{appointmentId}")]
     [Authorize]
-    [Workspace(WorkspaceModes.Work, Permissions.AppointmentsManage)]
+    [Workspace(WorkspaceModes.Work, Permissions.OrganizationAppointmentsManage)]
     public async Task<ActionResult<Result<ViewAppointmentDto>>> ConfirmAppointment(string appointmentId)
     {
         return HandleResult(await ChangeStatusForCurrentUser(appointmentId, AppointmentStatus.Confirmed));
@@ -79,7 +79,7 @@ public class AppointmentsController : ControllerBase
     [HttpGet]
     [Route("Complete/{appointmentId}")]
     [Authorize]
-    [Workspace(WorkspaceModes.Work, Permissions.AppointmentsManage)]
+    [Workspace(WorkspaceModes.Work, Permissions.OrganizationAppointmentsManage)]
     public async Task<ActionResult<Result<ViewAppointmentDto>>> CompleteAppointment(string appointmentId)
     {
         return HandleResult(await ChangeStatusForCurrentUser(appointmentId, AppointmentStatus.Completed));
@@ -88,7 +88,7 @@ public class AppointmentsController : ControllerBase
     [HttpGet]
     [Route("ConfirmArrival/{appointmentId}")]
     [Authorize]
-    [Workspace(WorkspaceModes.Work, Permissions.AppointmentsManage)]
+    [Workspace(WorkspaceModes.Work, Permissions.OrganizationAppointmentsManage)]
     public async Task<ActionResult<Result<ViewAppointmentDto>>> ConfirmArrival(string appointmentId)
     {
         return HandleResult(await ChangeStatusForCurrentUser(appointmentId, AppointmentStatus.Arrived));
@@ -106,7 +106,7 @@ public class AppointmentsController : ControllerBase
     [HttpPost]
     [Route("Cancel")]
     [Authorize]
-    [Workspace(WorkspaceModes.Patient + "," + WorkspaceModes.Work, Permissions.AppointmentsManage)]
+    [Workspace(WorkspaceModes.Patient + "," + WorkspaceModes.Work, Permissions.OrganizationAppointmentsManage)]
     public async Task<ActionResult<Result<ViewAppointmentDto>>> CancelAppointment(CancellationRequestDto cancellationRequestDto)
     {
         var requesterId = User.FindFirstValue(ClaimTypes.NameIdentifier);

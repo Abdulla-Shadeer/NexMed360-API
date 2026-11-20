@@ -180,7 +180,7 @@ Verified on 11 November 2026: **304 non-PostgreSQL API tests and 62 UI tests pas
 
 ## Shared patient discovery and consent
 
-Implemented on 17 November 2026; left uncommitted for review. The existing Patient/Person identity is shared across organizations. Staff with `patients.read` can search name/email or open a Patient ID, including self-registered and other-organization patients. Search returns at most 30 matches and omits account/person IDs and phone numbers. `OrganizationPatient` is an administrative registration, not patient ownership. Existing names/emails never silently merge accounts; staff reuse the selected Patient ID for care.
+Implemented on 17 November 2026. The existing Patient/Person identity is shared across organizations. Staff with `patients.read` can search name/email or open a Patient ID, including self-registered and other-organization patients. Search returns at most 30 matches and omits account/person IDs and phone numbers. `OrganizationPatient` is an administrative registration, not patient ownership. Existing names/emails never silently merge accounts; staff reuse the selected Patient ID for care.
 
 `RecordSharingRequests` is the only new table. An approved request is the grant; clinical records/prescriptions remain with their source organization. Request creation needs `clinical-records.read` and an owned active practitioner assignment in the receiving organization. The patient needs an active portal account; staff-assisted activation remains deferred. Receiving staff need clinical-read permission and an active grant in their organization; location restrictions are preserved.
 
@@ -195,7 +195,7 @@ Existing history/detail APIs and prescription reads use the same consent scope. 
 
 ### Migration and review
 
-Generated `20261117112723_AddRecordSharingRequests`; it adds the table/indexes/restricted foreign keys and does not replace existing patient or record tables. It has **not** been applied to an application database. After reviewing and checking the development database target, apply it explicitly. The design-time factory deliberately uses an unreachable connection, so supply the checked connection when using the CLI:
+Generated `20261117112723_AddRecordSharingRequests`; it adds the table/indexes/restricted foreign keys and does not replace existing patient or record tables. Check the intended development database's applied migrations and apply this migration explicitly if it is missing. The design-time factory deliberately uses an unreachable connection, so supply the checked connection when using the CLI:
 
 ```powershell
 dotnet ef database update AddRecordSharingRequests --project src/NexMed360.Infrastructure --startup-project src/NexMed360.Api --connection "<checked development database connection>"
@@ -204,3 +204,38 @@ dotnet ef database update AddRecordSharingRequests --project src/NexMed360.Infra
 Review path: `RecordSharingRequest` domain transitions → `RecordSharingService` authorization/validation → `RecordSharingRepository` and `ClinicalRecordRepository.Readable` → `ApplicationDbContext` patient filter and migration → `RecordSharingController` → API regressions. The source-author projection bypasses role filters only for records already authorized for reading.
 
 Verification on 17 November 2026: **323 non-PostgreSQL API tests and 70 UI regressions passed**; UI production build passed TypeScript/lint. PostgreSQL query translation and in-memory decision concurrency were checked. **14 dedicated PostgreSQL tests were excluded** because no test connection was configured, including the new approval/revocation flow. The migration matches the EF model. No application database, running API, or live browser journey was used. Existing package vulnerability/source warnings remain.
+
+## Access, locations, booking, and session history
+
+Workspace/Current includes the selected organization's access-role names and permitted practitioner assignments without loading full user/profile graphs. Authorization uses permissions, organization/location scope, and ownership. Role names and professional titles grant no access.
+
+| Permission | Access |
+| --- | --- |
+| `appointments.read-own` | Personal staff appointments, across the caller's permitted practitioner assignments. |
+| `schedules.read-own` | Personal staff sessions and session history. |
+| `appointments.read-organization` | Read organization appointments. |
+| `schedules.read-organization` | Read organization sessions and session history. |
+| `appointments.manage-organization` | View and manage organization appointments. |
+| `schedules.manage-organization` | View and manage organization sessions. |
+
+Personal staff views need both own-read permission and an active, permitted assignment in the selected organization. No assignment needs to be selected for these lists. Management permission alone does not open personal views, and creating a booking for someone else does not make it personal. Patient mode reads its linked appointments without staff grants. Read-only organization permissions do not allow changes. Session history has inclusive date boundaries and shows stored session status, times, and encounter counts; detailed encounter history remains deferred.
+
+Locations use `GET/POST /api/v1/Locations` and `PUT /api/v1/Locations/{id}`. Management requires `organizations.manage` in an unrestricted Work mode. Parents must belong to that organization. Cycles, inactive ancestors for active children, and deactivating a location with active children are rejected. Deletion is outside this scope.
+
+`AcceptsAppointments` belongs to PractitionerRole and defaults to false. Staff managers configure it during staff creation or through `GET /api/v1/PractitionerAssignments?userId=...` and `PUT /api/v1/PractitionerAssignments/{id}/Booking`, using `{ "acceptsAppointments": true }`. This needs `members.manage` and respects organization/location scope without clinical grants. Booking search uses `forBooking: true` and optional `date` to check active/in-date opted-in assignments, active schedules, recurrence, and free/bookable slots. The booking API checks eligibility again. Normal staff/schedule search remains separate. Booking staff may load a specific practitioner's schedule without opening general session lists or history.
+
+### Database setup
+
+`AddPractitionerBookingEligibility` adds the booking flag, defaulting to false. Enable Accept appointments under Manage Staff for intended existing assignments after applying it. Existing appointments and clinical history remain intact.
+
+`RenameOrganizationManagementPermissions` replaces the old `appointments.manage` / `schedules.manage` values in saved AccessRoles permission arrays with `appointments.manage-organization` / `schedules.manage-organization`, preserving other grants. The constants are `OrganizationAppointmentsManage` and `OrganizationSchedulesManage`. The migration is reversible.
+
+Check the intended development database's applied migrations before running the update. This command applies through both migrations; the design-time factory requires an explicit checked connection:
+
+```powershell
+dotnet ef database update RenameOrganizationManagementPermissions --project src/NexMed360.Infrastructure --startup-project src/NexMed360.Api --connection "<checked development database connection>"
+```
+
+### Recorded verification
+
+On 20 November 2026, **343 non-PostgreSQL API tests, 82 UI tests, TypeScript, and lint passed**. Coverage includes personal/organization boundaries, multiple assignments, location scope/cycles, booking eligibility, inclusive history, and existing consent behavior. EF generated the migrations and permission-rename SQL without connecting to a database. The 15 dedicated PostgreSQL cases, including the permission migration regression, were not run because no test connection was configured. No application database, running API, or live browser journey was used during this work. Existing package/audit warnings remain.

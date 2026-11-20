@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using NexMed360Api.Common.Auth;
 using NexMed360Api.Data;
@@ -50,9 +50,9 @@ public class DbInitializerService(ApplicationDbContext context, RoleManager<Iden
                 context.Locations.Add(new Location { OrganizationId = id, Name = "Main site", Type = LocationType.Site });
             foreach (var (roleName, grants) in new[]
             {
-                ("Organization manager", new[] { Permissions.OrganizationsManage, Permissions.MembersManage, Permissions.RolesManage, Permissions.SchedulesManage }),
-                ("Front office", new[] { Permissions.PatientsRead, Permissions.PatientsRegister, Permissions.AppointmentsManage }),
-                ("Clinician", new[] { Permissions.PatientsRead, Permissions.AppointmentsManage, Permissions.SchedulesManage,
+                ("Organization manager", new[] { Permissions.OrganizationsManage, Permissions.MembersManage, Permissions.RolesManage, Permissions.OrganizationSchedulesManage }),
+                ("Front office", new[] { Permissions.PatientsRead, Permissions.PatientsRegister, Permissions.OrganizationAppointmentsManage }),
+                ("Clinician", new[] { Permissions.PatientsRead, Permissions.OrganizationAppointmentsManage, Permissions.OrganizationSchedulesManage,
                     Permissions.EncountersStart, Permissions.ClinicalRecordsRead, Permissions.ClinicalRecordsWrite, Permissions.PrescriptionsIssue })
             })
             {

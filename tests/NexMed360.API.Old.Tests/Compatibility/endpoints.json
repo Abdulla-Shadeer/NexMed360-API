@@ -81,6 +81,33 @@
     "anonymous": false
   },
   {
+    "controller": "LocationsController",
+    "action": "Create",
+    "verb": "POST",
+    "route": "",
+    "roles": [],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "LocationsController",
+    "action": "List",
+    "verb": "GET",
+    "route": "",
+    "roles": [],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "LocationsController",
+    "action": "Update",
+    "verb": "PUT",
+    "route": "{id:guid}",
+    "roles": [],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
     "controller": "OrganizationAdministrationController",
     "action": "Administrators",
     "verb": "GET",
@@ -256,6 +283,24 @@
     "action": "MyClinicalRecords",
     "verb": "GET",
     "route": "MyClinicalRecords",
+    "roles": [],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "PractitionerAssignmentsController",
+    "action": "List",
+    "verb": "GET",
+    "route": "",
+    "roles": [],
+    "authorized": true,
+    "anonymous": false
+  },
+  {
+    "controller": "PractitionerAssignmentsController",
+    "action": "UpdateBooking",
+    "verb": "PUT",
+    "route": "{id:guid}/Booking",
     "roles": [],
     "authorized": true,
     "anonymous": false

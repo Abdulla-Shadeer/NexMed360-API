@@ -1,4 +1,5 @@
 using NexMed360.Application.Access;
+using NexMed360.Application.Organizations;
 using NexMed360.Application.Patients;
 using NexMed360.Infrastructure.Repositories;
 using NexMed360.Application.Accounts.Internal;
@@ -24,6 +25,9 @@ public static class DependencyInjection
     public static IServiceCollection AddNexMed360Infrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddScoped<WorkspaceAccess>();
+        services.AddScoped<ILocationRepository, LocationRepository>();
+        services.AddScoped<LocationService>();
+        services.AddScoped<PractitionerBookingService>();
         services.AddScoped<IAccessRepository, AccessRepository>();
         services.AddScoped<AccessService>();
         services.AddScoped<IWorkspaceRepository, WorkspaceRepository>();

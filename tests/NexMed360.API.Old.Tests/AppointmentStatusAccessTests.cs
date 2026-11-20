@@ -44,7 +44,7 @@ public class AppointmentStatusAccessTests
         var id = await AppointmentReadAccessTests.Book(fixture);
         var caller = await AppointmentReadAccessTests.AddOrganizationMember(fixture, true);
 
-        var result = await fixture.Service.ChangeStatus(id, status, caller, [Permissions.AppointmentsManage]);
+        var result = await fixture.Service.ChangeStatus(id, status, caller, [Permissions.OrganizationAppointmentsManage]);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(status, result.Data!.Status);
@@ -57,7 +57,7 @@ public class AppointmentStatusAccessTests
         var id = await AppointmentReadAccessTests.Book(fixture);
         var caller = await AppointmentReadAccessTests.AddOrganizationMember(fixture, false);
 
-        var result = await fixture.Service.ChangeStatus(id, AppointmentStatus.Confirmed, caller, [Permissions.AppointmentsManage]);
+        var result = await fixture.Service.ChangeStatus(id, AppointmentStatus.Confirmed, caller, [Permissions.OrganizationAppointmentsManage]);
 
         Assert.False(result.IsSuccess);
         Assert.Null(result.Data);
@@ -116,7 +116,7 @@ public class AppointmentStatusAccessTests
         var caller = await AppointmentReadAccessTests.AddOrganizationMember(fixture, true);
 
         var result = await fixture.Service.ChangeStatus(id, AppointmentStatus.InProgress,
-            caller, [Permissions.AppointmentsManage, Permissions.EncountersStart]);
+            caller, [Permissions.OrganizationAppointmentsManage, Permissions.EncountersStart]);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(404, result.Error!.HttpStatus);
@@ -127,12 +127,12 @@ public class AppointmentStatusAccessTests
     [Theory]
     [InlineData("patient", AppointmentStatus.Confirmed)]
     [InlineData(UserRoles.PLATFORM_ADMIN, AppointmentStatus.Completed)]
-    [InlineData(Permissions.AppointmentsManage, AppointmentStatus.InProgress)]
+    [InlineData(Permissions.OrganizationAppointmentsManage, AppointmentStatus.InProgress)]
     public async Task UnsupportedRoleIsRejectedBeforeStorageAccess(string role, AppointmentStatus status)
     {
         using var context = new ApplicationDbContext(new DbContextOptions<ApplicationDbContext>());
 
-        var result = await new AppointmentService(new AppointmentRepository(context)).ChangeStatus(
+        var result = await new AppointmentService(new AppointmentRepository(context), new PractitionerRoleRepository(context)).ChangeStatus(
             Guid.NewGuid().ToString(), status, "signed-in-user", [role]);
 
         Assert.False(result.IsSuccess);
@@ -148,7 +148,7 @@ public class AppointmentStatusAccessTests
     {
         using var context = new ApplicationDbContext(new DbContextOptions<ApplicationDbContext>());
 
-        var result = await new AppointmentService(new AppointmentRepository(context)).ChangeStatus(
+        var result = await new AppointmentService(new AppointmentRepository(context), new PractitionerRoleRepository(context)).ChangeStatus(
             Guid.NewGuid().ToString(), AppointmentStatus.Confirmed, caller, [Permissions.EncountersStart]);
 
         Assert.False(result.IsSuccess);

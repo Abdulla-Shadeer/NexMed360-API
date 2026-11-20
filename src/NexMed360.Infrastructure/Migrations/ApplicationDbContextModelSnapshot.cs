@@ -795,6 +795,9 @@ namespace NexMed360.Infrastructure.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("AcceptsAppointments")
+                        .HasColumnType("boolean");
+
                     b.Property<DateTime?>("CreatedDate")
                         .HasColumnType("timestamp without time zone");
 
@@ -956,9 +959,6 @@ namespace NexMed360.Infrastructure.Migrations
                     b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("timestamp without time zone");
 
-                    b.Property<DateOnly?>("FromDate")
-                        .HasColumnType("date");
-
                     b.Property<Guid>("PatientId")
                         .HasColumnType("uuid");
 
@@ -973,6 +973,14 @@ namespace NexMed360.Infrastructure.Migrations
                     b.Property<Guid>("ReceivingOrganizationId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateOnly?>("RecordFromDate")
+                        .HasColumnType("date")
+                        .HasColumnName("FromDate");
+
+                    b.Property<DateOnly?>("RecordToDate")
+                        .HasColumnType("date")
+                        .HasColumnName("ToDate");
+
                     b.Property<DateTime?>("RevokedAt")
                         .HasColumnType("timestamp without time zone");
 
@@ -981,9 +989,6 @@ namespace NexMed360.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
-
-                    b.Property<DateOnly?>("ToDate")
-                        .HasColumnType("date");
 
                     b.Property<DateTime?>("UpdatedDate")
                         .HasColumnType("timestamp without time zone");

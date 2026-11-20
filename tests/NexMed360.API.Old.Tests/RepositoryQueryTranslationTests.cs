@@ -21,6 +21,8 @@ public class RepositoryQueryTranslationTests
     [InlineData("ClinicalRecord")]
     [InlineData("PractitionerRoles")]
     [InlineData("ActivePractitionerAssignment")]
+    [InlineData("OwnSchedules")]
+    [InlineData("OwnAppointment")]
     [InlineData("PatientSearch")]
     [InlineData("SharedClinicalRecord")]
     [InlineData("PatientSharingRequests")]
@@ -32,8 +34,8 @@ public class RepositoryQueryTranslationTests
             .UseNpgsql("Host=127.0.0.1;Port=1;Database=design_only;Username=unused;Password=unused")
             .AddInterceptors(new StopBeforeConnecting()).Options;
         var access = new WorkspaceAccess();
-        if (query is "SharedClinicalRecord" or "OrganizationSharingRequests")
-            access.Select(new() { Mode = WorkspaceModes.Work, OrganizationId = Guid.NewGuid(), LocationIds = [Guid.NewGuid()], Permissions = [Permissions.ClinicalRecordsRead] });
+        if (query is "SharedClinicalRecord" or "OrganizationSharingRequests" or "OwnSchedules" or "OwnAppointment")
+            access.Select(new() { Mode = WorkspaceModes.Work, OrganizationId = Guid.NewGuid(), LocationIds = [Guid.NewGuid()], PractitionerRoleIds = [Guid.NewGuid()], Permissions = [Permissions.ClinicalRecordsRead, Permissions.SchedulesReadOwn, Permissions.AppointmentsReadOwn] });
         using var context = new ApplicationDbContext(options, access);
         var id = Guid.NewGuid();
 
@@ -46,6 +48,8 @@ public class RepositoryQueryTranslationTests
             "SelectedStaffRoles" => new OrganizationMemberRepository(context).FindRoles(id, [Guid.NewGuid()]),
             "Appointment" => new AppointmentRepository(context).FindReadable(id, "staff", [Permissions.EncountersStart]),
             "ClinicalRecord" => new ClinicalRecordRepository(context).FindReadable(id, "patient", false),
+            "OwnSchedules" => new PractitionerScheduleRepository(context).Get(new(null, null, null, null, true)),
+            "OwnAppointment" => new AppointmentRepository(context).FindReadable(id, "staff", [Permissions.AppointmentsReadOwn]),
             "ActivePractitionerAssignment" => new PractitionerRoleRepository(context).FindActiveForUser(id, "staff"),
             "PractitionerRoles" => new PractitionerRoleRepository(context).Views([new PractitionerRole { Id = id }]),
             "SharedClinicalRecord" => new ClinicalRecordRepository(context).FindReadable(id, "staff", true),

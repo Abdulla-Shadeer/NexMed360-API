@@ -1,4 +1,4 @@
-﻿namespace NexMed360Api.Entities;
+namespace NexMed360Api.Entities;
 
 public class PractitionerRole : Entity, IOrganizationOwned
 {
@@ -11,6 +11,10 @@ public class PractitionerRole : Entity, IOrganizationOwned
     public DateOnly? StartDate { get; set; }
     public DateOnly? EndDate { get; set; }
     public bool IsActive { get; set; } = true;
+    public bool AcceptsAppointments { get; set; }
+
+    public bool CanAcceptAppointments(DateOnly date) => AcceptsAppointments && IsActive
+        && (!StartDate.HasValue || StartDate <= date) && (!EndDate.HasValue || EndDate >= date);
 
     public bool IsSameAssignmentAs(PractitionerRole other) =>
         PractitionerId == other.PractitionerId && OrganizationId == other.OrganizationId && LocationId == other.LocationId

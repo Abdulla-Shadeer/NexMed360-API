@@ -19,8 +19,8 @@ public class AppointmentControllerCallerTests
     [Theory]
     [InlineData(WorkspaceModes.Patient)]
     [InlineData("encounters.start")]
-    [InlineData("appointments.manage")]
-    [InlineData("patient,appointments.manage,PlatformAdmin")]
+    [InlineData("appointments.manage-organization")]
+    [InlineData("patient,appointments.manage-organization,PlatformAdmin")]
     public async Task ReadPassesOnlySupportedTokenRolesAndCallerIdentity(string roleNames)
     {
         var roles = roleNames.Split(',');
@@ -62,7 +62,7 @@ public class AppointmentControllerCallerTests
         Assert.Null(authorization.Roles);
         var workspace = method.GetCustomAttribute<WorkspaceAttribute>()!;
         Assert.Equal(new[] { WorkspaceModes.Patient, WorkspaceModes.Work }, workspace.Modes);
-        Assert.Equal(Permissions.AppointmentsManage, workspace.Permission);
+        Assert.Equal(Permissions.OrganizationAppointmentsManage + "," + Permissions.AppointmentsReadOrganization + "," + Permissions.AppointmentsReadOwn, workspace.Permission);
         Assert.Empty(method.GetCustomAttributes<AllowAnonymousAttribute>());
     }
 
@@ -101,9 +101,9 @@ public class AppointmentControllerCallerTests
     }
 
     [Theory]
-    [InlineData(nameof(AppointmentsController.ConfirmAppointment), "encounters.start,appointments.manage")]
-    [InlineData(nameof(AppointmentsController.CompleteAppointment), "encounters.start,appointments.manage")]
-    [InlineData(nameof(AppointmentsController.ConfirmArrival), "encounters.start,appointments.manage")]
+    [InlineData(nameof(AppointmentsController.ConfirmAppointment), "encounters.start,appointments.manage-organization")]
+    [InlineData(nameof(AppointmentsController.CompleteAppointment), "encounters.start,appointments.manage-organization")]
+    [InlineData(nameof(AppointmentsController.ConfirmArrival), "encounters.start,appointments.manage-organization")]
     [InlineData(nameof(AppointmentsController.ConfirmInProgress), "encounters.start")]
     public void StatusActionsRequireCurrentWorkspacePermissions(string action, string allowedRoles)
     {
@@ -113,7 +113,7 @@ public class AppointmentControllerCallerTests
         Assert.Null(authorization.Roles);
         var workspace = method.GetCustomAttribute<WorkspaceAttribute>()!;
         Assert.Equal(new[] { WorkspaceModes.Work }, workspace.Modes);
-        Assert.Equal(action == nameof(AppointmentsController.ConfirmInProgress) ? Permissions.EncountersStart : Permissions.AppointmentsManage, workspace.Permission);
+        Assert.Equal(action == nameof(AppointmentsController.ConfirmInProgress) ? Permissions.EncountersStart : Permissions.OrganizationAppointmentsManage, workspace.Permission);
         Assert.Equal(action == nameof(AppointmentsController.ConfirmInProgress), workspace.Assignment);
         Assert.Empty(method.GetCustomAttributes<AllowAnonymousAttribute>());
     }
@@ -121,7 +121,7 @@ public class AppointmentControllerCallerTests
     [Theory]
     [InlineData(WorkspaceModes.Patient, "signed-in-user")]
     [InlineData("encounters.start", "signed-in-user")]
-    [InlineData("appointments.manage", "signed-in-user")]
+    [InlineData("appointments.manage-organization", "signed-in-user")]
     [InlineData("patient,PlatformAdmin", "signed-in-user")]
     [InlineData(WorkspaceModes.Patient, null)]
     public async Task CancellationPassesTokenIdentityAndRolesSeparatelyFromTheRequestedAppointment(string roleNames, string? caller)
@@ -150,7 +150,7 @@ public class AppointmentControllerCallerTests
         Assert.Null(authorization.Roles);
         var workspace = method.GetCustomAttribute<WorkspaceAttribute>()!;
         Assert.Equal(new[] { WorkspaceModes.Patient, WorkspaceModes.Work }, workspace.Modes);
-        Assert.Equal(Permissions.AppointmentsManage, workspace.Permission);
+        Assert.Equal(Permissions.OrganizationAppointmentsManage, workspace.Permission);
         Assert.Single(method.GetCustomAttributes<HttpPostAttribute>());
         Assert.Empty(method.GetCustomAttributes<AllowAnonymousAttribute>());
     }
