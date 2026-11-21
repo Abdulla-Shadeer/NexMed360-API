@@ -9,6 +9,28 @@ namespace NexMed360.Infrastructure.Repositories;
 
 public class ClinicalRecordRepository(ApplicationDbContext context, ILogger<ClinicalRecordRepository>? logger = null) : IClinicalRecordRepository
 {
+    // Partner reads have an explicit source organization; application/domain rules check consent before disclosure.
+    public Task<List<ClinicalRecord>> GetForExchange(Guid patientId, Guid organizationId) =>
+        context.ClinicalRecords.IgnoreQueryFilters().AsNoTracking().Include(record => record.Prescriptions)
+            .Where(record => record.PatientId == patientId && record.OrganizationId == organizationId).ToListAsync();
+
+    public Task<ClinicalRecord?> FindForExchange(Guid id, Guid organizationId) =>
+        context.ClinicalRecords.IgnoreQueryFilters().AsNoTracking().Include(record => record.Prescriptions)
+            .FirstOrDefaultAsync(record => record.Id == id && record.OrganizationId == organizationId);
+
+    public Task<ClinicalRecord?> FindForPrescriptionExchange(Guid prescriptionId, Guid organizationId) =>
+        context.ClinicalRecords.IgnoreQueryFilters().AsNoTracking().Include(record => record.Prescriptions)
+            .FirstOrDefaultAsync(record => record.OrganizationId == organizationId
+                && record.Prescriptions!.Any(prescription => prescription.Id == prescriptionId && prescription.OrganizationId == organizationId));
+
+    public Task<List<ClinicalRecord>> GetForAuthorExchange(string partnerId, Guid organizationId, Guid? practitionerRoleId = null, Guid? practitionerId = null) =>
+        context.ClinicalRecords.IgnoreQueryFilters().AsNoTracking().Where(record => record.OrganizationId == organizationId
+            && (!practitionerRoleId.HasValue || record.PractitionerRoleId == practitionerRoleId)
+            && (!practitionerId.HasValue || context.PractitionerRoles.IgnoreQueryFilters().Any(role => role.Id == record.PractitionerRoleId
+                && role.OrganizationId == organizationId && role.PractitionerId == practitionerId))
+            && context.RecordSharingRequests.Any(request => request.PatientId == record.PatientId && request.ReceivingPartnerId == partnerId))
+            .ToListAsync();
+
     public async Task<ClinicalRecord> Add(ClinicalRecord record)
     {
         await context.ClinicalRecords.AddAsync(record);

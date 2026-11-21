@@ -1,3 +1,4 @@
+using NexMed360.Application.Patients;
 using Npgsql;
 using NexMed360Api.Common.Auth;
 using NexMed360Api.Dtos.Patient;
@@ -10,6 +11,23 @@ namespace NexMed360.Infrastructure.Repositories;
 
 public class PatientRepository(ApplicationDbContext context) : IPatientRepository
 {
+    public Task<List<PatientIdentityDto>> SearchIdentities(PatientIdentityFilter filter)
+    {
+        var name = filter.Name?.ToLowerInvariant();
+        var email = filter.Email?.ToLowerInvariant();
+        return (from patient in context.Patients.IgnoreQueryFilters().AsNoTracking()
+            join person in context.People on patient.PersonId equals person.Id
+            where (!filter.PatientId.HasValue || patient.Id == filter.PatientId)
+                && (string.IsNullOrEmpty(name) || (person.FirstName + " " + person.LastName).ToLower().Contains(name))
+                && (string.IsNullOrEmpty(email) || person.Email != null && person.Email.ToLower() == email)
+            orderby patient.Id
+            select new PatientIdentityDto(patient.Id, person.FirstName, person.LastName, patient.BirthDate, patient.Gender, person.Email))
+            .Skip(filter.Offset).Take(filter.Count).ToListAsync();
+    }
+
+    public async Task<PatientIdentityDto?> FindIdentity(Guid id) =>
+        (await SearchIdentities(new(PatientId: id, Count: 1))).FirstOrDefault();
+
     public async Task<Patient> Add(Patient patient)
     {
         var existing = await context.Patients.IgnoreQueryFilters().FirstOrDefaultAsync(row => row.PersonId == patient.PersonId);

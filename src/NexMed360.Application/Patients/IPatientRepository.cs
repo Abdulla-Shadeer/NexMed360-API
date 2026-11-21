@@ -1,3 +1,4 @@
+using NexMed360.Application.Patients;
 using NexMed360Api.Dtos.Patient;
 using NexMed360Api.Entities;
 
@@ -5,6 +6,8 @@ namespace NexMed360Api.Interfaces.Services;
 
 public interface IPatientRepository
 {
+    Task<List<PatientIdentityDto>> SearchIdentities(PatientIdentityFilter filter);
+    Task<PatientIdentityDto?> FindIdentity(Guid id);
     Task<Patient> Add(Patient patient);
     Task<Guid?> FindPersonIdForUser(string userId);
     Task<Patient?> FindForPerson(Guid personId);

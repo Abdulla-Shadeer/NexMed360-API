@@ -4,6 +4,7 @@ namespace NexMed360.Application.Patients;
 
 public interface IRecordSharingRepository
 {
+    Task<List<RecordSharingRequest>> GetForPartner(string partnerId, IReadOnlyCollection<Guid> patientIds);
     Task Add(RecordSharingRequest request);
     Task<bool> PatientHasPortalAccess(Guid patientId);
     Task<RecordSharingRequest?> FindForPatient(Guid id, Guid patientId);

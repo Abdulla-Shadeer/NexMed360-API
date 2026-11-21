@@ -263,3 +263,50 @@ dotnet ef database update AddFhirExchangeFoundation --project src/NexMed360.Infr
 Review path: PrescriptionStatus/Prescription -> ExternalPatientLink/RecordSharingRequest -> their EF configurations -> FhirOptions/FhirOptionsValidator and example settings -> sharing/clinical/overview repository projections -> migration and FhirFoundationTests. The UI changes only adapt existing response types, prescription status/type display, and requester-contact wording.
 
 Recorded on 21 November 2026: **363 non-PostgreSQL API tests, 83 UI tests, UI TypeScript, and lint passed**. Both migration SQL directions were generated and inspected offline; the EF model matches its snapshot. Seventeen PostgreSQL cases, including data-conversion and constraint checks, were excluded because no dedicated test connection was configured. No application database, API server, or browser journey was used; the migration was not applied during this work. Existing package/audit warnings remain.
+
+## FHIR source security: plan step 2
+
+### Request flow
+
+Authentication and access checks are implemented. The FHIR controller and response mapping come in step 3.
+
+```mermaid
+flowchart TD
+    A[Incoming HTTPS request with X-Api-Key] --> B[Routing selects endpoint and policy]
+    B --> C[Authentication middleware: default JWT scheme]
+    C --> D[Authorization middleware: FhirPartner policy]
+    D --> E[Partner handler checks HTTPS, settings, enabled partner and API key hash]
+    E --> F{Partner authenticated?}
+    F -- No --> U[401: stop request]
+    F -- Yes --> G[Set partner identity and FhirPartnerAccess from trusted settings]
+    G --> H[Exception middleware wraps remaining execution]
+    H --> I[MVC binds and validates input]
+    I --> J[WorkspaceFilter: skip portal workspace loading]
+    J --> K[FHIR controller: step 3]
+    K --> L{FhirSourceService: operation allowed?}
+    L -- No --> V[403: stop request]
+    L -- patients.search --> M[Patient repository: limited identity search]
+    L -- records.read --> N[Sharing repository: load patient and partner approvals]
+    N --> O{Active patient approval?}
+    O -- No --> V
+    O -- Yes --> P[Clinical repository: load patient records from source organization]
+    P --> Q[Domain checks: visibility, dates and approval cutoff]
+    M --> R[Controller maps and returns FHIR response: step 3]
+    Q --> R
+```
+
+Repository reads use ApplicationDbContext and PostgreSQL. Partner requests skip portal workspace loading.
+
+The named FhirPartner authentication scheme/policy accepts one `X-Api-Key` header over HTTPS. It compares the supplied key's SHA-256 hash with enabled partner registrations using a constant-time comparison. Missing, wrong, duplicate-header, disabled, or ambiguous credentials are rejected without returning/logging the key. Use a random 32-byte key encoded as Base64; the handler accepts 32–512 characters. Only incoming hashes belong in source-instance settings; the peer keeps the raw outgoing value outside source control.
+
+FhirPartnerAccess holds the authenticated PartnerId, LocalOrganizationId, RemoteOrganizationId, and allowed operations for that request. These come from validated settings, never X-Workspace, organization headers, portal claims, or query parameters. Treat PartnerId as a stable recipient registration: create a new ID/key when assigning a connection to different organizations. New requests rebind settings, so disabling a partner or changing its incoming hash affects subsequent requests.
+
+Portal authentication remains JWT bearer. Partner keys do not authenticate normal portal routes, and portal JWTs do not satisfy the partner policy. WorkspaceFilter skips portal workspace loading for endpoints protected by the partner policy; authentication is enforced before the filter runs.
+
+FhirSourceService is the source-side application boundary for the next step's FHIR controller. `patients.search` allows bounded patient identity search/read (name, birth date, gender, email, Patient ID), without account/person IDs or medical data. `records.read` requires fresh approval for the exact patient/partner and restricts records to the configured local source organization. Domain checks enforce published visibility, record-date bounds, known creation dates, approval cutoffs, expiry, and revocation. Prescriptions inherit parent-record restrictions and must themselves have been created before approval. A valid key or a local-organization sharing approval alone does not grant external clinical access.
+
+Organization/practitioner/role details require a related readable record. Historical inactive practitioners/assignments can still identify the author of permitted care. All database reads use the corresponding patient, clinical-record, sharing, organization, practitioner-role, or practitioner repository. No FHIR-specific read store or query folder was added.
+
+Review path: FhirPartnerAuthentication/Handler and DI -> FhirPartnerAccess/operations -> WorkspaceFilter -> RecordSharingRequest consent methods -> FhirSourceService -> repository reads -> FhirPartnerAuthenticationTests/FhirSourceAccessTests and PostgreSQL query translation tests.
+
+Recorded on 21 November 2026: **402 non-PostgreSQL API tests passed**. Tests exercise actual scheme/policy registration, JWT isolation, trusted organization binding, invalid/disabled keys, consent states, cutoffs, fresh revocation/expiry, minimum discovery fields, and guarded author/prescription reads. Real query translation stops before opening a PostgreSQL connection. Seventeen dedicated PostgreSQL cases were excluded because no test connection was configured. No application database or running API/browser was used. The UI and schema are unchanged; no migration is needed. Public FHIR endpoints/serialization follow in step 3, and outbound/sharing-request calls follow in step 4.

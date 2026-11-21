@@ -11,6 +11,11 @@ namespace NexMed360.Infrastructure.Repositories;
 public sealed class RecordSharingRepository(ApplicationDbContext context, ILogger<RecordSharingRepository>? logger = null,
     IOptionsSnapshot<FhirOptions>? settings = null) : IRecordSharingRepository
 {
+    public Task<List<RecordSharingRequest>> GetForPartner(string partnerId, IReadOnlyCollection<Guid> patientIds) =>
+        context.RecordSharingRequests.AsNoTracking().Where(request => request.ReceivingPartnerId == partnerId
+            && request.ReceivingOrganizationId == null && request.PractitionerRoleId == null
+            && patientIds.Contains(request.PatientId)).ToListAsync();
+
     public async Task Add(RecordSharingRequest request)
     {
         context.RecordSharingRequests.Add(request);

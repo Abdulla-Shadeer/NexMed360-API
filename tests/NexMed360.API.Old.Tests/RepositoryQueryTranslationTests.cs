@@ -13,6 +13,12 @@ namespace NexMed360.API.Old.Tests;
 public class RepositoryQueryTranslationTests
 {
     [Theory]
+    [InlineData("ExchangePatients")]
+    [InlineData("ExchangeRecords")]
+    [InlineData("ExchangePrescription")]
+    [InlineData("ExchangeAuthors")]
+    [InlineData("ExchangeRequests")]
+    [InlineData("PractitionerProfile")]
     [InlineData("Members")]
     [InlineData("HasPermission")]
     [InlineData("MemberRoles")]
@@ -42,6 +48,12 @@ public class RepositoryQueryTranslationTests
         // Execute the real repository query. Translation errors occur before connection opening.
         Task RunQuery() => query switch
         {
+            "ExchangePatients" => new PatientRepository(context).SearchIdentities(new(Name: "test", Email: "test@example.test", Count: 5)),
+            "ExchangeRecords" => new ClinicalRecordRepository(context).GetForExchange(id, Guid.NewGuid()),
+            "ExchangePrescription" => new ClinicalRecordRepository(context).FindForPrescriptionExchange(id, Guid.NewGuid()),
+            "ExchangeAuthors" => new ClinicalRecordRepository(context).GetForAuthorExchange("instance-b", id, practitionerId: Guid.NewGuid()),
+            "ExchangeRequests" => new RecordSharingRepository(context).GetForPartner("instance-b", [id]),
+            "PractitionerProfile" => new PractitionerRepository(context).FindProfile(id),
             "Members" => new AccessRepository(context).Members(),
             "HasPermission" => new OrganizationRepository(context).HasPermission(id, "staff", Permissions.MembersManage),
             "MemberRoles" => new AccessRepository(context).MemberRoles(id, Guid.NewGuid()),

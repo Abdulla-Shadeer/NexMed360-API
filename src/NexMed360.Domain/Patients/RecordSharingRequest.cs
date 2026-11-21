@@ -21,6 +21,19 @@ public class RecordSharingRequest : Entity
     public DateTime? RevokedAt { get; private set; }
     public string? DecisionByUserId { get; private set; }
 
+    public bool IsApprovedAt(DateTime now) => Status == RecordSharingStatus.Approved && ApprovedAt.HasValue && ApprovedAt <= now
+        && ExpiresAt > now && !RevokedAt.HasValue;
+
+    public bool AllowsRecord(ClinicalRecord record, DateTime now) => IsApprovedAt(now)
+        && record.PatientId == PatientId && record.IsPatientVisible && record.CreatedDate.HasValue
+        && record.CreatedDate <= ApprovedAt && record.VisitDate <= ApprovedAt
+        && (!RecordFromDate.HasValue || DateOnly.FromDateTime(record.VisitDate) >= RecordFromDate.Value)
+        && (!RecordToDate.HasValue || DateOnly.FromDateTime(record.VisitDate) <= RecordToDate.Value);
+
+    public bool AllowsPrescription(Prescription prescription, ClinicalRecord record, DateTime now) => AllowsRecord(record, now)
+        && prescription.ClinicalRecordId == record.Id && prescription.OrganizationId == record.OrganizationId
+        && prescription.CreatedDate.HasValue && prescription.CreatedDate <= ApprovedAt;
+
     public void Decide(bool approve, string userId, DateTime now)
     {
         if (Status != RecordSharingStatus.Pending || ExpiresAt <= now)

@@ -1,12 +1,11 @@
 using System.Text.RegularExpressions;
+using NexMed360.Application.Fhir;
 using Microsoft.Extensions.Options;
 
 namespace NexMed360.Infrastructure.Fhir;
 
 public sealed class FhirOptionsValidator : IValidateOptions<FhirOptions>
 {
-    private static readonly string[] Operations = ["patients.search", "records.read", "sharing.request"];
-
     public ValidateOptionsResult Validate(string? name, FhirOptions options)
     {
         if (!options.Enabled) return ValidateOptionsResult.Success;
@@ -25,7 +24,7 @@ public sealed class FhirOptionsValidator : IValidateOptions<FhirOptions>
             if (!IsHttpsUrl(partner.BaseUrl)) errors.Add($"FHIR partner {partner.Id} needs an HTTPS base URL without credentials, query, or fragment.");
             if (partner.LocalOrganizationId == Guid.Empty || partner.RemoteOrganizationId == Guid.Empty)
                 errors.Add($"FHIR partner {partner.Id} needs local and remote organization IDs.");
-            if (partner.AllowedOperations.Count == 0 || partner.AllowedOperations.Any(operation => !Operations.Contains(operation)))
+            if (partner.AllowedOperations.Count == 0 || partner.AllowedOperations.Any(operation => !FhirOperations.All.Contains(operation)))
                 errors.Add($"FHIR partner {partner.Id} has missing or unsupported operations.");
             if (!Regex.IsMatch(partner.IncomingApiKeyHash, "^[A-Fa-f0-9]{64}$"))
                 errors.Add($"FHIR partner {partner.Id} needs a SHA-256 incoming key hash.");

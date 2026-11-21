@@ -141,6 +141,9 @@ public class ApplicationWorkflowTests
     }
     private sealed class PatientProfiles : IPatientRepository
     {
+        public Task<List<NexMed360.Application.Patients.PatientIdentityDto>> SearchIdentities(NexMed360.Application.Patients.PatientIdentityFilter filter) => throw new NotSupportedException();
+        public Task<NexMed360.Application.Patients.PatientIdentityDto?> FindIdentity(Guid id) => throw new NotSupportedException();
+
         public Task<Guid?> FindPersonIdForUser(string userId) => throw new NotSupportedException();
         public Task<Patient?> FindForPerson(Guid personId) => throw new NotSupportedException();
         public Task<Patient> AddSelf(Patient patient) => throw new NotSupportedException();

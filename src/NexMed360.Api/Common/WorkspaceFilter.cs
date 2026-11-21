@@ -1,4 +1,5 @@
 using NexMed360Api.Common.Auth;
+using NexMed360.Infrastructure.Fhir;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -21,6 +22,15 @@ public sealed class WorkspaceFilter(WorkspaceService service, WorkspaceAccess ac
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
         if (context.ActionDescriptor.EndpointMetadata.OfType<IAllowAnonymous>().Any()) { await next(); return; }
+
+        var partnerEndpoint = context.ActionDescriptor.EndpointMetadata.OfType<AuthorizeAttribute>()
+            .Any(rule => rule.Policy == FhirPartnerAuthentication.Policy);
+        if (partnerEndpoint)
+        {
+            // The endpoint policy handles partner authentication before this filter runs.
+            await next();
+            return;
+        }
 
         var userId = context.HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(userId)) { context.Result = new UnauthorizedResult(); return; }

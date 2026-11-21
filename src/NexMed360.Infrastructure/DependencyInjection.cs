@@ -1,4 +1,6 @@
 using NexMed360.Infrastructure.Fhir;
+using NexMed360.Application.Fhir;
+using NexMed360.Application.Practitioners;
 using Microsoft.Extensions.Options;
 using NexMed360.Application.Access;
 using NexMed360.Application.Organizations;
@@ -50,7 +52,9 @@ public static class DependencyInjection
             ValidIssuer = configuration["Auth:Jwt:Issuer"], ValidAudience = configuration["Auth:Jwt:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(configuration["Auth:Jwt:Signing-Key"]!))
         });
-        services.AddAuthorization();
+        services.AddFhirPartnerAuthentication();
+        services.AddScoped<IFhirSourceService, FhirSourceService>();
+        services.AddScoped<IPractitionerRepository, PractitionerRepository>();
         services.AddScoped<IOverviewRepository, OverviewRepository>();
         services.AddScoped<ISearchRepository, SearchRepository>();
         services.AddScoped<IPractitionerScheduleRepository, PractitionerScheduleRepository>();
