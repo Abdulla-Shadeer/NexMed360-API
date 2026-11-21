@@ -5,8 +5,12 @@ public enum RecordSharingStatus { Pending, Approved, Rejected, Revoked }
 public class RecordSharingRequest : Entity
 {
     public Guid PatientId { get; set; }
-    public Guid ReceivingOrganizationId { get; set; }
-    public Guid PractitionerRoleId { get; set; }
+    public Guid? ReceivingOrganizationId { get; set; }
+    public Guid? PractitionerRoleId { get; set; }
+    public string? ReceivingPartnerId { get; set; }
+    public string? RequesterName { get; set; }
+    public string? RequesterRole { get; set; }
+    public string? RequesterContact { get; set; }
     public string Purpose { get; set; } = "";
     public DateOnly? RecordFromDate { get; set; }
     public DateOnly? RecordToDate { get; set; }

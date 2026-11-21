@@ -239,3 +239,27 @@ dotnet ef database update RenameOrganizationManagementPermissions --project src/
 ### Recorded verification
 
 On 20 November 2026, **343 non-PostgreSQL API tests, 82 UI tests, TypeScript, and lint passed**. Coverage includes personal/organization boundaries, multiple assignments, location scope/cycles, booking eligibility, inclusive history, and existing consent behavior. EF generated the migrations and permission-rename SQL without connecting to a database. The 15 dedicated PostgreSQL cases, including the permission migration regression, were not run because no test connection was configured. No application database, running API, or live browser journey was used during this work. Existing package/audit warnings remain.
+
+## FHIR foundation: plan step 1
+
+Prescriptions now store Status and Intent as domain enums. New prescriptions remain Active/Order. The IsActive response is derived from Status for older callers, and overview counts query Status directly. Existing inactive flags migrate to Unknown, without guessing stopped/completed/cancelled. Prescription history responses include both new fields.
+
+ExternalPatientLinks stores LocalPatientId, PartnerId, ExternalPatientId, ConfirmedByUserId, and ConfirmedAt. Unique indexes prevent conflicting links for either the local or external patient at a partner; patient/account foreign keys preserve identity history. No linking endpoint is included in this foundation step.
+
+RecordSharingRequests accepts either the existing local organization/practitioner recipient or an external ReceivingPartnerId with requester name/role/contact snapshots. A database check enforces exactly one valid recipient. Local foreign keys remain intact. Patient inbox projections support both kinds, including patient approval/revocation through the existing flow. Local organization lists exclude external recipients. Configured partner names/contact provide display details; an unknown partner is shown by its ID.
+
+### Settings and migration
+
+FhirOptions is disabled by default. Merge the Fhir section from `src/NexMed360.Api/appsettings.Fhir.example.json` into the intended instance configuration; the example file is not loaded automatically. Replace the placeholder organization IDs, set each instance's public FHIR URL/identifier namespace, and configure the peer URL and allowed operations. Enabled settings require HTTPS URLs, unique partner IDs/incoming key hashes, valid operation names, organization IDs, and an outgoing key configuration reference.
+
+Supply incoming hashes and outgoing secrets outside source control, for example through per-process `Fhir__Partners__0__IncomingApiKeyHash` and `Fhir__Secrets__InstanceB__OutgoingApiKey` environment values. The latter is referenced by OutgoingApiKeySecretName. Use different process settings for A and B; the same project's development user-secret store is shared. This step binds/validates settings only; partner authentication and FHIR endpoints follow in later steps. The partner-management UI is deferred.
+
+Generated `AddFhirExchangeFoundation` preserves active/inactive values before dropping the old prescription flag. Downgrade restores that flag but stops if external links/requests or richer prescription values cannot fit the old schema. Check the development database target before applying:
+
+```powershell
+dotnet ef database update AddFhirExchangeFoundation --project src/NexMed360.Infrastructure --startup-project src/NexMed360.Api --connection "<checked development database connection>"
+```
+
+Review path: PrescriptionStatus/Prescription -> ExternalPatientLink/RecordSharingRequest -> their EF configurations -> FhirOptions/FhirOptionsValidator and example settings -> sharing/clinical/overview repository projections -> migration and FhirFoundationTests. The UI changes only adapt existing response types, prescription status/type display, and requester-contact wording.
+
+Recorded on 21 November 2026: **363 non-PostgreSQL API tests, 83 UI tests, UI TypeScript, and lint passed**. Both migration SQL directions were generated and inspected offline; the EF model matches its snapshot. Seventeen PostgreSQL cases, including data-conversion and constraint checks, were excluded because no dedicated test connection was configured. No application database, API server, or browser journey was used; the migration was not applied during this work. Existing package/audit warnings remain.

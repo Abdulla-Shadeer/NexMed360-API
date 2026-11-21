@@ -20,7 +20,8 @@ public sealed class RecordSharingRequestDto
     public Guid Id { get; set; }
     public Guid PatientId { get; set; }
     public string PatientName { get; set; } = "";
-    public Guid ReceivingOrganizationId { get; set; }
+    public Guid? ReceivingOrganizationId { get; set; }
+    public string? ReceivingPartnerId { get; set; }
     public string OrganizationName { get; set; } = "";
     public string OrganizationContact { get; set; } = "";
     public string PractitionerName { get; set; } = "";

@@ -1,3 +1,5 @@
+using NexMed360.Infrastructure.Fhir;
+using Microsoft.Extensions.Options;
 using NexMed360.Application.Access;
 using NexMed360.Application.Organizations;
 using NexMed360.Application.Patients;
@@ -24,6 +26,8 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddNexMed360Infrastructure(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddSingleton<IValidateOptions<FhirOptions>, FhirOptionsValidator>();
+        services.AddOptions<FhirOptions>().Bind(configuration.GetSection(FhirOptions.SectionName)).ValidateOnStart();
         services.AddScoped<WorkspaceAccess>();
         services.AddScoped<ILocationRepository, LocationRepository>();
         services.AddScoped<LocationService>();

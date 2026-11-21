@@ -509,6 +509,56 @@ namespace NexMed360.Infrastructure.Migrations
                     b.ToTable("EncounterParticipants", (string)null);
                 });
 
+            modelBuilder.Entity("NexMed360Api.Entities.ExternalPatientLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ConfirmedAt")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("ConfirmedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTime?>("CreatedDate")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("ExternalPatientId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("LocalPatientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PartnerId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime?>("UpdatedDate")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConfirmedByUserId");
+
+                    b.HasIndex("LocalPatientId");
+
+                    b.HasIndex("PartnerId", "ExternalPatientId")
+                        .IsUnique();
+
+                    b.HasIndex("PartnerId", "LocalPatientId")
+                        .IsUnique();
+
+                    b.ToTable("ExternalPatientLinks", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ExternalPatientLinks_Identity", "length(btrim(\"PartnerId\")) > 0 AND length(btrim(\"ExternalPatientId\")) > 0 AND length(btrim(\"ConfirmedByUserId\")) > 0");
+                        });
+                });
+
             modelBuilder.Entity("NexMed360Api.Entities.Location", b =>
                 {
                     b.Property<Guid>("Id")
@@ -905,8 +955,12 @@ namespace NexMed360.Infrastructure.Migrations
                     b.Property<string>("Duration")
                         .HasColumnType("text");
 
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("boolean");
+                    b.Property<string>("Intent")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("Order");
 
                     b.Property<bool>("IsLongTermUse")
                         .HasColumnType("boolean");
@@ -920,6 +974,13 @@ namespace NexMed360.Infrastructure.Migrations
 
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("Active");
 
                     b.Property<int>("TimesPerDay")
                         .HasColumnType("integer");
@@ -935,7 +996,12 @@ namespace NexMed360.Infrastructure.Migrations
 
                     b.HasIndex("ClinicalRecordId", "OrganizationId");
 
-                    b.ToTable("Prescriptions", (string)null);
+                    b.ToTable("Prescriptions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Prescriptions_Intent", "\"Intent\" IN ('Proposal','Plan','Order','OriginalOrder','ReflexOrder','FillerOrder','InstanceOrder','Option')");
+
+                            t.HasCheckConstraint("CK_Prescriptions_Status", "\"Status\" IN ('Active','OnHold','Cancelled','Completed','EnteredInError','Stopped','Draft','Unknown')");
+                        });
                 });
 
             modelBuilder.Entity("NexMed360Api.Entities.RecordSharingRequest", b =>
@@ -962,7 +1028,7 @@ namespace NexMed360.Infrastructure.Migrations
                     b.Property<Guid>("PatientId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("PractitionerRoleId")
+                    b.Property<Guid?>("PractitionerRoleId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Purpose")
@@ -970,8 +1036,12 @@ namespace NexMed360.Infrastructure.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
-                    b.Property<Guid>("ReceivingOrganizationId")
+                    b.Property<Guid?>("ReceivingOrganizationId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("ReceivingPartnerId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<DateOnly?>("RecordFromDate")
                         .HasColumnType("date")
@@ -980,6 +1050,18 @@ namespace NexMed360.Infrastructure.Migrations
                     b.Property<DateOnly?>("RecordToDate")
                         .HasColumnType("date")
                         .HasColumnName("ToDate");
+
+                    b.Property<string>("RequesterContact")
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.Property<string>("RequesterName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("RequesterRole")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
 
                     b.Property<DateTime?>("RevokedAt")
                         .HasColumnType("timestamp without time zone");
@@ -1001,7 +1083,12 @@ namespace NexMed360.Infrastructure.Migrations
 
                     b.HasIndex("PatientId", "ReceivingOrganizationId", "Status", "ExpiresAt");
 
-                    b.ToTable("RecordSharingRequests", (string)null);
+                    b.HasIndex("PatientId", "ReceivingPartnerId", "Status", "ExpiresAt");
+
+                    b.ToTable("RecordSharingRequests", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_RecordSharingRequests_Recipient", "(\"ReceivingPartnerId\" IS NULL AND \"ReceivingOrganizationId\" IS NOT NULL AND \"PractitionerRoleId\" IS NOT NULL)\nOR (\"ReceivingPartnerId\" IS NOT NULL AND length(btrim(\"ReceivingPartnerId\")) > 0\n    AND \"ReceivingOrganizationId\" IS NULL AND \"PractitionerRoleId\" IS NULL\n    AND \"RequesterName\" IS NOT NULL AND length(btrim(\"RequesterName\")) > 0\n    AND \"RequesterRole\" IS NOT NULL AND length(btrim(\"RequesterRole\")) > 0\n    AND \"RequesterContact\" IS NOT NULL AND length(btrim(\"RequesterContact\")) > 0)");
+                        });
                 });
 
             modelBuilder.Entity("NexMed360Api.Entities.SessionHistory", b =>
@@ -1339,6 +1426,21 @@ namespace NexMed360.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("NexMed360Api.Entities.ExternalPatientLink", b =>
+                {
+                    b.HasOne("NexMed360Api.Entities.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("ConfirmedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("NexMed360Api.Entities.Patient", null)
+                        .WithMany()
+                        .HasForeignKey("LocalPatientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("NexMed360Api.Entities.Location", b =>
                 {
                     b.HasOne("NexMed360Api.Entities.Organization", null)
@@ -1497,15 +1599,13 @@ namespace NexMed360.Infrastructure.Migrations
                     b.HasOne("NexMed360Api.Entities.Organization", null)
                         .WithMany()
                         .HasForeignKey("ReceivingOrganizationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("NexMed360Api.Entities.PractitionerRole", null)
                         .WithMany()
                         .HasForeignKey("PractitionerRoleId", "ReceivingOrganizationId")
                         .HasPrincipalKey("Id", "OrganizationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("NexMed360Api.Entities.SessionHistory", b =>

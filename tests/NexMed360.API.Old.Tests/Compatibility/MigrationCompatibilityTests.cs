@@ -91,7 +91,7 @@ public class MigrationCompatibilityTests
     {
         using var context = DesignContext();
         Assert.False(context.Database.HasPendingModelChanges());
-        Assert.Equal(4, context.Database.GetMigrations().Count());
+        Assert.Equal(5, context.Database.GetMigrations().Count());
     }
 
     [Fact]

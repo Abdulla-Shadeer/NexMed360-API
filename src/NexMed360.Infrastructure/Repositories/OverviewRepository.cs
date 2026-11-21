@@ -139,7 +139,7 @@ public class OverviewRepository(ApplicationDbContext context, IAppointmentReposi
             .GroupBy(cr => 1)
             .Select(group => new
             {
-                ActivePrescriptions = group.Sum(cr => cr.Prescriptions!.Count(prs => prs.IsActive == true)),
+                ActivePrescriptions = group.Sum(cr => cr.Prescriptions!.Count(prs => prs.Status == PrescriptionStatus.Active)),
                 TotalEHRs = new DatewiseStatsDto
                 {
                     Today = group.Count(cr => cr.VisitDate >= filterDates.TodayStart && cr.VisitDate < filterDates.TomorrowStart),

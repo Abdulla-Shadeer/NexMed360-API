@@ -105,6 +105,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<VisitHistory> VisitHistorys => Set<VisitHistory>();
     public DbSet<ClinicalRecord> ClinicalRecords => Set<ClinicalRecord>();
     public DbSet<RecordSharingRequest> RecordSharingRequests => Set<RecordSharingRequest>();
+    public DbSet<ExternalPatientLink> ExternalPatientLinks => Set<ExternalPatientLink>();
     public DbSet<Prescription> Prescriptions => Set<Prescription>();
     public DbSet<Appointment> Appointments => Set<Appointment>();
     public DbSet<CancellationRequest> CancellationRequests => Set<CancellationRequest>();

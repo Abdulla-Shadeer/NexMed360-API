@@ -36,7 +36,7 @@ public class ClinicalRecordRepository(ApplicationDbContext context, ILogger<Clin
                 || record.OrganizationId != organizationId && record.IsPatientVisible && record.CreatedDate.HasValue
                     && context.RecordSharingRequests.Any(request => request.PatientId == record.PatientId
                         && request.ReceivingOrganizationId == organizationId && request.Status == RecordSharingStatus.Approved
-                        && request.ExpiresAt > now && request.ApprovedAt.HasValue && roleIds.Contains(request.PractitionerRoleId)
+                        && request.ExpiresAt > now && request.ApprovedAt.HasValue && request.PractitionerRoleId.HasValue && roleIds.Contains(request.PractitionerRoleId.Value)
                         && record.CreatedDate <= request.ApprovedAt && record.VisitDate <= request.ApprovedAt
                         && (!request.RecordFromDate.HasValue || DateOnly.FromDateTime(record.VisitDate) >= request.RecordFromDate)
                         && (!request.RecordToDate.HasValue || DateOnly.FromDateTime(record.VisitDate) <= request.RecordToDate)))
@@ -113,7 +113,8 @@ public class ClinicalRecordRepository(ApplicationDbContext context, ILogger<Clin
                 Id = prescription.Id.ToString(), ClinicalRecordId = prescription.ClinicalRecordId.ToString(), IssuedOn = row.VisitDate,
                 IssuedByPractitioner = practitioners.GetValueOrDefault(row.PractitionerRoleId)!, IssuedAtOrganization = organizations.GetValueOrDefault(row.OrganizationId)!,
                 MedicineName = prescription.MedicineName, Dosage = prescription.Dosage, TimesPerDay = prescription.TimesPerDay,
-                IsLongTermUse = prescription.IsLongTermUse, Duration = prescription.Duration, Notes = prescription.Notes, IsActive = prescription.IsActive
+                IsLongTermUse = prescription.IsLongTermUse, Duration = prescription.Duration, Notes = prescription.Notes,
+                IsActive = prescription.IsActive, Status = prescription.Status.ToString(), Intent = prescription.Intent.ToString()
             }).ToList() ?? []
         }).ToList();
     }

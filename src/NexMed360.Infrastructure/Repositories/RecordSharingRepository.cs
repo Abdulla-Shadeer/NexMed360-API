@@ -1,12 +1,15 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using NexMed360.Infrastructure.Fhir;
 using NexMed360.Application.Patients;
 using NexMed360Api.Data;
 using NexMed360Api.Entities;
 
 namespace NexMed360.Infrastructure.Repositories;
 
-public sealed class RecordSharingRepository(ApplicationDbContext context, ILogger<RecordSharingRepository>? logger = null) : IRecordSharingRepository
+public sealed class RecordSharingRepository(ApplicationDbContext context, ILogger<RecordSharingRepository>? logger = null,
+    IOptionsSnapshot<FhirOptions>? settings = null) : IRecordSharingRepository
 {
     public async Task Add(RecordSharingRequest request)
     {
@@ -31,34 +34,54 @@ public sealed class RecordSharingRepository(ApplicationDbContext context, ILogge
             && context.PractitionerRoles.Any(role => role.Id == row.PractitionerRoleId && role.OrganizationId == organizationId
                 && (!context.Access.HasLocationScope || role.LocationId.HasValue && context.Access.LocationIds.Contains(role.LocationId.Value)))));
 
-    private Task<List<RecordSharingRequestDto>> Views(IQueryable<RecordSharingRequest> requests)
+    private async Task<List<RecordSharingRequestDto>> Views(IQueryable<RecordSharingRequest> requests)
     {
-        var now = DateTime.UtcNow;
-        // The request scope is checked above; source profiles only provide display details.
-        var query =
-            from request in requests
-            join patient in context.Patients.IgnoreQueryFilters() on request.PatientId equals patient.Id
-            join patientPerson in context.People on patient.PersonId equals patientPerson.Id
-            join role in context.PractitionerRoles.IgnoreQueryFilters() on request.PractitionerRoleId equals role.Id
+        var rows = await requests.AsNoTracking().OrderByDescending(row => row.CreatedDate).ThenBy(row => row.Id).ToListAsync();
+        if (rows.Count == 0) return [];
+
+        // Scope was checked by the caller. These queries only load display details for those requests.
+        var patientIds = rows.Select(row => row.PatientId).Distinct().ToArray();
+        var patients = await (from patient in context.Patients.IgnoreQueryFilters()
+            join person in context.People on patient.PersonId equals person.Id
+            where patientIds.Contains(patient.Id)
+            select new { patient.Id, Name = person.FirstName + " " + person.LastName }).ToDictionaryAsync(row => row.Id);
+
+        var roleIds = rows.Where(row => row.PractitionerRoleId.HasValue).Select(row => row.PractitionerRoleId!.Value).Distinct().ToArray();
+        var roles = await (from role in context.PractitionerRoles.IgnoreQueryFilters()
             join practitioner in context.Practitioners on role.PractitionerId equals practitioner.Id
             join person in context.People on practitioner.PersonId equals person.Id
-            join organization in context.Organizations on request.ReceivingOrganizationId equals organization.Id
-            orderby request.CreatedDate descending, request.Id
-            select new RecordSharingRequestDto
+            where roleIds.Contains(role.Id)
+            select new { role.Id, role.RoleName, Name = person.FirstName + " " + person.LastName, person.Email }).ToDictionaryAsync(row => row.Id);
+        var organizationIds = rows.Where(row => row.ReceivingOrganizationId.HasValue).Select(row => row.ReceivingOrganizationId!.Value).Distinct().ToArray();
+        var organizations = await context.Organizations.Where(row => organizationIds.Contains(row.Id)).ToDictionaryAsync(row => row.Id);
+        var now = DateTime.UtcNow;
+
+        return rows.Select(request =>
+        {
+            var role = roles.GetValueOrDefault(request.PractitionerRoleId ?? Guid.Empty);
+            var organization = organizations.GetValueOrDefault(request.ReceivingOrganizationId ?? Guid.Empty);
+            var partner = settings?.Value.Partners.FirstOrDefault(row => row.Id == request.ReceivingPartnerId);
+            var external = request.ReceivingPartnerId != null;
+            return new RecordSharingRequestDto
             {
-                Id = request.Id, PatientId = request.PatientId, PatientName = patientPerson.FirstName + " " + patientPerson.LastName,
-                ReceivingOrganizationId = organization.Id, OrganizationName = organization.Name, OrganizationContact = organization.Phone,
-                PractitionerName = person.FirstName + " " + person.LastName, PractitionerRole = role.RoleName, PractitionerEmail = person.Email ?? "",
-                Purpose = request.Purpose, RecordFromDate = request.RecordFromDate, RecordToDate = request.RecordToDate, ExpiresAt = DateTime.SpecifyKind(request.ExpiresAt, DateTimeKind.Utc),
+                Id = request.Id, PatientId = request.PatientId, PatientName = patients.GetValueOrDefault(request.PatientId)?.Name ?? "",
+                ReceivingOrganizationId = request.ReceivingOrganizationId, ReceivingPartnerId = request.ReceivingPartnerId,
+                OrganizationName = external ? partner?.Name ?? request.ReceivingPartnerId! : organization?.Name ?? "",
+                OrganizationContact = external ? partner?.Contact ?? "" : organization?.Phone ?? "",
+                PractitionerName = external ? request.RequesterName ?? "" : role?.Name ?? "",
+                PractitionerRole = external ? request.RequesterRole ?? "" : role?.RoleName ?? "",
+                PractitionerEmail = external ? request.RequesterContact ?? "" : role?.Email ?? "",
+                Purpose = request.Purpose, RecordFromDate = request.RecordFromDate, RecordToDate = request.RecordToDate,
+                ExpiresAt = DateTime.SpecifyKind(request.ExpiresAt, DateTimeKind.Utc),
                 Status = request.ExpiresAt <= now && (request.Status == RecordSharingStatus.Pending || request.Status == RecordSharingStatus.Approved)
                     ? "Expired" : request.Status.ToString(),
-                RequestedAt = request.CreatedDate.HasValue ? DateTime.SpecifyKind(request.CreatedDate.Value, DateTimeKind.Utc) : null,
-                ApprovedAt = request.ApprovedAt.HasValue ? DateTime.SpecifyKind(request.ApprovedAt.Value, DateTimeKind.Utc) : null,
-                DecidedAt = request.DecidedAt.HasValue ? DateTime.SpecifyKind(request.DecidedAt.Value, DateTimeKind.Utc) : null,
-                RevokedAt = request.RevokedAt.HasValue ? DateTime.SpecifyKind(request.RevokedAt.Value, DateTimeKind.Utc) : null
+                RequestedAt = Utc(request.CreatedDate), ApprovedAt = Utc(request.ApprovedAt),
+                DecidedAt = Utc(request.DecidedAt), RevokedAt = Utc(request.RevokedAt)
             };
-        return query.ToListAsync();
+        }).ToList();
     }
+
+    private static DateTime? Utc(DateTime? value) => value.HasValue ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc) : null;
 
     public async Task<bool> Save(RecordSharingRequest request)
     {

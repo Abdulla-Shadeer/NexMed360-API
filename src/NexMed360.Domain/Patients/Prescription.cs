@@ -1,4 +1,4 @@
-﻿namespace NexMed360Api.Entities;
+namespace NexMed360Api.Entities;
 
 public class Prescription: Entity, IOrganizationOwned
 {
@@ -12,5 +12,7 @@ public class Prescription: Entity, IOrganizationOwned
     public string? Notes { get; set; }
     public Guid ClinicalRecordId { get; set; }
     public ClinicalRecord ClinicalRecord { get; set; }
-    public bool IsActive { get; set; } = true;
+    public PrescriptionStatus Status { get; set; } = PrescriptionStatus.Active;
+    public PrescriptionIntent Intent { get; set; } = PrescriptionIntent.Order;
+    public bool IsActive => Status == PrescriptionStatus.Active;
 }

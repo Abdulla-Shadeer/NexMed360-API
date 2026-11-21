@@ -1,4 +1,4 @@
-﻿namespace NexMed360Api.Dtos.ClinicalRecord;
+namespace NexMed360Api.Dtos.ClinicalRecord;
 
 public class ViewPrescriptionDto
 {
@@ -14,4 +14,6 @@ public class ViewPrescriptionDto
     public string? Duration { get; set; }
     public string? Notes { get; set; }
     public bool IsActive { get; set; }
+    public string Status { get; set; } = "";
+    public string Intent { get; set; } = "";
 }

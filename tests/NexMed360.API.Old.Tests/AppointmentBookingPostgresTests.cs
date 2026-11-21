@@ -1,6 +1,7 @@
 using NexMed360.Infrastructure.Repositories;
 using NexMed360.Infrastructure.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using NexMed360.Infrastructure.Data;
@@ -169,8 +170,8 @@ public class AppointmentBookingPostgresTests
     {
         var options = await PrepareDatabase();
         await using var context = new ApplicationDbContext(options);
-        Assert.Equal(4, context.Database.GetMigrations().Count());
-        Assert.Equal(4, (await context.Database.GetAppliedMigrationsAsync()).Count());
+        Assert.Equal(5, context.Database.GetMigrations().Count());
+        Assert.Equal(5, (await context.Database.GetAppliedMigrationsAsync()).Count());
         Assert.False(context.Database.HasPendingModelChanges());
         await context.Database.OpenConnectionAsync();
         await using var command = context.Database.GetDbConnection().CreateCommand();
@@ -207,6 +208,53 @@ public class AppointmentBookingPostgresTests
             await context.Database.ExecuteSqlRawAsync(operation.Sql);
         context.ChangeTracker.Clear();
         Assert.Equal(role.Permissions, (await context.AccessRoles.SingleAsync(row => row.Id == role.Id)).Permissions);
+        await transaction.RollbackAsync();
+    }
+
+    [Fact(Skip = SkipReason, SkipUnless = nameof(HasPostgresConfiguration))]
+    public async Task FhirFoundationConvertsOldPrescriptionFlagsWithoutGuessingClinicalStatus()
+    {
+        var options = await PrepareDatabase();
+        await using var context = new ApplicationDbContext(options);
+        await using var transaction = await context.Database.BeginTransactionAsync();
+        // A temporary table isolates the real migration's data conversion from other test records.
+        await context.Database.ExecuteSqlRawAsync("""
+            CREATE TEMP TABLE "Prescriptions" ("IsActive" boolean NOT NULL, "Status" text NOT NULL DEFAULT 'Active') ON COMMIT DROP;
+            INSERT INTO "Prescriptions" ("IsActive") VALUES (true), (false);
+            """);
+        var migration = new AddFhirExchangeFoundation();
+        var conversion = Assert.Single(migration.UpOperations.OfType<SqlOperation>());
+        await context.Database.ExecuteSqlRawAsync(conversion.Sql);
+        await context.Database.OpenConnectionAsync();
+        await using var command = context.Database.GetDbConnection().CreateCommand();
+        command.Transaction = transaction.GetDbTransaction();
+        command.CommandText = "SELECT string_agg(\"Status\", ',' ORDER BY \"IsActive\" DESC) FROM \"Prescriptions\"";
+        Assert.Equal("Active,Unknown", await command.ExecuteScalarAsync());
+        await transaction.RollbackAsync();
+    }
+
+    [Fact(Skip = SkipReason, SkipUnless = nameof(HasPostgresConfiguration))]
+    public async Task FhirFoundationKeepsRecipientConstraintsAndPatientLinksUnique()
+    {
+        using var f = new RecordSharingTests.Fixture(await PrepareDatabase());
+        await using var transaction = await f.Context.Database.BeginTransactionAsync();
+        var external = new RecordSharingRequest { PatientId = f.Patient.Id, ReceivingPartnerId = "instance-b",
+            RequesterName = "Remote nurse", RequesterRole = "Nurse", RequesterContact = "nurse@example.test",
+            Purpose = "Continuing care", ExpiresAt = DateTime.UtcNow.AddDays(1) };
+        var link = new ExternalPatientLink { LocalPatientId = f.Patient.Id, PartnerId = "instance-b",
+            ExternalPatientId = "remote-patient", ConfirmedByUserId = f.StaffUserId };
+        f.Context.AddRange(external, link);
+        await f.Context.SaveChangesAsync();
+
+        external.ReceivingOrganizationId = f.ReceivingOrganization.Id;
+        external.PractitionerRoleId = f.ReceivingRole.Id;
+        var mixed = await Assert.ThrowsAsync<DbUpdateException>(() => f.Context.SaveChangesAsync());
+        Assert.Equal(PostgresErrorCodes.CheckViolation, ((PostgresException)mixed.InnerException!).SqlState);
+        f.Context.ChangeTracker.Clear();
+        f.Context.Add(new ExternalPatientLink { LocalPatientId = f.Other.Id, PartnerId = link.PartnerId,
+            ExternalPatientId = link.ExternalPatientId, ConfirmedByUserId = f.StaffUserId });
+        var duplicate = await Assert.ThrowsAsync<DbUpdateException>(() => f.Context.SaveChangesAsync());
+        Assert.Equal(PostgresErrorCodes.UniqueViolation, ((PostgresException)duplicate.InnerException!).SqlState);
         await transaction.RollbackAsync();
     }
 

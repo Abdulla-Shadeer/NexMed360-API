@@ -6,7 +6,7 @@
   "ClinicalRecord/AddClinicalRecordDto.cs": "83ef08979ae93e50cbdf1c663ee5cfa9c8e052bc69a3006e598f36014eafe823",
   "ClinicalRecord/AddPrescriptionDto.cs": "bd0c380850c25e66e1e8ef7dbfe2a39b4d1fb659ad4655a5586e384bfa643235",
   "ClinicalRecord/ViewClinicalRecordDto.cs": "321d9c8508ca323d8fe2205600400ac32a9a63d78b3d407a4ad4913a5e35c97c",
-  "ClinicalRecord/ViewPrescriptionDto.cs": "a8fea081687d111f85aa2500586949e0085c73249605e2a366e1a92ad258d7a5",
+  "ClinicalRecord/ViewPrescriptionDto.cs": "315b82c9acb94d73a407a4e6bef3f12d9ad787ee62020bdd5a1ebb79e34a6d39",
   "PractitionerRole/CreatePractitionerRoleDto.cs": "38fa2685e1748c291c4c27d501610c1293d56e38ab89079ce758a61aec602233",
   "PractitionerRole/ViewPractitionerRoleDto.cs": "a67e112df242998249392b62cc2660d32e2730a3016bbc1ba14b7cce0bde2ed2",
   "Organization/CreateOrganizationDto.cs": "b26b85e65601174462ef3a02339ed2ab487bf7d2ee3b341c3c8dbdd925a1c8eb",
@@ -44,5 +44,5 @@
   "practitionerSchedule/ViewPractitionerScheduleDto.cs": "d755877d9763cf132c7c12a2607516dbd92be25781882fb9dc575dfdeb226f6c",
   "practitionerSchedule/ViewSessionHistoryDto.cs": "a2e6482650810110d5b7945fdc6ea589bad76c62bbd7db025962ee60acafeb38",
   "practitionerSchedule/ViewSessionSlotDto.cs": "cb36d304070c927dd43089c24c432e616290dbdc831b9304bb5aa7fb9e66f589",
-  "Patient/RecordSharingDto.cs": "8dd33d5fcb24c26ef4a83e4bc0d2287a7f20503624d1f4b235447ff5dba20b94"
+  "Patient/RecordSharingDto.cs": "9110af94967ddc078a6b7d45fcf0fb6ab32a4bd84f9478ddc1e504a87d3d2ef0"
 }
